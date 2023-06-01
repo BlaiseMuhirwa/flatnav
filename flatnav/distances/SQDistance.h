@@ -1,0 +1,68 @@
+#pragma once
+#include "DistanceInterface.h"
+#include <cstddef>  // for size_t 
+
+// This implements the quantized distance functions from:
+// "Low-Precision Quantization for Efficient Nearest Neighbor Search" by
+// Ko, Lakshman, Keivanloo and Schkufza (https://arxiv.org/abs/2110.08919).
+namespace flatnav {
+
+class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
+    friend class DistanceInterface<SquaredL2Distance>;
+    static const int distance_id = 0;
+
+    public:
+    SquaredL2Distance(size_t dim){
+        dimension = dim;
+        data_size_bytes = dim * sizeof(float);
+    }
+
+    private:
+    size_t dimension;
+    size_t data_size_bytes;
+
+    float distance_impl(const void* x, const void* y){
+        // Default implementation of squared-L2 distance, in case we cannot
+        // support the SIMD specializations for special input dimension sizes.
+        float *p_x = (float *) x;
+        float *p_y = (float *) y;
+        float squared_distance = 0;
+
+        for (size_t i = 0; i < dimension; i++) {
+            float difference = *p_x - *p_y;
+            p_x++;
+            p_y++;
+            squared_distance += difference * difference;
+        }
+        return squared_distance;
+    }
+
+    size_t data_size_impl(){
+        return data_size_bytes;
+    }
+
+    void transform_data_impl(void* dst, const void* src){
+        std::memcpy(dst, src, data_size_bytes);
+    }
+
+    void serialize_impl(std::ofstream& out){
+		// TODO: Make this safe across machines and compilers.
+        out.write(reinterpret_cast<const char*>(&distance_id), sizeof(int));
+		out.write(reinterpret_cast<char*>(&dimension), sizeof(size_t));
+    }
+
+    void deserialize(std::ifstream& in){
+        // TODO: Make this safe across machines and compilers.
+        int distance_id_check;
+        in.read(reinterpret_cast<char*>(&distance_id_check), sizeof(int));
+        if (distance_id_check != distance_id){
+            throw std::invalid_argument(
+                "Error reading distance metric: Distance ID does not match "
+                "the ID of the deserialized distance instance.");
+        }
+        in.read(reinterpret_cast<char*>(&dimension), sizeof(size_t));
+        data_size_bytes = dimension * sizeof(float);
+    }
+};
+
+} // namespace flatnav
