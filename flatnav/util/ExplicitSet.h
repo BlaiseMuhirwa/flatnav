@@ -1,6 +1,6 @@
 #pragma once
 
-#include "util/verifysimd.h"
+#include "verifysimd.h"
 
 #include <cstring>
 #include <iostream>

@@ -1,5 +1,5 @@
 #pragma once
-#include "DistanceInterface.h"
+#include "../DistanceInterface.h"
 #include <cstddef>  // for size_t 
 
 // This is the base distance function implementation for the L2 distance on

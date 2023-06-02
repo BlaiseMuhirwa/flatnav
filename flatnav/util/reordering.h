@@ -1,7 +1,7 @@
 #pragma once
 
-#include "util/ExplicitSet.h"
-#include "util/GorderPriorityQueue.h"
+#include "ExplicitSet.h"
+#include "GorderPriorityQueue.h"
 
 #include <algorithm>
 #include <queue>

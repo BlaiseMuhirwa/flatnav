@@ -1,47 +1,11 @@
 #pragma once
 
-#include "util/verifysimd.h"
-#include "distances/SquaredL2Distance.h"
+#include "../util/verifysimd.h"
+#include "SquaredL2Distance.h"
 
 #include <cstddef>  // for size_t
 
 namespace flatnav {
-
-// TODO: Check whether the use of the "exact dimension match" distances
-// is actually any faster than the general sized ones.
-#if defined(USE_AVX512)
-class SquaredL2Distance_SIMD16AVX512 : public SquaredL2Distance {
-    // Specialization for processing size-16 chunks with AVX512.
-    float distance_impl(const void* x, const void* y){
-        return L2SqrSIMD16ResAVX512(x, y, dimension);
-    }
-}
-#endif
-
-#if defined(USE_AVX)
-class SquaredL2Distance_SIMD16AVX : public SquaredL2Distance {
-    // Specialization for processing size-16 chunks with AVX.
-    float distance_impl(const void* x, const void* y){
-        return L2SqrSIMD16ResAVX(x, y, dimension);
-    }
-}
-#endif
-
-#if defined(USE_SSE)
-class SquaredL2Distance_SIMD16SSE : public SquaredL2Distance {
-    // Specialization for processing size-16 chunks with SSE.
-    float distance_impl(const void* x, const void* y){
-        return L2SqrSIMD16ResSSE(x, y, dimension);
-    }
-}
-
-class SquaredL2Distance_SIMD4SSE : public SquaredL2Distance {
-    // Specialization for processing size-4 chunks with SSE.
-    float distance_impl(const void* x, const void* y){
-        return L2SqrSIMD16ResSSE(x, y, dimension);
-    }
-}
-#endif
 
 // The rest of the file contains specialized distance function implementations.
 // These are heavily inspired by the ones from hnswlib, but with some
@@ -254,10 +218,10 @@ static float L2SqrSIMD4ExtSSE(
 static float L2SqrSIMD4ResSSE(
         const void *x, const void *y, size_t& dimension) {
 
-    size_t dimension = *((size_t *) qty_ptr);
+    // size_t dimension = *((size_t *) qty_ptr);
     size_t num_chunk_dims = dimension >> 2 << 2;
 
-    float result = L2SqrSIMD4Ext(x, y, &num_chunk_dims);
+    float result = L2SqrSIMD4ExtSSE(x, y, num_chunk_dims);
     size_t num_leftover_dims = dimension - num_chunk_dims;
 
     float *p_x = (float *) x + num_chunk_dims;
@@ -267,5 +231,44 @@ static float L2SqrSIMD4ResSSE(
     return result + result_tail;
 }
 #endif
+
+
+// TODO: Check whether the use of the "exact dimension match" distances
+// is actually any faster than the general sized ones.
+
+#if defined(USE_AVX512)
+class SquaredL2Distance_SIMD16AVX512 : public SquaredL2Distance {
+    // Specialization for processing size-16 chunks with AVX512.
+    float distance_impl(const void* x, const void* y, size_t& dimension){
+        return L2SqrSIMD16ResAVX512(x, y, dimension);
+    }
+}
+#endif
+
+#if defined(USE_AVX)
+class SquaredL2Distance_SIMD16AVX : public SquaredL2Distance {
+    // Specialization for processing size-16 chunks with AVX.
+    float distance_impl(const void* x, const void* y, size_t& dimension){
+        return L2SqrSIMD16ResAVX(x, y, dimension);
+    }
+}
+#endif
+
+#if defined(USE_SSE)
+class SquaredL2Distance_SIMD16SSE : public SquaredL2Distance {
+    // Specialization for processing size-16 chunks with SSE.
+    float distance_impl(const void* x, const void* y, size_t& dimension){
+        return L2SqrSIMD16ResSSE(x, y, dimension);
+    }
+};
+
+class SquaredL2Distance_SIMD4SSE : public SquaredL2Distance {
+    // Specialization for processing size-4 chunks with SSE.
+    float distance_impl(const void* x, const void* y, size_t& dimension){
+        return L2SqrSIMD16ResSSE(x, y, dimension);
+    }
+};
+#endif
+
 
 } // namespace flatnav

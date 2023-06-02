@@ -1,2 +1,13 @@
 # Generated files
 .DS_Store 
+
+# Executables
+*.exe 
+*.out
+*.app 
+
+# Virtual environments 
+.env 
+
+# Python wheel related folders/files
+flatnav_pyton/flatnav.egg-info

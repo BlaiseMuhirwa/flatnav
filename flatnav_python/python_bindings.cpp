@@ -4,9 +4,9 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
-#include "Index.h"
-#include "distances/SquaredL2Distance.h"
-#include "distances/SquaredL2DistanceSpecializations.h"
+#include "../flatnav/Index.h"
+#include "../flatnav/distances/SquaredL2Distance.h"
+#include "../flatnav/distances/SquaredL2DistanceSpecializations.h"
 
 using namespace flatnav;
 namespace py = pybind11;
