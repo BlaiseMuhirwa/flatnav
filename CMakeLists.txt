@@ -74,5 +74,3 @@ add_dependencies(FLAT_NAV_LIB CNPY)
 
 target_link_libraries(FLAT_NAV_LIB ${CNPY_LIB})
 set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
-
-

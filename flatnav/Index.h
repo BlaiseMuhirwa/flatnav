@@ -32,10 +32,10 @@ public:
     _transformed_query = new char[_data_size_bytes];
   }
 
-  Index(std::ofstream &in)
+  Index(std::ofstream &filename)
       : _max_num_nodes(0), _cur_num_nodes(0), _index_memory(NULL),
         _transformed_query(NULL) {
-    deserialize(in);
+    deserialize(/* filename = */ filename);
   }
 
   ~Index() {
@@ -94,26 +94,26 @@ public:
     return results;
   }
 
-  void serialize(std::ofstream &out) {
+  void serialize(std::ofstream &filename) {
     // TODO: Make this safe across machines and compilers.
-    _distance.serialize(out);
-    out.write(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
-    out.write(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
-    out.write(reinterpret_cast<char *>(&_max_num_nodes), sizeof(size_t));
-    out.write(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
-    out.write(reinterpret_cast<char *>(&_M), sizeof(size_t));
+    _distance.serialize(filename);
+    filename.write(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
+    filename.write(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
+    filename.write(reinterpret_cast<char *>(&_max_num_nodes), sizeof(size_t));
+    filename.write(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
+    filename.write(reinterpret_cast<char *>(&_M), sizeof(size_t));
     // Write the index data partition.
     size_t _index_memory_size = _node_size_bytes * _max_num_nodes;
-    out.write(reinterpret_cast<char *>(_index_memory), _index_memory_size);
+    filename.write(reinterpret_cast<char *>(_index_memory), _index_memory_size);
   }
 
-  void deserialize(std::ifstream &in) {
-    _distance.deserialize(in);
-    in.read(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
-    in.read(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
-    in.read(reinterpret_cast<char *>(&_max_num_nodes), sizeof(size_t));
-    in.read(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
-    in.read(reinterpret_cast<char *>(&_M), sizeof(size_t));
+  void deserialize(std::ifstream &filename) {
+    _distance.deserialize(filename);
+    filename.read(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
+    filename.read(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
+    filename.read(reinterpret_cast<char *>(&_max_num_nodes), sizeof(size_t));
+    filename.read(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
+    filename.read(reinterpret_cast<char *>(&_M), sizeof(size_t));
 
     if (_data_size_bytes != _distance.data_size()) {
       throw std::invalid_argument(
@@ -136,7 +136,7 @@ public:
     }
     size_t _index_memory_size = _node_size_bytes * _max_num_nodes;
     _index_memory = new char[_index_memory_size];
-    in.read(reinterpret_cast<char *>(_index_memory), _index_memory_size);
+    filename.read(reinterpret_cast<char *>(_index_memory), _index_memory_size);
 
     if (_transformed_query != NULL) {
       delete[] _transformed_query;

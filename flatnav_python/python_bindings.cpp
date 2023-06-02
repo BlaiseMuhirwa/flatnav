@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cctype>
 #include <stdexcept>
 #include <vector>
@@ -6,68 +7,70 @@
 #include <pybind11/pybind11.h>
 
 #include "../flatnav/Index.h"
+#include "../flatnav/distances/InnerProductDistance.h"
 #include "../flatnav/distances/SquaredL2Distance.h"
 #include "../flatnav/distances/SquaredL2DistanceSpecializations.h"
 
 using namespace flatnav;
 namespace py = pybind11;
 
-using L2FloatIndex = Index<SquaredL2Distance, unsigned int>;
 
 template <typename dist_t, typename label_t> class PyIndex {
 private:
-  Index<dist_t, label_t> *index;
-  SpaceInterface<dist_t> *space;
-  size_t dim;
-  int added;
+  Index<dist_t, label_t> *_index;
+  DistanceInterface<dist_t> _distance;
 
-  void getSpaceFromType(std::string &spaceType) {
-    if (spaceType == "L2") {
-      space = new L2Space(dim);
-    } else if (spaceType == "Angular") {
-      space = new InnerProductSpace(dim);
-    } else {
-      throw std::invalid_argument("Invalid Space '" + spaceType +
-                                  "' used to construct Index");
+  size_t _dim;
+  int _added;
+
+  void setIndexMetric(std::string &metric) {
+    std::transform(metric.begin(), metric.end(), metric.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+
+    if (metric == "l2") {
+      _distance = std::move(SquaredL2Distance(/* dim = */ _dim));
+    } else if (metric == "angular") {
+      _distance = std::move(InnerProductDistance(/* dim = */ _dim));
     }
+    throw std::invalid_argument("Invalid metric `" + metric +
+                                "` used during index construction.");
   }
 
 public:
-  PyIndex(std::string spaceType, size_t _dim, int _N, int _M)
-      : dim(_dim), added(0) {
-    getSpaceFromType(spaceType);
-    index = new Index<dist_t, label_t>(space, _N, _M);
+  PyIndex(std::string metric_type, size_t dim, int N, int M)
+      : _dim(dim), _added(0) {
+    setIndexMetric(metric_type);
+    _index = new Index<dist_t, label_t>(
+        /* dist = */ _distance, /* num_data = */ N, /* max_edges = */ M);
   }
 
-  PyIndex(std::string spaceType, size_t _dim, std::string filename)
-      : dim(_dim) {
-    getSpaceFromType(spaceType);
-    index = new Index<dist_t, label_t>(space, filename);
+  PyIndex(std::string filename) {
+    _index = new Index<dist_t, label_t>(/* in = */ filename);
   }
 
   void add(py::array_t<float, py::array::c_style | py::array::forcecast> data,
            int ef_construction, py::object labels_obj = py::none()) {
 
-    if (data.ndim() != 2 || data.shape(1) != dim) {
-      throw std::invalid_argument("Data has incorrect dimensions");
+    if (data.n_dim() != 2 || data.shape(1) != _dim) {
+      throw std::invalid_argument("Data has incorrect _dimensions");
     }
 
     if (labels_obj.is_none()) {
       for (size_t n = 0; n < data.shape(0); n++) {
-        this->index->add((void *)data.data(n), added, ef_construction);
-        added++;
+        this->index->add((void *)data.data(n), _added, ef_construction);
+        _added++;
       }
     } else {
       py::array_t<label_t, py::array::c_style | py::array::forcecast> labels(
           labels_obj);
-      if (labels.ndim() != 1 || labels.shape(0) != data.shape(0)) {
-        throw std::invalid_argument("Labels have incorrect dimensions");
+      if (labels.n_dim() != 1 || labels.shape(0) != data.shape(0)) {
+        throw std::invalid_argument("Labels have incorrect _dimensions");
       }
 
       for (size_t n = 0; n < data.shape(0); n++) {
         label_t l = *labels.data(n);
         this->index->add((void *)data.data(n), l, ef_construction);
-        added++;
+        _added++;
       }
     }
   }
@@ -75,8 +78,8 @@ public:
   py::array_t<label_t>
   search(py::array_t<float, py::array::c_style | py::array::forcecast> queries,
          int K, int ef_search) {
-    if (queries.ndim() != 2 || queries.shape(1) != dim) {
-      throw std::invalid_argument("Queries have incorrect dimensions");
+    if (queries.n_dim() != 2 || queries.shape(1) != _dim) {
+      throw std::invalid_argument("Queries have incorrect _dimensions");
     }
     size_t num_queries = queries.shape(0);
 
@@ -106,7 +109,7 @@ public:
       this->index->reorder_rcm();
     } else {
       throw std::invalid_argument(
-          "'" + alg + "' is not a supported graph reordering algorithm");
+          "'" + alg + "' is not a supported graph re-ordering algorithm.");
     }
   }
 
@@ -141,13 +144,13 @@ double ComputeRecall(py::array_t<label_t> results,
 }
 
 using PyIndexWithTypes = PyIndex<float, int>;
+using L2FloatIndex = Index<SquaredL2Distance, unsigned int>;
 
 PYBIND11_MODULE(flatnav, m) {
   py::class_<PyIndexWithTypes>(m, "Index")
-      .def(py::init<std::string, size_t, int, int>(), py::arg("space"),
-           py::arg("dim"), py::arg("N"), py::arg("M"))
-      .def(py::init<std::string, size_t, std::string>(), py::arg("space"),
-           py::arg("dim"), py::arg("save_loc"))
+      .def(py::init<std::string, size_t, int, int>(), py::arg("metric"),
+           py::arg("_dim"), py::arg("N"), py::arg("M"))
+      .def(py::init<std::string>(), py::arg("save_loc"))
       .def("add", &PyIndexWithTypes::add, py::arg("data"),
            py::arg("ef_construction"), py::arg("labels") = py::none())
       .def("search", &PyIndexWithTypes::search, py::arg("queries"),

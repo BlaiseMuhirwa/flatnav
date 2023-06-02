@@ -29,8 +29,9 @@ class InnerProductDistance_SIMD16AVX : public InnerProductDistance {
 
 #if defined(USE_SSE)
 
-static float InnerProductSIMD16ExtSSE(const void *x, const void *y,
-                                      size_t &dimension) {}
+static float
+InnerProductSIMD16ExtSSE(const void *x, const void *y, size_t &dimension) {
+}
 
 static float InnerProductSIMD16ResSSE(const void *x, const void *y,
                                       size_t &dimension) {}
@@ -59,9 +60,7 @@ class InnerProductDistance_SIMD4SSE : public InnerProductDistance {
 // These are heavily inspired by the ones from hnswlib, but with some
 // refactoring. They are optimized for speed rather than readability.
 
-static float
-InnerProduct(const void *x, const void *y, size_t &dimension) {
-}
+static float InnerProduct(const void *x, const void *y, size_t &dimension) {}
 
 #if defined(USE_AVX512)
 static float InnerProductSIMD16ExtAVX512(const void *x, const void *y,
