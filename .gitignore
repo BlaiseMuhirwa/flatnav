@@ -1,5 +1,6 @@
-# Generated files
+# Generated files and folders
 .DS_Store 
+build
 
 # Executables
 *.exe 

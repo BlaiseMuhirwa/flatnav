@@ -14,7 +14,6 @@
 using namespace flatnav;
 namespace py = pybind11;
 
-
 template <typename dist_t, typename label_t> class PyIndex {
 private:
   Index<dist_t, label_t> *_index;
@@ -143,21 +142,20 @@ double ComputeRecall(py::array_t<label_t> results,
   return avg_recall /= (results.shape(0) * results.shape(1));
 }
 
-using PyIndexWithTypes = PyIndex<float, int>;
-using L2FloatIndex = Index<SquaredL2Distance, unsigned int>;
+using L2FloatPyIndex = PyIndex<SquaredL2Distance, unsigned int>;
 
 PYBIND11_MODULE(flatnav, m) {
-  py::class_<PyIndexWithTypes>(m, "Index")
+  py::class_<L2FloatPyIndex>(m, "Index")
       .def(py::init<std::string, size_t, int, int>(), py::arg("metric"),
            py::arg("_dim"), py::arg("N"), py::arg("M"))
       .def(py::init<std::string>(), py::arg("save_loc"))
-      .def("add", &PyIndexWithTypes::add, py::arg("data"),
+      .def("add", &L2FloatPyIndex::add, py::arg("data"),
            py::arg("ef_construction"), py::arg("labels") = py::none())
-      .def("search", &PyIndexWithTypes::search, py::arg("queries"),
-           py::arg("K"), py::arg("ef_search"))
-      .def("reorder", &PyIndexWithTypes::reorder, py::arg("alg"))
-      .def("save", &PyIndexWithTypes::save, py::arg("filename"));
+      .def("search", &L2FloatPyIndex::search, py::arg("queries"), py::arg("K"),
+           py::arg("ef_search"))
+      .def("reorder", &L2FloatPyIndex::reorder, py::arg("alg"))
+      .def("save", &L2FloatPyIndex::save, py::arg("filename"));
 
-  m.def("ComputeRecall", &ComputeRecall<int>, py::arg("results"),
-        py::arg("gtruths"));
+  // m.def("ComputeRecall", &ComputeRecall<int>, py::arg("results"),
+  //       py::arg("gtruths"));
 }

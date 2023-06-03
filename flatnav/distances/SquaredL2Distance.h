@@ -12,7 +12,7 @@ namespace flatnav {
 
 class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
   friend class DistanceInterface<SquaredL2Distance>;
-  static const int distance_id = 0;
+  static const int DISTANCE_ID = 0;
 
 public:
   SquaredL2Distance(size_t dim) {
@@ -48,7 +48,7 @@ private:
 
   void serialize_impl(std::ofstream &out) {
     // TODO: Make this safe across machines and compilers.
-    out.write(reinterpret_cast<const char *>(&distance_id), sizeof(int));
+    out.write(reinterpret_cast<const char *>(&DISTANCE_ID), sizeof(int));
     out.write(reinterpret_cast<char *>(&_dimension), sizeof(size_t));
   }
 
@@ -56,7 +56,7 @@ private:
     // TODO: Make this safe across machines and compilers.
     int distance_id_check;
     in.read(reinterpret_cast<char *>(&distance_id_check), sizeof(int));
-    if (distance_id_check != distance_id) {
+    if (distance_id_check != DISTANCE_ID) {
       throw std::invalid_argument(
           "Error reading distance metric: Distance ID does not match "
           "the ID of the deserialized distance instance.");

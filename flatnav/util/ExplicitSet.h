@@ -15,9 +15,9 @@ private:
   unsigned int _tableSize;
 
 public:
-  ExplicitSet() : _table(NULL), _tableSize(0), _mark(0) {}
+  ExplicitSet() : _mark(0), _table(NULL), _tableSize(0) {}
 
-  ExplicitSet(const unsigned int size) : _table(NULL), _tableSize(0), _mark(0) {
+  ExplicitSet(const unsigned int size) : _mark(0), _table(NULL), _tableSize(0) {
     _mark = 0;
     _tableSize = size;
     _table = new unsigned short[_tableSize]();
