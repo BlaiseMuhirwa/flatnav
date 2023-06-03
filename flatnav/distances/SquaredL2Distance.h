@@ -12,7 +12,7 @@ namespace flatnav {
 
 class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
   friend class DistanceInterface<SquaredL2Distance>;
-  static const int DISTANCE_ID = 0;
+  const int DISTANCE_ID = 0;
 
 public:
   SquaredL2Distance(size_t dim) {

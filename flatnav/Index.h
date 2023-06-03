@@ -21,8 +21,8 @@ public:
   typedef std::pair<float, label_t> dist_label_t;
 
   Index(DistanceInterface<dist_t> dist, int num_data, int max_edges)
-      : _distance(std::move(dist)), _max_num_nodes(num_data), _cur_num_nodes(0),
-        _M(max_edges), _is_visited(num_data + 1) {
+      : _M(max_edges), _max_num_nodes(num_data), _cur_num_nodes(0),
+        _distance(std::move(dist)), _is_visited(num_data + 1) {
 
     _data_size_bytes = _distance.data_size();
     _node_size_bytes =

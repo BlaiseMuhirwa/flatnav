@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
 
   // Positional arguments.
   std::ifstream input(argv[1], std::ios::binary);
-  int space_ID = std::stoi(argv[2]);
+//   int space_ID = std::stoi(argv[2]);
   std::string outfilename(argv[3]);
 
   std::ofstream out_stream(outfilename);

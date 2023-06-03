@@ -9,7 +9,7 @@ namespace flatnav {
 
 class InnerProductDistance : public DistanceInterface<InnerProductDistance> {
   friend class DistanceInterface<InnerProductDistance>;
-  static const int distance_id = 1;
+  const int DISTANCE_ID = 1;
 
 public:
   InnerProductDistance(size_t dim) {
@@ -41,15 +41,15 @@ private:
 
   void serialize_impl(std::ofstream &out) {
     // TODO: Make this safe across machines and compilers.
-    out.write(reinterpret_cast<const char *>(&distance_id), sizeof(int));
+    out.write(reinterpret_cast<const char *>(&DISTANCE_ID), sizeof(int));
     out.write(reinterpret_cast<char *>(&_dimension), sizeof(size_t));
   }
 
   void deserialize(std::ifstream &in) {
     // TODO: Make this safe across machines and compilers.
-    int distance_id_check;
-    in.read(reinterpret_cast<char *>(&distance_id_check), sizeof(int));
-    if (distance_id_check != distance_id) {
+    int DISTANCE_ID_check;
+    in.read(reinterpret_cast<char *>(&DISTANCE_ID_check), sizeof(int));
+    if (DISTANCE_ID_check != DISTANCE_ID) {
       throw std::invalid_argument(
           "Error reading distance metric: Distance ID does not match "
           "the ID of the deserialized distance instance.");
