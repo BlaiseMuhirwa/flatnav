@@ -2,6 +2,7 @@
 
 #include <cstddef> // for size_t
 #include <fstream> // for ifstream, ofstream
+#include <iostream>
 
 namespace flatnav {
 

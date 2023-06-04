@@ -3,6 +3,7 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <random>
 #include <string>
 #include <utility>
@@ -12,13 +13,48 @@
 #include "../flatnav/distances/InnerProductDistance.h"
 #include "../flatnav/distances/SquaredL2Distance.h"
 
+using flatnav::Index;
+using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
+
+template <typename dist_t>
+void run(std::ifstream &input,
+         std::unique_ptr<flatnav::DistanceInterface<dist_t>> &&distance, int N,
+         int M, int dim, int ef_construction, const std::string &save_file) {
+  auto index = new Index<dist_t, int>(
+      /* dist = */ std::move(distance), /* dataset_size = */ N,
+      /* max_edges = */ M);
+
+  auto start = std::chrono::high_resolution_clock::now();
+  float *element = new float[dim];
+  for (int label = 0; label < N; label++) {
+    input.read((char *)element, 4 * dim);
+    index->add(/* data = */ (void *)element, /* label = */ label,
+               /* ef_construction */ ef_construction);
+    if (label % 100000 == 0)
+      std::clog << "+";
+  }
+  std::clog << std::endl;
+  delete[] element;
+
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+  std::clog << "Build time: " << (float)(duration.count()) / (1000.0)
+            << " seconds" << std::endl;
+
+  std::clog << "Saving index to: " << save_file << std::endl;
+  std::ofstream stream(save_file);
+  index->serialize(/* filename = */ stream);
+
+  delete index;
+}
 
 int main(int argc, char **argv) {
 
   if (argc < 4) {
     std::clog << "Usage: " << std::endl;
-    std::clog << "construct_float32 <data> <space> <outfile>";
+    std::clog << "index_construction <data> <metric> <outfile>";
     std::clog << " [--N num_vectors] [--M num_links] [--ef ef_construction] "
                  "[--verbose num_verbose]"
               << std::endl;
@@ -27,7 +63,7 @@ int main(int argc, char **argv) {
     std::clog << "\t data: Filename pointing to an fvecs file (4 byte uint N, "
                  "4 byte uint dim, then list of 32-bit little-endian floats)."
               << std::endl;
-    std::clog << "\t space: Integer distance ID: 0 for L2 distance, 1 for "
+    std::clog << "\t metric: Integer distance ID: 0 for L2 distance, 1 for "
                  "inner product (angular distance)."
               << std::endl;
     std::clog
@@ -52,7 +88,7 @@ int main(int argc, char **argv) {
 
   // Positional arguments.
   std::ifstream input(argv[1], std::ios::binary);
-//   int space_ID = std::stoi(argv[2]);
+  int metric_id = std::stoi(argv[2]);
   std::string outfilename(argv[3]);
 
   std::ofstream out_stream(outfilename);
@@ -129,38 +165,24 @@ int main(int argc, char **argv) {
               << "." << std::endl;
   }
 
-  auto distance((SquaredL2Distance(dim_check)));
-
-  auto index = new flatnav::Index<SquaredL2Distance, int>(
-      /* dist = */ distance, /* num_data = */ N, /* max_edges = */ M);
-
-  auto start = std::chrono::high_resolution_clock::now();
-  float *element = new float[dim_check];
-  for (int label = 0; label < N; label++) {
-    input.read((char *)element, 4 * dim_check);
-    index->add(/* data = */ (void *)element, /* label = */ label,
-               /* ef_construction = */ ef_construction,
-               /* num_initializations = */ 1000);
-    if (num_verbose > 0) {
-      if (label % num_verbose == 0) {
-        std::clog << "+";
-      }
-    }
+  if (metric_id == 0) {
+    auto distance = std::make_unique<SquaredL2Distance>(dim_check);
+    run<SquaredL2Distance>(
+        /* input = */ input,
+        /* distance = */ std::move(distance),
+        /* N = */ N, /* M = */ M, /* dim = */ dim_check,
+        /* ef_construction = */ ef_construction, /* save_file = */ outfilename);
+  } else if (metric_id == 1) {
+    auto distance = std::make_unique<InnerProductDistance>(dim_check);
+    run<InnerProductDistance>(
+        /* input = */ input,
+        /* distance = */ std::move(distance),
+        /* N = */ N, /* M = */ M, dim_check,
+        /* ef_construction = */ ef_construction, /* save_file = */ outfilename);
+  } else {
+    throw std::runtime_error("Provided metric ID " + std::to_string(metric_id) +
+                             "is invalid.");
   }
-  std::clog << std::endl;
-  delete[] element;
-  input.close();
-
-  auto stop = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-  std::clog << "Build time: " << (float)(duration.count()) / (1000.0)
-            << " seconds" << std::endl;
-
-  std::clog << "Saving index to: " << outfilename << std::endl;
-  index->serialize(out_stream);
-
-  delete index;
 
   return 0;
 }

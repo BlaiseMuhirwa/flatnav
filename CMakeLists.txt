@@ -2,9 +2,10 @@ cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 
 project(FlatNav CXX)
 
-set(CMAKE_CXX_STANDARD 11)
+# set standard to c++14 in order to use call to std::make_unique
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS}  -std=c++11 -Wall -Ofast -DHAVE_CXX0X -DNDEBUG -openmp -fpic -w -ffast-math -funroll-loops -ftree-vectorize -g -Qunused-arguments"
+    "${CMAKE_CXX_FLAGS}  -std=c++14 -Wall -Ofast -DHAVE_CXX0X -DNDEBUG -openmp -fpic -w -ffast-math -funroll-loops -ftree-vectorize -g -Qunused-arguments"
 )
 
 include(ExternalProject)
@@ -81,17 +82,16 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h)
 
 add_library(
-  FLAT_NAV_LIB STATIC
-  ${PROJECT_SOURCE_DIR}/examples/index_construction_float32.cpp ${HEADERS})
+  FLAT_NAV_LIB STATIC ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp
+                      ${HEADERS})
 add_dependencies(FLAT_NAV_LIB CNPY)
 
 target_link_libraries(FLAT_NAV_LIB ${CNPY_LIB})
 set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
-foreach(CONSTRUCT_EXEC index_construction_float32)
-  add_executable(
-    ${CONSTRUCT_EXEC} ${PROJECT_SOURCE_DIR}/examples/${CONSTRUCT_EXEC}.cpp
-                      ${HEADERS})
+foreach(CONSTRUCT_EXEC index_construction construct_npy)
+  add_executable(${CONSTRUCT_EXEC}
+                 ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
   add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)
   target_link_libraries(${CONSTRUCT_EXEC} FLAT_NAV_LIB ${CNPY_LIB}
                         ${ZLIB_LIB_RELEASE})
