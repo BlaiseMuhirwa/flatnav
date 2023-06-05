@@ -12,7 +12,8 @@ namespace flatnav {
 #if defined(USE_AVX512)
 class InnerProductDistance_SIMD16AVX512 : public InnerProductDistance {
   // Specialization for processing size-16 chunks with AVX512.
-  float distance_impl(const void *x, const void *y, size_t &dimension) {
+  float distanceImpl(const void *x, const void *y) {
+    auto dimension = this->getDimension();
     return 1.0 - InnerProductSIMD16ResAVX512(x, y, dimension);
   }
 }
@@ -21,7 +22,8 @@ class InnerProductDistance_SIMD16AVX512 : public InnerProductDistance {
 #if defined(USE_AVX)
 class InnerProductDistance_SIMD16AVX : public InnerProductDistance {
   // Specialization for processing size-16 chunks with AVX.
-  float distance_impl(const void *x, const void *y, size_t &dimension) {
+  float distanceImpl(const void *x, const void *y) {
+    auto dimension = this->getDimension();
     return 1.0 - InnerProductSIMD16ResAVX(x, y, dimension);
   }
 }
@@ -43,14 +45,15 @@ static float InnerProductSIMD4ResSSE(const void *x, const void *y,
                                      size_t &dimension) {}
 class InnerProductDistance_SIMD16SSE : public InnerProductDistance {
   // Specialization for processing size-16 chunks with SSE.
-  float distance_impl(const void *x, const void *y, size_t &dimension) {
+  float distanceImpl(const void *x, const void *y, size_t &dimension) {
     return 1.0 - InnerProductSIMD16ResSSE(x, y, dimension);
   }
 };
 
 class InnerProductDistance_SIMD4SSE : public InnerProductDistance {
   // Specialization for processing size-4 chunks with SSE.
-  float distance_impl(const void *x, const void *y, size_t &dimension) {
+  float distanceImpl(const void *x, const void *y) {
+    auto dimension = this->getDimension();
     return 1.0 - InnerProductSIMD16ResSSE(x, y, dimension);
   }
 };

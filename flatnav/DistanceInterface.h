@@ -18,29 +18,29 @@ public:
     // This computes the distance for inputs x and y. If the distance
     // requires a pre-processing transformation (e.g. quantization),
     // then the inputs to distance(x, y) should be pre-transformed.
-    return static_cast<T *>(this)->distance_impl(x, y);
+    return static_cast<T *>(this)->distanceImpl(x, y);
   }
 
-  size_t data_size() {
+  size_t dataSize() {
     // Returns the size, in bytes, of the transformed data representation.
-    return static_cast<T *>(this)->data_size_impl();
+    return static_cast<T *>(this)->dataSizeImpl();
   }
 
-  void transform_data(void *dst, const void *src) {
-    // This transforms the data located at src into a form that is writeable
-    // to disk / storable in RAM. For distance functions that don't
-    // compress the input, this just passses through a copy from src to dst.
-    // However, there are functions (e.g. with quantization) where the
-    // in-memory representation is not the same as the raw input.
-    static_cast<T *>(this)->transform_data_impl(dst, src);
+  // This transforms the data located at src into a form that is writeable
+  // to disk / storable in RAM. For distance functions that don't
+  // compress the input, this just passses through a copy from src to
+  // destination. However, there are functions (e.g. with quantization) where
+  // the in-memory representation is not the same as the raw input.
+  void transformData(void *destination, const void *src) {
+    static_cast<T *>(this)->transformDataImpl(destination, src);
   }
 
   void serialize(std::ofstream &out) {
-    static_cast<T *>(this)->serialize_impl(out);
+    static_cast<T *>(this)->serializeImpl(out);
   }
 
   void deserialize(std::ifstream &in) {
-    static_cast<T *>(this)->deserialize_impl(in);
+    static_cast<T *>(this)->deserializeImpl(in);
   }
 };
 

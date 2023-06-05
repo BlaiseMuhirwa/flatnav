@@ -3,8 +3,8 @@
 #include "util/ExplicitSet.h"
 #include "util/reordering.h"
 #include "util/verifysimd.h"
-
 #include <algorithm> // for std::min
+#include <cassert>
 #include <cstring>
 #include <fstream>
 #include <limits>  // for std::numeric_limits<T>::max()
@@ -21,29 +21,36 @@ template <typename dist_t, typename label_t> class Index {
 public:
   typedef std::pair<float, label_t> dist_label_t;
 
+  /*
+Constructs a Flatnav Index for approximate near neighbor search.
+
+Arguments:
+  dist: A distance metric for the specific index instance. Optiions include
+      l2(euclidean) and inner product.
+  dataset_size: The maximum number of vectors that the index can contain
+  max_edges_per_node: The maximm number of links per node
+
+*/
   Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node)
-      : _M(max_edges_per_node), _max_num_nodes(dataset_size), _cur_num_nodes(0),
-        _distance(std::move(dist)), _is_visited(dataset_size + 1) {
+      : _M(max_edges_per_node), _max_node_count(dataset_size),
+        _cur_num_nodes(0), _distance(std::move(dist)),
+        _visited_nodes(dataset_size + 1) {
 
-    _data_size_bytes = _distance->data_size();
+    _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
-        _data_size_bytes + sizeof(node_id_t) * _M + sizeof(label_t);
+        _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
 
-    // std::cout << "[index-constructor-allocating-mem]" << std::endl;
-    // std::cout << "\t [_data_size_bytes] = " << _data_size_bytes << std::endl;
-    // std::cout << "\t [_node_size_bytes] " << _node_size_bytes << std::endl;
-
-    size_t _index_memory_size = _node_size_bytes * _max_num_nodes;
+    size_t _index_memory_size = _node_size_bytes * _max_node_count;
 
     _index_memory = new char[_index_memory_size];
     _transformed_query = new char[_data_size_bytes];
   }
 
-  Index(std::ofstream &filename)
-      : _max_num_nodes(0), _cur_num_nodes(0), _index_memory(NULL),
+  Index(std::ofstream &stream)
+      : _max_node_count(0), _cur_num_nodes(0), _index_memory(NULL),
         _transformed_query(NULL) {
-    deserialize(/* filename = */ filename);
+    deserialize(/* stream = */ stream);
   }
 
   ~Index() {
@@ -54,11 +61,11 @@ public:
   bool add(void *data, label_t &label, int ef_construction,
            int num_initializations = 100) {
     // initialization must happen before alloc due to a bug where
-    // searchInitialization chooses new_node_id as the initialization
+    // initializeSearch chooses new_node_id as the initialization
     // since new_node_id has distance 0 (but no links). The search is
     // skipped because the "optimal" node seems to have been found.
     node_id_t new_node_id;
-    node_id_t entry_node = searchInitialization(data, num_initializations);
+    node_id_t entry_node = initializeSearch(data, num_initializations);
     // make space for the new node
     if (!allocateNode(data, label, new_node_id)) {
       return false;
@@ -81,9 +88,9 @@ public:
     // We use a pre-allocated buffer for the transformed query, for speed
     // reasons, but it would also be acceptable to manage this buffer
     // dynamically (e.g. in the multi-threaded setting).
-    _distance->transform_data(_transformed_query, query);
+    _distance->transformData(_transformed_query, query);
     node_id_t entry_node =
-        searchInitialization(_transformed_query, num_initializations);
+        initializeSearch(_transformed_query, num_initializations);
     PriorityQueue neighbors =
         beamSearch(_transformed_query, entry_node, ef_search);
     std::vector<dist_label_t> results;
@@ -92,7 +99,7 @@ public:
     }
     while (neighbors.size() > 0) {
       results.emplace_back(neighbors.top().first,
-                           *nodeLabel(neighbors.top().second));
+                           *getNodeLabel(neighbors.top().second));
       neighbors.pop();
     }
     std::sort(results.begin(), results.end(),
@@ -102,28 +109,28 @@ public:
     return results;
   }
 
-  void serialize(std::ofstream &filename) {
+  void serialize(std::ofstream &stream) {
     // TODO: Make this safe across machines and compilers.
-    _distance->serialize(filename);
-    filename.write(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
-    filename.write(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
-    filename.write(reinterpret_cast<char *>(&_max_num_nodes), sizeof(size_t));
-    filename.write(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
-    filename.write(reinterpret_cast<char *>(&_M), sizeof(size_t));
+    _distance->serialize(stream);
+    stream.write(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
+    stream.write(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
+    stream.write(reinterpret_cast<char *>(&_max_node_count), sizeof(size_t));
+    stream.write(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
+    stream.write(reinterpret_cast<char *>(&_M), sizeof(size_t));
     // Write the index data partition.
-    size_t _index_memory_size = _node_size_bytes * _max_num_nodes;
-    filename.write(reinterpret_cast<char *>(_index_memory), _index_memory_size);
+    size_t _index_memory_size = _node_size_bytes * _max_node_count;
+    stream.write(reinterpret_cast<char *>(_index_memory), _index_memory_size);
   }
 
-  void deserialize(std::ifstream &filename) {
-    _distance->deserialize(filename);
-    filename.read(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
-    filename.read(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
-    filename.read(reinterpret_cast<char *>(&_max_num_nodes), sizeof(size_t));
-    filename.read(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
-    filename.read(reinterpret_cast<char *>(&_M), sizeof(size_t));
+  void deserialize(std::ifstream &stream) {
+    _distance->deserialize(stream);
+    stream.read(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
+    stream.read(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
+    stream.read(reinterpret_cast<char *>(&_max_node_count), sizeof(size_t));
+    stream.read(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
+    stream.read(reinterpret_cast<char *>(&_M), sizeof(size_t));
 
-    if (_data_size_bytes != _distance->data_size()) {
+    if (_data_size_bytes != _distance->dataSize()) {
       throw std::invalid_argument(
           "Error reading index: Data size from the index does not "
           "match the data size from the distance. Is the dimension "
@@ -142,9 +149,9 @@ public:
       delete[] _index_memory;
       _index_memory = NULL;
     }
-    size_t _index_memory_size = _node_size_bytes * _max_num_nodes;
+    size_t _index_memory_size = _node_size_bytes * _max_node_count;
     _index_memory = new char[_index_memory_size];
-    filename.read(reinterpret_cast<char *>(_index_memory), _index_memory_size);
+    stream.read(reinterpret_cast<char *>(_index_memory), _index_memory_size);
 
     if (_transformed_query != NULL) {
       delete[] _transformed_query;
@@ -152,13 +159,13 @@ public:
     }
     _transformed_query = new char[_data_size_bytes];
 
-    _is_visited = VisitedSet(_max_num_nodes + 1);
+    _visited_nodes = VisitedSet(_max_node_count + 1);
   }
 
   void reorder_gorder(const int window_size = 5) {
     std::vector<std::vector<node_id_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
-      node_id_t *links = nodeLinks(node);
+      node_id_t *links = getNodeLinks(node);
       for (int i = 0; i < _M; i++) {
         if (links[i] != node) {
           outdegree_table[node].push_back(links[i]);
@@ -174,7 +181,7 @@ public:
     // TODO: Remove code duplication for outdegree_table.
     std::vector<std::vector<node_id_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
-      node_id_t *links = nodeLinks(node);
+      node_id_t *links = getNodeLinks(node);
       for (int i = 0; i < _M; i++) {
         if (links[i] != node) {
           outdegree_table[node].push_back(links[i]);
@@ -190,16 +197,9 @@ private:
   typedef unsigned int node_id_t;
   typedef std::pair<float, node_id_t> dist_node_t;
 
-  struct CompareNodes {
-    constexpr bool operator()(dist_node_t const &a,
-                              dist_node_t const &b) const noexcept {
-      return a.first < b.first;
-    }
-  };
-
   typedef ExplicitSet VisitedSet;
-  typedef std::priority_queue<dist_node_t, std::vector<dist_node_t>,
-                              CompareNodes>
+
+  typedef std::priority_queue<dist_node_t, std::vector<dist_node_t>>
       PriorityQueue;
 
   // Large (several GB), pre-allocated block of memory.
@@ -212,42 +212,43 @@ private:
   // Node consists of: ([data] [M links] [data label]). This layout was chosen
   // after benchmarking - it's slightly more cache-efficient than others.
   size_t _node_size_bytes;
-  size_t _max_num_nodes; // Determines size of internal pre-allocated memory
+  size_t _max_node_count; // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
 
   std::unique_ptr<DistanceInterface<dist_t>> _distance;
 
   // Remembers which nodes we've visited, to avoid re-computing distances.
   // Might be a caching problem in beamSearch - needs to be profiled.
-  VisitedSet _is_visited;
+  VisitedSet _visited_nodes;
 
-  char *nodeData(const node_id_t &n) {
+  char *getNodeData(const node_id_t &n) const {
     char *location = _index_memory + (n * _node_size_bytes);
     return location;
   }
 
-  node_id_t *nodeLinks(const node_id_t &n) {
+  node_id_t *getNodeLinks(const node_id_t &n) const {
     char *location = _index_memory + (n * _node_size_bytes) + _data_size_bytes;
     return reinterpret_cast<node_id_t *>(location);
   }
 
-  label_t *nodeLabel(const node_id_t &n) {
-    char *location = _index_memory + n * _node_size_bytes + _data_size_bytes +
-                     _M * sizeof(node_id_t);
+  label_t *getNodeLabel(const node_id_t &n) const {
+    char *location = _index_memory + (n * _node_size_bytes) + _data_size_bytes +
+                     (_M * sizeof(node_id_t));
     return reinterpret_cast<label_t *>(location);
   }
 
   bool allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
-    if (_cur_num_nodes >= _max_num_nodes) {
+    if (_cur_num_nodes >= _max_node_count) {
       return false;
     }
     new_node_id = _cur_num_nodes;
 
     // Transforms and writes data into the index at the correct location.
-    _distance->transform_data(nodeData(_cur_num_nodes), data);
-    *(nodeLabel(_cur_num_nodes)) = label;
+    _distance->transformData(/* destination = */ getNodeData(_cur_num_nodes),
+                             /* src = */ data);
+    *(getNodeLabel(_cur_num_nodes)) = label;
 
-    node_id_t *links = nodeLinks(_cur_num_nodes);
+    node_id_t *links = getNodeLinks(_cur_num_nodes);
     for (int i = 0; i < _M; i++) {
       links[i] = _cur_num_nodes;
     }
@@ -260,19 +261,19 @@ private:
                         node_id_t *temp_links, label_t *temp_label) {
 
     // stash b in temp
-    std::memcpy(temp_data, nodeData(b), _data_size_bytes);
-    std::memcpy(temp_links, nodeLinks(b), _M * sizeof(node_id_t));
-    std::memcpy(temp_label, nodeLabel(b), sizeof(label_t));
+    std::memcpy(temp_data, getNodeData(b), _data_size_bytes);
+    std::memcpy(temp_links, getNodeLinks(b), _M * sizeof(node_id_t));
+    std::memcpy(temp_label, getNodeLabel(b), sizeof(label_t));
 
     // place node at a in b
-    std::memcpy(nodeData(b), nodeData(a), _data_size_bytes);
-    std::memcpy(nodeLinks(b), nodeLinks(a), _M * sizeof(node_id_t));
-    std::memcpy(nodeLabel(b), nodeLabel(a), sizeof(label_t));
+    std::memcpy(getNodeData(b), getNodeData(a), _data_size_bytes);
+    std::memcpy(getNodeLinks(b), getNodeLinks(a), _M * sizeof(node_id_t));
+    std::memcpy(getNodeLabel(b), getNodeLabel(a), sizeof(label_t));
 
     // put node b in a
-    std::memcpy(nodeData(a), temp_data, _data_size_bytes);
-    std::memcpy(nodeLinks(a), temp_links, _M * sizeof(node_id_t));
-    std::memcpy(nodeLabel(a), temp_label, sizeof(label_t));
+    std::memcpy(getNodeData(a), temp_data, _data_size_bytes);
+    std::memcpy(getNodeLinks(a), temp_links, _M * sizeof(node_id_t));
+    std::memcpy(getNodeLabel(a), temp_label, sizeof(label_t));
 
     return;
   }
@@ -285,13 +286,14 @@ private:
     PriorityQueue neighbors;  // W in the HNSW paper
     PriorityQueue candidates; // C in the HNSW paper
 
-    _is_visited.clear();
-    float dist = _distance->distance(query, nodeData(entry_node));
+    _visited_nodes.clear();
+    float dist =
+        _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node));
     float max_dist = dist;
 
     candidates.emplace(-dist, entry_node);
     neighbors.emplace(dist, entry_node);
-    _is_visited.insert(entry_node);
+    _visited_nodes.insert(entry_node);
 
     while (!candidates.empty()) {
       // get nearest element from candidates
@@ -300,12 +302,12 @@ private:
         break;
       }
       candidates.pop();
-      node_id_t *d_node_links = nodeLinks(d_node.second);
+      node_id_t *d_node_links = getNodeLinks(d_node.second);
       for (int i = 0; i < _M; i++) {
-        if (!_is_visited[d_node_links[i]]) {
+        if (!_visited_nodes[d_node_links[i]]) {
           // If we haven't visited the node yet.
-          _is_visited.insert(d_node_links[i]);
-          dist = _distance->distance(query, nodeData(d_node_links[i]));
+          _visited_nodes.insert(d_node_links[i]);
+          dist = _distance->distance(query, getNodeData(d_node_links[i]));
           // Include the node in the buffer if buffer isn't full or
           // if the node is closer than a node already in the buffer.
           if (neighbors.size() < buffer_size || dist < max_dist) {
@@ -325,13 +327,15 @@ private:
   }
 
   void selectNeighbors(PriorityQueue &neighbors, const int M) {
-    // selects neighbors from the PriorityQueue, according to HNSW heuristic
+    // selects neighbors from the PriorityQueue, according to the HNSW heuristic
     if (neighbors.size() < M) {
       return;
     }
 
     PriorityQueue candidates;
     std::vector<dist_node_t> saved_candidates;
+    saved_candidates.reserve(M);
+
     while (neighbors.size() > 0) {
       candidates.emplace(-neighbors.top().first, neighbors.top().second);
       neighbors.pop();
@@ -346,8 +350,9 @@ private:
 
       bool should_keep_candidate = true;
       for (const dist_node_t &second_pair : saved_candidates) {
-        float cur_dist = _distance->distance(nodeData(second_pair.second),
-                                             nodeData(current_pair.second));
+        float cur_dist =
+            _distance->distance(/* x = */ getNodeData(second_pair.second),
+                                /* y = */ getNodeData(current_pair.second));
         if (cur_dist < (-current_pair.first)) {
           should_keep_candidate = false;
           break;
@@ -369,7 +374,7 @@ private:
 
   void connectNeighbors(PriorityQueue &neighbors, node_id_t new_node_id) {
     // connects neighbors according to the HSNW heuristic
-    node_id_t *new_node_links = nodeLinks(new_node_id);
+    node_id_t *new_node_links = getNodeLinks(new_node_id);
     int i = 0; // iterates through links for "new_node_id"
 
     while (neighbors.size() > 0) {
@@ -377,7 +382,7 @@ private:
       // add link to the current new node
       new_node_links[i] = neighbor_node_id;
       // now do the back-connections (a little tricky)
-      node_id_t *neighbor_node_links = nodeLinks(neighbor_node_id);
+      node_id_t *neighbor_node_links = getNodeLinks(neighbor_node_id);
       bool is_inserted = false;
       for (int j = 0; j < _M; j++) {
         if (neighbor_node_links[j] == neighbor_node_id) {
@@ -394,15 +399,16 @@ private:
         // very careful. To ensure we respect the pruning heuristic, we
         // construct a candidate set including the old links AND our new
         // one, then prune this candidate set to get the new neighbors.
-        float max_dist = _distance->distance(nodeData(new_node_id),
-                                             nodeData(neighbor_node_id));
+        float max_dist = _distance->distance(getNodeData(new_node_id),
+                                             getNodeData(neighbor_node_id));
         PriorityQueue candidates;
         candidates.emplace(max_dist, new_node_id);
         for (int j = 0; j < _M; j++) {
           if (neighbor_node_links[j] != neighbor_node_id) {
             candidates.emplace(
-                _distance->distance(nodeData(neighbor_node_id),
-                                    nodeData(neighbor_node_links[j])),
+                _distance->distance(
+                    /* x = */ getNodeData(neighbor_node_id),
+                    /* y = */ getNodeData(neighbor_node_links[j])),
                 neighbor_node_links[j]);
           }
         }
@@ -428,8 +434,8 @@ private:
     }
   }
 
-  inline node_id_t searchInitialization(const void *query,
-                                        int num_initializations) {
+  inline node_id_t initializeSearch(const void *query,
+                                    int num_initializations) {
     // select entry_node from a set of random entry point options
     assert(num_initializations != 0);
     int step_size = _cur_num_nodes / num_initializations;
@@ -441,7 +447,7 @@ private:
     node_id_t entry_node = 0;
 
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
-      float dist = _distance->distance(query, nodeData(node));
+      float dist = _distance->distance(query, getNodeData(node));
       if (dist < min_dist) {
         min_dist = dist;
         entry_node = node;
@@ -453,7 +459,7 @@ private:
   void relabel(const std::vector<node_id_t> &P) {
     // 1. Rewire all of the node connections
     for (node_id_t n = 0; n < _cur_num_nodes; n++) {
-      node_id_t *links = nodeLinks(n);
+      node_id_t *links = getNodeLinks(n);
       for (int m = 0; m < _M; m++) {
         links[m] = P[links[m]];
       }
@@ -466,10 +472,10 @@ private:
 
     // In this context, is_visited stores which nodes have been relocated
     // (it would be equivalent to name this variable "is_relocated").
-    _is_visited.clear();
+    _visited_nodes.clear();
 
     for (node_id_t n = 0; n < _cur_num_nodes; n++) {
-      if (!_is_visited[n]) {
+      if (!_visited_nodes[n]) {
 
         node_id_t src = n;
         node_id_t dest = P[src];
@@ -478,12 +484,12 @@ private:
         swapNodes(src, dest, temp_data, temp_links, temp_label);
 
         // mark src as having been relocated
-        _is_visited.insert(src);
+        _visited_nodes.insert(src);
 
         // recursively relocate the node from "dest"
-        while (!_is_visited[dest]) {
+        while (!_visited_nodes[dest]) {
           // mark node as having been relocated
-          _is_visited.insert(dest);
+          _visited_nodes.insert(dest);
           // the value of src remains the same. However, dest needs
           // to change because the node located at src was previously
           // located at dest, and must be relocated to P[dest].

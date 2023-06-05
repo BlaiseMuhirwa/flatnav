@@ -17,11 +17,13 @@ public:
     _data_size_bytes = dim * sizeof(float);
   }
 
+  inline size_t getDimension() const { return _dimension; }
+
 private:
   size_t _dimension;
   size_t _data_size_bytes;
 
-  float distance_impl(const void *x, const void *y) {
+  float distanceImpl(const void *x, const void *y) {
     // Default implementation of inner product distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
     float *p_x = (float *)x;
@@ -33,19 +35,19 @@ private:
     return 1.0 - result;
   }
 
-  size_t data_size_impl() { return _data_size_bytes; }
+  size_t dataSizeImpl() { return _data_size_bytes; }
 
-  void transform_data_impl(void *dst, const void *src) {
+  void transformDataImpl(void *dst, const void *src) {
     std::memcpy(dst, src, _data_size_bytes);
   }
 
-  void serialize_impl(std::ofstream &out) {
+  void serializeImpl(std::ofstream &out) {
     // TODO: Make this safe across machines and compilers.
     out.write(reinterpret_cast<const char *>(&DISTANCE_ID), sizeof(int));
     out.write(reinterpret_cast<char *>(&_dimension), sizeof(size_t));
   }
 
-  void deserialize(std::ifstream &in) {
+  void deserializeImpl(std::ifstream &in) {
     // TODO: Make this safe across machines and compilers.
     int DISTANCE_ID_check;
     in.read(reinterpret_cast<char *>(&DISTANCE_ID_check), sizeof(int));

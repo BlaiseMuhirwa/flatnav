@@ -81,9 +81,8 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h)
 
-add_library(
-  FLAT_NAV_LIB STATIC ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp
-                      ${HEADERS})
+add_library(FLAT_NAV_LIB STATIC
+            ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
 add_dependencies(FLAT_NAV_LIB CNPY)
 
 target_link_libraries(FLAT_NAV_LIB ${CNPY_LIB})

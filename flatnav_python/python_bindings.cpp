@@ -17,7 +17,7 @@ namespace py = pybind11;
 template <typename dist_t, typename label_t> class PyIndex {
 private:
   Index<dist_t, label_t> *_index;
-  DistanceInterface<dist_t> _distance;
+  std::unique_ptr<DistanceInterface<dist_t>> _distance;
 
   size_t _dim;
   int _added;
@@ -27,9 +27,9 @@ private:
                    [](unsigned char c) { return std::tolower(c); });
 
     if (metric == "l2") {
-      _distance = std::move(SquaredL2Distance(/* dim = */ _dim));
+      _distance = std::make_unique<SquaredL2Distance>(/* dim = */ _dim);
     } else if (metric == "angular") {
-      _distance = std::move(InnerProductDistance(/* dim = */ _dim));
+      _distance = std::make_unique<InnerProductDistance>(/* dim = */ _dim);
     }
     throw std::invalid_argument("Invalid metric `" + metric +
                                 "` used during index construction.");
@@ -40,7 +40,8 @@ public:
       : _dim(dim), _added(0) {
     setIndexMetric(metric_type);
     _index = new Index<dist_t, label_t>(
-        /* dist = */ _distance, /* num_data = */ N, /* max_edges = */ M);
+        /* dist = */ std::move(_distance), /* dataset_size = */ N,
+        /* max_edges_per_node = */ M);
   }
 
   PyIndex(std::string filename) {

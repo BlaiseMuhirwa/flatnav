@@ -39,8 +39,8 @@ void run(float *data,
   auto stop = std::chrono::high_resolution_clock::now();
   auto duration =
       std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-  std::clog << "Build time: " << (float)(duration.count()) / (1000.0)
-            << " seconds" << std::endl;
+  std::clog << "Build time: " << (float)duration.count() << " milliseconds"
+            << std::endl;
 
   std::clog << "Saving index to: " << save_file << std::endl;
   std::ofstream stream(save_file);
@@ -98,8 +98,8 @@ int main(int argc, char **argv) {
         /* N = */ N, /* M = */ M, dim,
         /* ef_construction = */ ef_construction, /* save_file = */ argv[5]);
   } else {
-    throw std::runtime_error("Provided metric ID " + std::to_string(metric_id) +
-                             "is invalid.");
+    throw std::invalid_argument("Provided metric ID " +
+                                std::to_string(metric_id) + "is invalid.");
   }
 
   return 0;

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -180,8 +181,8 @@ int main(int argc, char **argv) {
         /* N = */ N, /* M = */ M, dim_check,
         /* ef_construction = */ ef_construction, /* save_file = */ outfilename);
   } else {
-    throw std::runtime_error("Provided metric ID " + std::to_string(metric_id) +
-                             "is invalid.");
+    throw std::invalid_argument("Provided metric ID " +
+                                std::to_string(metric_id) + "is invalid.");
   }
 
   return 0;

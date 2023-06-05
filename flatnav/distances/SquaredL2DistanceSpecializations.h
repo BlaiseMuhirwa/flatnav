@@ -235,7 +235,8 @@ static float L2SqrSIMD4ResSSE(const void *x, const void *y, size_t &dimension) {
 #if defined(USE_AVX512)
 class SquaredL2Distance_SIMD16AVX512 : public SquaredL2Distance {
   // Specialization for processing size-16 chunks with AVX512.
-  float distance_impl(const void *x, const void *y, size_t &dimension) {
+  float distanceImpl(const void *x, const void *y) {
+    auto dimension = this->getDimension();
     return L2SqrSIMD16ResAVX512(x, y, dimension);
   }
 }
@@ -244,7 +245,8 @@ class SquaredL2Distance_SIMD16AVX512 : public SquaredL2Distance {
 #if defined(USE_AVX)
 class SquaredL2Distance_SIMD16AVX : public SquaredL2Distance {
   // Specialization for processing size-16 chunks with AVX.
-  float distance_impl(const void *x, const void *y, size_t &dimension) {
+  float distanceImpl(const void *x, const void *y) {
+    auto dimension = this->getDimension();
     return L2SqrSIMD16ResAVX(x, y, dimension);
   }
 }
@@ -253,14 +255,16 @@ class SquaredL2Distance_SIMD16AVX : public SquaredL2Distance {
 #if defined(USE_SSE)
 class SquaredL2Distance_SIMD16SSE : public SquaredL2Distance {
   // Specialization for processing size-16 chunks with SSE.
-  float distance_impl(const void *x, const void *y, size_t &dimension) {
+  float distanceImpl(const void *x, const void *y) {
+    auto dimension = this->getDimension();
     return L2SqrSIMD16ResSSE(x, y, dimension);
   }
 };
 
 class SquaredL2Distance_SIMD4SSE : public SquaredL2Distance {
   // Specialization for processing size-4 chunks with SSE.
-  float distance_impl(const void *x, const void *y, size_t &dimension) {
+  float distanceImpl(const void *x, const void *y) {
+    auto dimension = this->getDimension();
     return L2SqrSIMD16ResSSE(x, y, dimension);
   }
 };
