@@ -1,4 +1,5 @@
 import sys
+import os 
 
 # Available at setup time due to pyproject.toml
 from pybind11 import get_cmake_dir
@@ -16,13 +17,16 @@ __version__ = "0.0.1"
 #   Sort input source files if you glob sources to ensure bit-for-bit
 #   reproducible builds (https://github.com/pybind/python_example/pull/53)
 
+binding_file = os.getcwd() + "/python_bindings.cpp"
+
 ext_modules = [
-    Pybind11Extension("flatnav",
-        ["../flatnav/python_bindings.cpp"],
+    Pybind11Extension(
+        "flatnav",
+        [binding_file],
         # Example: passing in the version to the compiled code
-        define_macros = [('VERSION_INFO', __version__)],
+        define_macros=[("VERSION_INFO", __version__)],
         cxx_std=11,
-        ),
+    ),
 ]
 
 setup(

@@ -1,2 +1,17 @@
-# Generated files
+# Generated files and folders
 .DS_Store 
+build
+
+# Executables
+*.exe 
+*.out
+*.app 
+
+# Virtual environments 
+.env 
+
+# Python wheel related folders/files
+flatnav_pyton/flatnav.egg-info
+
+# other files
+mnist-784-euclidean.hdf5
