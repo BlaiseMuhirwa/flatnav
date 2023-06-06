@@ -1,14 +1,16 @@
-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
 project(FlatNav CXX)
 
 # set standard to c++14 in order to use call to std::make_unique
 set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS}  -std=c++14 -Wall -Ofast -DHAVE_CXX0X -DNDEBUG -openmp -fpic -w -ffast-math -funroll-loops -ftree-vectorize -g -Qunused-arguments"
 )
 
 include(ExternalProject)
+include(FetchContent)
 
 find_package(Git REQUIRED)
 
@@ -20,6 +22,9 @@ function(functionInstallExternalCMakeProject ep_name)
   install(SCRIPT ${binary_dir}/cmake_install.cmake)
 endfunction()
 
+## TODO(blaise): Remove this old school way of including external 
+## libraries via ExternalProject_Add. Use FetchContent instead, which
+## is much cleaner 
 ExternalProject_Add(
   ZLIB
   DEPENDS ""
@@ -67,6 +72,35 @@ include_directories(${PROJECT_BINARY_DIR}/ep/include)
 
 set(CNPY_LIB ${PROJECT_BINARY_DIR}/ep/lib/libcnpy.a)
 
+option(RUN_BENCHMARKS "Builds unit and integration tests" OFF)
+message(STATUS "Running benchmarks: ${RUN_BENCHMARKS}")
+
+if(RUN_BENCHMARKS)
+  enable_testing()
+
+  message(STATUS "Running a suite of benchmarks using Google Benchmark")
+  set(GOOGLE_BENCHMARK_DIR "${PROJECT_BINARY_DIR}/benchmark")
+
+  if(NOT EXISTS ${GOOGLE_BENCHMARK_DIR})
+    set(GOOGLE_BENCHMARK_GIT_REPO "https://github.com/google/benchmark")
+    message(
+      STATUS "Downloading google-benchmark to ${PROJECT_BINARY_DIR}/ep/include")
+
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      GIT_TAG main)
+    FetchContent_Declare(
+      googlebenchmark
+      GIT_REPOSITORY https://github.com/google/benchmark.git
+      GIT_TAG main) # need main for benchmark::benchmark
+
+    FetchContent_MakeAvailable(googletest googlebenchmark)
+
+  endif()
+
+endif()
+
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistanceSpecializations.h
@@ -81,11 +115,16 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h)
 
-add_library(FLAT_NAV_LIB STATIC
-            ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
+add_library(FLAT_NAV_LIB STATIC ${PROJECT_SOURCE_DIR}/flatnav/lib.cpp
+                                ${HEADERS})
 add_dependencies(FLAT_NAV_LIB CNPY)
 
 target_link_libraries(FLAT_NAV_LIB ${CNPY_LIB})
+
+if(RUN_BENCHMARKS)
+  target_link_libraries(FLAT_NAV_LIB benchmark::benchmark)
+endif()
+
 set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
 foreach(CONSTRUCT_EXEC index_construction construct_npy)
@@ -96,3 +135,8 @@ foreach(CONSTRUCT_EXEC index_construction construct_npy)
                         ${ZLIB_LIB_RELEASE})
   install(TARGETS ${CONSTRUCT_EXEC} DESTINATION bin)
 endforeach(CONSTRUCT_EXEC)
+
+# delete this after testing it 
+add_executable(lib_ ${PROJECT_SOURCE_DIR}/flatnav/lib.cpp)
+target_link_libraries(lib_ benchmark::benchmark)
+install(TARGETS lib_ DESTINATION BIN)
