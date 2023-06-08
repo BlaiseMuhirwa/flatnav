@@ -137,6 +137,6 @@ foreach(CONSTRUCT_EXEC index_construction construct_npy)
 endforeach(CONSTRUCT_EXEC)
 
 # delete this after testing it 
-add_executable(lib_ ${PROJECT_SOURCE_DIR}/flatnav/lib.cpp)
-target_link_libraries(lib_ benchmark::benchmark)
-install(TARGETS lib_ DESTINATION BIN)
+add_executable(build_benchmark ${PROJECT_SOURCE_DIR}/benchmarks/construct_npy.cpp)
+target_link_libraries(build_benchmark benchmark::benchmark FLAT_NAV_LIB ${CNPY_LIB} ${ZLIB_LIB_RELEASE})
+install(TARGETS build_benchmark DESTINATION BIN)
