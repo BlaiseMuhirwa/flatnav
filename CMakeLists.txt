@@ -22,9 +22,8 @@ function(functionInstallExternalCMakeProject ep_name)
   install(SCRIPT ${binary_dir}/cmake_install.cmake)
 endfunction()
 
-## TODO(blaise): Remove this old school way of including external 
-## libraries via ExternalProject_Add. Use FetchContent instead, which
-## is much cleaner 
+# TODO(blaise): Remove this old school way of including external libraries via
+# ExternalProject_Add. Use FetchContent instead, which is much cleaner
 ExternalProject_Add(
   ZLIB
   DEPENDS ""
@@ -80,9 +79,9 @@ if(RUN_BENCHMARKS)
 
   message(STATUS "Running a suite of benchmarks using Google Benchmark")
   set(GOOGLE_BENCHMARK_DIR "${PROJECT_BINARY_DIR}/benchmark")
+  set(TOML_PLUS_PLUS "${PROJECT_BINARY_DIR}/benchmark")
 
   if(NOT EXISTS ${GOOGLE_BENCHMARK_DIR})
-    set(GOOGLE_BENCHMARK_GIT_REPO "https://github.com/google/benchmark")
     message(
       STATUS "Downloading google-benchmark to ${PROJECT_BINARY_DIR}/ep/include")
 
@@ -96,6 +95,15 @@ if(RUN_BENCHMARKS)
       GIT_TAG main) # need main for benchmark::benchmark
 
     FetchContent_MakeAvailable(googletest googlebenchmark)
+
+  endif()
+  if(NOT EXISTS ${TOML_PLUS_PLUS})
+    message(STATUS "Downloading toml++ to ${PROJECT_BINARY_DIR}/ep/include")
+    FetchContent_Declare(
+      tomlplusplus
+      GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
+      GIT_TAG v3.3.0)
+    FetchContent_MakeAvailable(tomlplusplus)
 
   endif()
 
@@ -115,17 +123,21 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h)
 
-add_library(FLAT_NAV_LIB STATIC ${PROJECT_SOURCE_DIR}/flatnav/lib.cpp
+add_library(FLAT_NAV_LIB STATIC ${PROJECT_SOURCE_DIR}/tools/construct_npy.cpp
                                 ${HEADERS})
 add_dependencies(FLAT_NAV_LIB CNPY)
 
 target_link_libraries(FLAT_NAV_LIB ${CNPY_LIB})
+set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
 if(RUN_BENCHMARKS)
   target_link_libraries(FLAT_NAV_LIB benchmark::benchmark)
+  add_executable(run_benchmark ${PROJECT_SOURCE_DIR}/benchmarks/runner.cpp)
+  target_link_libraries(
+    run_benchmark benchmark::benchmark tomlplusplus::tomlplusplus FLAT_NAV_LIB
+    ${CNPY_LIB} ${ZLIB_LIB_RELEASE})
+  install(TARGETS run_benchmark DESTINATION BIN)
 endif()
-
-set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
 foreach(CONSTRUCT_EXEC index_construction construct_npy)
   add_executable(${CONSTRUCT_EXEC}
@@ -135,8 +147,3 @@ foreach(CONSTRUCT_EXEC index_construction construct_npy)
                         ${ZLIB_LIB_RELEASE})
   install(TARGETS ${CONSTRUCT_EXEC} DESTINATION bin)
 endforeach(CONSTRUCT_EXEC)
-
-# delete this after testing it 
-add_executable(build_benchmark ${PROJECT_SOURCE_DIR}/benchmarks/construct_npy.cpp)
-target_link_libraries(build_benchmark benchmark::benchmark FLAT_NAV_LIB ${CNPY_LIB} ${ZLIB_LIB_RELEASE})
-install(TARGETS build_benchmark DESTINATION BIN)
