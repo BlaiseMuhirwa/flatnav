@@ -20,7 +20,6 @@ namespace flatnav {
 template <typename dist_t> class ProductQuantizer {
 
 public:
-  ProductQuantizer() = default;
 
   /** PQ Constructor.
    *
