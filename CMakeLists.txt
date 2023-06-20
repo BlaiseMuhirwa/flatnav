@@ -9,11 +9,33 @@ set(CMAKE_CXX_FLAGS
 )
 
 include(ExternalProject)
+include(FeatureSummary)
 
 find_package(Git REQUIRED)
 
 option(USE_GIT_PROTOCOL
        "If behind a firewall turn this off to use HTTPS instead." OFF)
+
+option(AVX "Compile scan functions requiring AVX intrinsics" ON)
+option(AVX2 "Compile scan functions requiring AVX2 intrinsics" OFF)
+
+# All options summary
+add_feature_info(AVX AVX "Complile scan functions requiring AVX intrinsics")
+add_feature_info(
+  AVX2 AVX2
+  "Compile scan functions requiring AVX2 intrinsics (enables AVX automatically)"
+)
+if(AVX2)
+set(AVX ON)
+endif()
+
+feature_summary(WHAT ALL)
+
+
+# Configure options
+configure_file("${PROJECT_SOURCE_DIR}/quantization/Config.h.in"
+               "${PROJECT_BINARY_DIR}/Config.h")
+include_directories("${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}")
 
 function(functionInstallExternalCMakeProject ep_name)
   ExternalProject_Get_Property(${ep_name} binary_dir)
@@ -67,6 +89,8 @@ include_directories(${PROJECT_BINARY_DIR}/ep/include)
 
 set(CNPY_LIB ${PROJECT_BINARY_DIR}/ep/lib/libcnpy.a)
 
+# TODO: Using globbing or some other command that does not require 
+# writing down every header file 
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistanceSpecializations.h
@@ -79,7 +103,9 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/util/reordering.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/verifysimd.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
-    ${PROJECT_SOURCE_DIR}/flatnav/Index.h)
+    ${PROJECT_SOURCE_DIR}/flatnav/Index.h
+    ${PROJECT_SOURCE_DIR}/quantization/BaseProductQuantization.h
+    )
 
 add_library(FLAT_NAV_LIB STATIC
             ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
