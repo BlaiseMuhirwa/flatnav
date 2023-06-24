@@ -2,10 +2,11 @@ cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 
 project(FlatNav CXX)
 
-# set standard to c++14 in order to use call to std::make_unique
-set(CMAKE_CXX_STANDARD 14)
+# set standard to c++17 in order to use std::unique_ptr(c++14) and nested
+# namespaces (c++17)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS}  -std=c++14 -Wall -Ofast -DHAVE_CXX0X -DNDEBUG -openmp -fpic -w -ffast-math -funroll-loops -ftree-vectorize -g -Qunused-arguments"
+    "${CMAKE_CXX_FLAGS}  -std=c++17 -Wall -Ofast -DHAVE_CXX0X -DNDEBUG -openmp -fpic -w -ffast-math -funroll-loops -ftree-vectorize -g -Qunused-arguments"
 )
 
 include(ExternalProject)
@@ -17,7 +18,7 @@ option(USE_GIT_PROTOCOL
        "If behind a firewall turn this off to use HTTPS instead." OFF)
 
 option(AVX "Compile scan functions requiring AVX intrinsics" ON)
-option(AVX2 "Compile scan functions requiring AVX2 intrinsics" OFF)
+option(AVX2 "Compile scan functions requiring AVX2 intrinsics" ON)
 
 # All options summary
 add_feature_info(AVX AVX "Complile scan functions requiring AVX intrinsics")
@@ -26,11 +27,10 @@ add_feature_info(
   "Compile scan functions requiring AVX2 intrinsics (enables AVX automatically)"
 )
 if(AVX2)
-set(AVX ON)
+  set(AVX ON)
 endif()
 
 feature_summary(WHAT ALL)
-
 
 # Configure options
 configure_file("${PROJECT_SOURCE_DIR}/quantization/Config.h.in"
@@ -89,8 +89,8 @@ include_directories(${PROJECT_BINARY_DIR}/ep/include)
 
 set(CNPY_LIB ${PROJECT_BINARY_DIR}/ep/lib/libcnpy.a)
 
-# TODO: Using globbing or some other command that does not require 
-# writing down every header file 
+# TODO: Using globbing or some other command that does not require writing down
+# every header file
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistanceSpecializations.h
@@ -105,7 +105,8 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h
     ${PROJECT_SOURCE_DIR}/quantization/BaseProductQuantization.h
-    )
+    ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
+    ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 
 add_library(FLAT_NAV_LIB STATIC
             ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
