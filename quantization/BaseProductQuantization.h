@@ -5,6 +5,7 @@
 #include "Utils.h"
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -316,16 +317,41 @@ private:
    * @param data
    * @param centroids
    */
-  static void initHypercube(uint32_t dim, uint32_t num_bits, uint64_t n,
-                            const float *data, const float *centroids);
+  void initHypercube(uint32_t dim, uint32_t num_bits, uint64_t n,
+                     const float *data, const float *centroids) {
+    std::vector<float> means(dim);
+    for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
+      for (uint32_t dim_index = 0; dim_index < dim; dim_index++) {
+        means[dim_index] += data[(vec_index * dim) + dim_index];
+      }
+    }
+
+    float maxm = 0;
+    for (uint32_t dim_index = 0; dim_index < dim; dim_index++) {
+      means[dim_index] /= n;
+
+      maxm = fabs(means[dim_index]) > maxm ? fabs(means[dim_index]) : maxm;
+    }
+
+    for (uint64_t i = 0; i < (1 << _num_bits); i++) {
+      float *centroid = const_cast<float *>(centroids + (i * dim));
+      for (uint64_t j = 0; j < _num_bits; j++) {
+        centroid[j] = means[j] + (((i >> j) & 1) ? 1 : -1) * maxm;
+      }
+
+      for (uint64_t j = _num_bits; j < dim; j++) {
+        centroid[j] = means[j];
+      }
+    }
+  }
 
   /**
    * @brief Similar to `initHypercube` except that it pre-processes the input
    * data by computing Principal Component Analysis (PCA)
    *
    */
-  static void initHypercubePCA(uint32_t dim, uint32_t num_bits, uint64_t n,
-                               const float *data, const float *centroids);
+  void initHypercubePCA(uint32_t dim, uint32_t num_bits, uint64_t n,
+                        const float *data, const float *centroids);
 
   // Bytes per indexed vector
   uint32_t _code_size;

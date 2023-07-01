@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
 project(FlatNav CXX)
 
@@ -11,6 +11,7 @@ set(CMAKE_CXX_FLAGS
 
 include(ExternalProject)
 include(FeatureSummary)
+include(FetchContent)
 
 find_package(Git REQUIRED)
 
@@ -108,7 +109,7 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 
-add_library(FLAT_NAV_LIB STATIC
+add_library(FLAT_NAV_LIB SHARED
             ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
 add_dependencies(FLAT_NAV_LIB CNPY)
 
@@ -123,3 +124,27 @@ foreach(CONSTRUCT_EXEC index_construction construct_npy)
                         ${ZLIB_LIB_RELEASE})
   install(TARGETS ${CONSTRUCT_EXEC} DESTINATION bin)
 endforeach(CONSTRUCT_EXEC)
+
+option(BUILD_TESTS "Builds all tests" OFF)
+message(STATUS "Building tests: ${BUILD_TESTS}")
+
+if(BUILD_TESTS)
+  message(
+    STATUS "Building flatnav + quantization unit tests using Google Benchmark")
+  set(GOOGLE_TEST_DIR "${PROJECT_BINARY_DIR}/ep/include/googletest")
+
+  if(NOT EXISTS ${GOOGLE_TEST_DIR})
+    message(
+      STATUS "Downloading google-test to ${PROJECT_BINARY_DIR}/ep/include")
+
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      GIT_TAG main)
+
+    FetchContent_MakeAvailable(googletest)
+
+  endif()
+  add_subdirectory(${PROJECT_SOURCE_DIR}/quantization/tests)
+
+endif()
