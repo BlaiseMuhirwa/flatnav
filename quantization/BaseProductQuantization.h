@@ -183,6 +183,7 @@ public:
                   << std::endl;
       }
     }
+
     float *slice = new float[n * _subvector_dim];
 
     auto dim = _subvector_dim * _num_subquantizers;
@@ -202,7 +203,7 @@ public:
       switch (final_train_type) {
       case TrainType::HYPERCUBE:
         initHypercube(
-            /* dim = */ dim, /* num_bits = */ _num_bits, /* n = */ n,
+            /* dim = */ _subvector_dim, /* num_bits = */ _num_bits, /* n = */ n,
             /* data = */ slice,
             /* centroids = */ centroids_generator.centroids().data());
         break;
@@ -309,14 +310,34 @@ public:
 
 private:
   /**
-   * @brief
+   * @brief This function initializes a set of 2^(_num_bits) centroids spread
+   around
+   *  the mean of the input data in a hypercube configuration. For each
+   dimension up
+   *  to _num_bits, the centroid coordinates will be either mean[j] - maxm or
+   *  mean[j] + maxm, creating a uniform distribution in a binary hypercube
+   pattern.
    *
-   * @param dim
-   * @param num_bits
-   * @param n
-   * @param data
-   * @param centroids
+   *  The remaining coordinates (from _num_bits to dim) will be set to the mean
+   of the
+   *  dataset, collapsing the hypercube into a lower-dimensional hyperplane if
+   _num_bits < dim.
+   *  This kind of setup is a good initialization step for quantization or
+   clustering
+   *  as it ensures a good spread of centroids across the data space.
+   *
+   *
+   * @param dim        This is essentially the subvector dimension (i.e.,
+   *                    _subvector_dim)
+   * @param num_bits   The number of bits we use to represent each pq code/index
+   * @param n          The number of data points in the dataset
+   * @param data       The actual dataset
+   * @param centroids  Uninitialized centroids.
+   *
+   * TODO: Move the initialization to the CentroidsGenerator class
+
    */
+
   void initHypercube(uint32_t dim, uint32_t num_bits, uint64_t n,
                      const float *data, const float *centroids) {
     std::vector<float> means(dim);

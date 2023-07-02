@@ -1,2 +1,2 @@
 enable_testing()
-add_subdirector(tests)
+add_subdirectory(tests)

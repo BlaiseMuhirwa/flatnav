@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 project(FlatNav CXX)
 
@@ -116,35 +116,65 @@ add_dependencies(FLAT_NAV_LIB CNPY)
 target_link_libraries(FLAT_NAV_LIB ${CNPY_LIB})
 set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
-foreach(CONSTRUCT_EXEC index_construction construct_npy)
-  add_executable(${CONSTRUCT_EXEC}
-                 ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
-  add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)
-  target_link_libraries(${CONSTRUCT_EXEC} FLAT_NAV_LIB ${CNPY_LIB}
-                        ${ZLIB_LIB_RELEASE})
-  install(TARGETS ${CONSTRUCT_EXEC} DESTINATION bin)
-endforeach(CONSTRUCT_EXEC)
-
 option(BUILD_TESTS "Builds all tests" OFF)
+option(BUIL_EXAMPLES "Builds examples" OFF)
 message(STATUS "Building tests: ${BUILD_TESTS}")
+message(STATUS "Building examples: ${BUILD_EXAMPLES}")
+
+if(BUILD_EXAMPLES)
+  message(STATUS "Building examples for Flatnav")
+  foreach(CONSTRUCT_EXEC index_construction construct_npy)
+    add_executable(${CONSTRUCT_EXEC}
+                   ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
+    add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)
+    target_link_libraries(${CONSTRUCT_EXEC} FLAT_NAV_LIB ${CNPY_LIB}
+                          ${ZLIB_LIB_RELEASE})
+    install(TARGETS ${CONSTRUCT_EXEC} DESTINATION bin)
+  endforeach(CONSTRUCT_EXEC)
+
+endif()
 
 if(BUILD_TESTS)
   message(
     STATUS "Building flatnav + quantization unit tests using Google Benchmark")
-  set(GOOGLE_TEST_DIR "${PROJECT_BINARY_DIR}/ep/include/googletest")
+  set(GOOGLE_TEST_DIR "${PROJECT_BINARY_DIR}/_deps/googletest-src")
 
   if(NOT EXISTS ${GOOGLE_TEST_DIR})
     message(
-      STATUS "Downloading google-test to ${PROJECT_BINARY_DIR}/ep/include")
-
-    FetchContent_Declare(
-      googletest
-      GIT_REPOSITORY https://github.com/google/googletest.git
-      GIT_TAG main)
-
-    FetchContent_MakeAvailable(googletest)
-
+      STATUS
+        "Downloading googletest to ${PROJECT_BINARY_DIR}/_deps/googletest-src")
   endif()
+  # This does not download googletest again if its already available in the
+  # CMakeCache file
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG main)
+
+  FetchContent_MakeAvailable(googletest)
+
+  FetchContent_GetProperties(googletest)
+  if(NOT googletest_POPULATED)
+    message(STATUS "GoogleTest not populated")
+    FetchContent_Populate(googletest)
+    add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
+  else()
+    message(STATUS "GoogleTest already populated")
+  endif()
+
+  message(STATUS "googletest_BINARY_DIR: ${googletest_BINARY_DIR}")
+  message(STATUS "googletest_SOURCE_DIR: ${googletest_SOURCE_DIR}")
+
+  target_include_directories(FLAT_NAV_LIB
+                             PUBLIC ${googletest_SOURCE_DIR}/googletest/include)
   add_subdirectory(${PROJECT_SOURCE_DIR}/quantization/tests)
 
 endif()
+
+get_property(
+  dirs
+  TARGET FLAT_NAV_LIB
+  PROPERTY INCLUDE_DIRECTORIES)
+foreach(dir ${dirs})
+  message(STATUS "dir='${dir}'")
+endforeach()
