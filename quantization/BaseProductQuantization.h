@@ -28,18 +28,19 @@ template <typename n_bits_t> struct PQCodeManager {
   // NOTE: code here means the index of the local centroid that
   // minimizes the (squared) distance between a given subvector and itself.
   n_bits_t *code;
+  n_bits_t *start;
 
   PQCodeManager(uint8_t *code, uint32_t nbits)
-      : code(static_cast<n_bits_t *>(code)) {
+      : code(reinterpret_cast<n_bits_t *>(code)),
+        start(reinterpret_cast<n_bits_t *>(code)) {
     assert(nbits == 8 * sizeof(n_bits_t));
   }
 
-  void encode(uint64_t index) {
-    *code = (n_bits_t)index;
-    code++;
-  }
+  void encode(uint64_t index) { *code++ = static_cast<n_bits_t>(index); }
 
-  uint64_t decode() { return static_cast<n_bits_t>(*code++); }
+  uint64_t decode() { return static_cast<uint64_t>(*code++); }
+
+  void jumpToStart() { code = start; }
 };
 
 /** This is the main class definition for a regular Product Quantizer
@@ -320,12 +321,10 @@ public:
                                  const uint8_t *codes, const uint64_t ncodes,
                                  std::shared_ptr<MaxHeap> heap,
                                  bool init_finalize_heap) {
-    
-    
+
     auto subq_centroids_count = pq.getCentroidsCount();
     auto num_subquantizers = pq.getNumSubquantizers();
     auto heap_size = heap->size();
-
 
 #pragma omp parallel for if (num_queries > 1)
     for (uint64_t i = 0; i < num_queries; i++) {

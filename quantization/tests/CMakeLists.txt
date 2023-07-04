@@ -3,7 +3,7 @@ enable_testing()
 include(GoogleTest)
 
 # Add test executables here 
-set(PQ_TESTS test_kmeans)
+set(PQ_TESTS test_kmeans test_pq_manager)
 
 
 foreach(PQ_TEST IN LISTS PQ_TESTS)
