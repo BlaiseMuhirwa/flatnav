@@ -71,10 +71,6 @@ TEST(ProductQuantizationTest, TestComputeCodes) {
     ASSERT_EQ(codes[i], second_encoding[i]);
   }
 
-  // Test that the decoded vectors are the same as the original ones
-    // for (uint32_t i = 0; i < decoded_vectors.size(); i++) {
-    //     ASSERT_EQ(testing_vectors[i], decoded_vectors[i]);
-    // }
 }
 
 } // namespace flatnav::quantization
