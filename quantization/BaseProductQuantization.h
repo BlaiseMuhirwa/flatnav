@@ -54,6 +54,14 @@ template <typename dist_t> class ProductQuantizer {
   // Represents the block size used in ProductQuantizer::computePQCodes
   static const uint64_t BLOCK_SIZE = 256 * 1024;
 
+  // This heap array maintains an ordering of pairs of computed distances
+  // (float) and their assigned ID's (int64_t).
+  // TODO: Implement a modular heap class that can both be used
+  // in Flatnav's Index and Quantization
+  typedef std::priority_queue<std::pair<float, int64_t>,
+                              std::vector<std::pair<float, int64_t>>>
+      MaxHeap;
+
 public:
   /** PQ Constructor.
    *
@@ -230,6 +238,8 @@ public:
       setParameters(/* centroids_ = */ centroids_generator.centroids().data(),
                     /* m = */ m);
     }
+
+    delete[] slice;
   }
 
   /**
@@ -286,6 +296,7 @@ public:
                              uint64_t n) const {
     // TODO: Use SIMD
     auto dim = _subvector_dim * _num_subquantizers;
+#pragma omp parallel for
     for (uint64_t i = 0; i < n; i++) {
       computeDistanceTable(
           vectors + (i * dim),
@@ -293,14 +304,73 @@ public:
     }
   }
 
-  /** perform a search
+  template <typename T>
+  void pqEstimatorsFromTables(const ProductQuantizer &pq, const uint8_t *codes,
+                              const uint64_t ncodes, const float *dist_table);
+
+  /**
+   * @NOTE: This function, in principle, supports searching with multiple
+   * queries in parallel. However, we are currently limited by our heap
+   * implementation, which does not allow us to process multiple queries at
+   * once. So, we will assume for now that `num_queries` = 1.
+   *
+   */
+  void searchUsingDistanceTables(const ProductQuantizer &pq, uint32_t num_bits,
+                                 const float *dist_tables, uint64_t num_queries,
+                                 const uint8_t *codes, const uint64_t ncodes,
+                                 std::shared_ptr<MaxHeap> heap,
+                                 bool init_finalize_heap) {
+    
+    
+    auto subq_centroids_count = pq.getCentroidsCount();
+    auto num_subquantizers = pq.getNumSubquantizers();
+    auto heap_size = heap->size();
+
+
+#pragma omp parallel for if (num_queries > 1)
+    for (uint64_t i = 0; i < num_queries; i++) {
+      /* prepare query for asymmetric search: compute lookup tables */
+      const float *dist_table =
+          dist_tables + (i * subq_centroids_count * num_subquantizers);
+
+      /* Compute distances and keep smallest values */
+
+      switch (num_bits) {
+      case 8:
+        pqEstimatorsFromTables<uint8_t>(pq);
+        break;
+      case 16:
+        pqEstimatorsFromTables<uint16_t>(pq);
+      default:;
+      }
+    }
+  }
+
+  /**
+   * @brief perform search
+   *
    * @param query_vectors        query vectors, size num_queries * d
    * @param num_queries          number of queries
    * @param codes                PQ codes, size ncodes * code_size
    * @param ncodes               nb of vectors
    */
-  std::vector<float> search(const float *query_vectors, size_t num_queries,
-                            const uint8_t *codes, const size_t ncodes) const;
+  void search(const float *__restrict query_vectors, uint64_t num_queries,
+              const uint8_t *codes, const uint64_t ncodes,
+              bool init_finalize_heap) const {
+
+    std::unique_ptr<float[]> dist_tables(
+        new float[num_queries * _subq_centroids_count * _num_subquantizers]);
+
+    computeDistanceTables(/* vectors = */ query_vectors,
+                          /* dist_tables = */ dist_tables,
+                          /* n = */ num_queries);
+
+    this->searchUsingDistanceTables(
+        /* num_bits = */ _num_bits, /* dist_tables = */ dist_tables.get(),
+        /* num_queries = */ num_queries,
+        /* codes = */ codes, /* ncodes = */ ncodes, /* heap = */ NULL,
+        /* init_finalize_heap = */ init_finalize_heap);
+  }
 
   inline uint32_t getNumSubquantizers() const { return _num_subquantizers; }
 
