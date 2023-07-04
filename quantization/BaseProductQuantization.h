@@ -36,9 +36,16 @@ template <typename n_bits_t> struct PQCodeManager {
     assert(nbits == 8 * sizeof(n_bits_t));
   }
 
-  void encode(uint64_t index) { *code++ = static_cast<n_bits_t>(index); }
+  void encode(uint64_t index) {
+    *code = static_cast<n_bits_t>(index);
+    code++;
+  }
 
-  uint64_t decode() { return static_cast<uint64_t>(*code++); }
+  uint64_t decode() {
+    uint64_t decoded = static_cast<uint64_t>(*code);
+    code++;
+    return decoded;
+  }
 
   void jumpToStart() { code = start; }
 };
@@ -97,7 +104,7 @@ public:
   }
 
   void setParameters(const float *centroids_, int m) {
-    float *centroids = getCentroids(m, 0);
+    float *centroids = const_cast<float *>(getCentroids(m, 0));
     auto bytes_to_copy =
         _subq_centroids_count * _subvector_dim * sizeof(_centroids[0]);
 
@@ -193,12 +200,13 @@ public:
       }
     }
 
-    float *slice = new float[n * _subvector_dim];
+    // float *slice = new float[n * _subvector_dim];
+    std::shared_ptr<float[]> slice(new float[n * _subvector_dim]);
 
     auto dim = _subvector_dim * _num_subquantizers;
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
       for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
-        std::memcpy(slice + (vec_index * _subvector_dim),
+        std::memcpy(slice.get() + (vec_index * _subvector_dim),
                     vectors + (vec_index * dim) + (m * _subvector_dim),
                     _subvector_dim * sizeof(float));
       }
@@ -213,14 +221,7 @@ public:
       case TrainType::HYPERCUBE:
         initHypercube(
             /* dim = */ _subvector_dim, /* num_bits = */ _num_bits, /* n = */ n,
-            /* data = */ slice,
-            /* centroids = */ centroids_generator.centroids().data());
-        break;
-
-      case TrainType::HYPERCUBE_PCA:
-        initHypercubePCA(
-            /* dim = */ dim, /* num_bits = */ _num_bits, /* n = */ n,
-            /* data = */ slice,
+            /* data = */ slice.get(),
             /* centroids = */ centroids_generator.centroids().data());
         break;
 
@@ -234,13 +235,11 @@ public:
 
       // generate the actual centroids
       centroids_generator.generateCentroids(
-          /* vectors = */ slice, /* vec_weights = */ NULL, /* n = */ n);
+          /* vectors = */ slice.get(), /* vec_weights = */ NULL, /* n = */ n);
 
       setParameters(/* centroids_ = */ centroids_generator.centroids().data(),
                     /* m = */ m);
     }
-
-    delete[] slice;
   }
 
   /**
@@ -320,30 +319,7 @@ public:
                                  const float *dist_tables, uint64_t num_queries,
                                  const uint8_t *codes, const uint64_t ncodes,
                                  std::shared_ptr<MaxHeap> heap,
-                                 bool init_finalize_heap) {
-
-    auto subq_centroids_count = pq.getCentroidsCount();
-    auto num_subquantizers = pq.getNumSubquantizers();
-    auto heap_size = heap->size();
-
-#pragma omp parallel for if (num_queries > 1)
-    for (uint64_t i = 0; i < num_queries; i++) {
-      /* prepare query for asymmetric search: compute lookup tables */
-      const float *dist_table =
-          dist_tables + (i * subq_centroids_count * num_subquantizers);
-
-      /* Compute distances and keep smallest values */
-
-      switch (num_bits) {
-      case 8:
-        pqEstimatorsFromTables<uint8_t>(pq);
-        break;
-      case 16:
-        pqEstimatorsFromTables<uint16_t>(pq);
-      default:;
-      }
-    }
-  }
+                                 bool init_finalize_heap) {}
 
   /**
    * @brief perform search
@@ -376,6 +352,8 @@ public:
   inline uint32_t getNumBitsPerIndex() const { return _num_bits; }
 
   inline uint32_t getCentroidsCount() const { return _subq_centroids_count; }
+
+  inline uint32_t getCodeSize() const { return _code_size; }
 
 private:
   /**

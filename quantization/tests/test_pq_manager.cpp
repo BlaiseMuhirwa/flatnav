@@ -35,7 +35,7 @@ TEST(PQCodeManagerTest, TestEncodingAndDecodingUint8) {
 
   for (int i = 0; i < nsubcodes; ++i) {
     uint64_t decoded = code_manager.decode();
-    EXPECT_EQ(decoded, testing_vector[i] & mask);
+    ASSERT_EQ(decoded, testing_vector[i] & mask);
   }
 }
 
@@ -57,7 +57,7 @@ TEST(PQCodeManagerTest, TestEncodingAndDecodingUint16) {
 
   for (int i = 0; i < nsubcodes; ++i) {
     uint64_t decoded = code_manager.decode();
-    EXPECT_EQ(decoded, testing_vector[i] & mask);
+    ASSERT_EQ(decoded, testing_vector[i] & mask);
   }
 }
 

@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 project(FlatNav CXX)
 
+# Add the parent directory to the include path 
+include_directories(${CMAKE_SOURCE_DIR})
+
 # set standard to c++17 in order to use std::unique_ptr(c++14) and nested
 # namespaces (c++17)
 set(CMAKE_CXX_STANDARD 17)
