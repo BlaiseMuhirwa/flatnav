@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 project(FlatNav CXX)
 
 # Add the parent directory to the include path 
+# This allows us to write #include <flatnav/...> instead of #include "../flatnav/..."
 include_directories(${CMAKE_SOURCE_DIR})
 
 # set standard to c++17 in order to use std::unique_ptr(c++14) and nested
@@ -126,7 +127,7 @@ message(STATUS "Building examples: ${BUILD_EXAMPLES}")
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples for Flatnav")
-  foreach(CONSTRUCT_EXEC index_construction construct_npy)
+  foreach(CONSTRUCT_EXEC index_construction construct_npy query)
     add_executable(${CONSTRUCT_EXEC}
                    ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
     add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)

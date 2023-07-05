@@ -70,7 +70,6 @@ TEST(ProductQuantizationTest, TestComputeCodes) {
   for (uint32_t i = 0; i < codes.size(); i++) {
     ASSERT_EQ(codes[i], second_encoding[i]);
   }
-
 }
 
 } // namespace flatnav::quantization

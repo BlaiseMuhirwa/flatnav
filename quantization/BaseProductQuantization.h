@@ -30,9 +30,15 @@ template <typename n_bits_t> struct PQCodeManager {
   n_bits_t *code;
   n_bits_t *start;
 
+  // Indicates if the code manager has already been redirected to the
+  // start of the encoding so that we don't do this more than once (to
+  // avoid segfaults while decoding).
+  bool code_manager_already_set_to_start;
+
   PQCodeManager(uint8_t *code, uint32_t nbits)
       : code(reinterpret_cast<n_bits_t *>(code)),
-        start(reinterpret_cast<n_bits_t *>(code)) {
+        start(reinterpret_cast<n_bits_t *>(code)),
+        code_manager_already_set_to_start(false) {
     assert(nbits == 8 * sizeof(n_bits_t));
   }
 
@@ -47,7 +53,12 @@ template <typename n_bits_t> struct PQCodeManager {
     return decoded;
   }
 
-  void jumpToStart() { code = start; }
+  void jumpToStart() {
+    if (!code_manager_already_set_to_start) {
+      code = start;
+      code_manager_already_set_to_start = true;
+    }
+  }
 };
 
 /** This is the main class definition for a regular Product Quantizer
@@ -98,8 +109,7 @@ public:
 
   // Return a pointer to the centroids associated with a given subvector
   const float *getCentroids(uint32_t subvector_index, uint32_t i) const {
-    auto index =
-        (subvector_index * _subq_centroids_count) + (i * _subvector_dim);
+    auto index = (subvector_index * _subq_centroids_count + i) * _subvector_dim;
     return &_centroids[index];
   }
 
@@ -340,7 +350,8 @@ public:
                           /* dist_tables = */ dist_tables,
                           /* n = */ num_queries);
 
-    this->searchUsingDistanceTables(
+    searchUsingDistanceTables(
+        /* pq = */ *this,
         /* num_bits = */ _num_bits, /* dist_tables = */ dist_tables.get(),
         /* num_queries = */ num_queries,
         /* codes = */ codes, /* ncodes = */ ncodes, /* heap = */ NULL,
@@ -442,7 +453,7 @@ private:
   uint32_t _subq_centroids_count;
 
   // Centroid table. It will have size
-  // (_num_subquanitizers x _subq_centroids_count x _subvector_dim)
+  // (_num_subquantizers x _subq_centroids_count x _subvector_dim)
   std::vector<float> _centroids;
 
   // Represents centroids in a transposed form. This is useful while performing
@@ -458,7 +469,9 @@ private:
     SHARED,        // Share dictionary across PQ segments
     HYPERCUBE,     // Initialize centroids with nbits-D hypercube
     HYPERCUBE_PCA, // Initialize centroids with nbits-D hypercube post PCA
-                   // pre-processing
+                   // pre-processing. For now, this is not implemented. FAISS
+                   // seems to believe that this is a good initialization, so we
+                   // might test it out to see if it actually works well.
   };
 
   TrainType _train_type;

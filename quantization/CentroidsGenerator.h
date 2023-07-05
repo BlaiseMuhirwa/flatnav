@@ -166,7 +166,8 @@ private:
 
   // Number of cluster centroids
   uint32_t _num_centroids;
-
+  // Centroids. This will be an array of k * _dim floats
+  // where k is the number of centroids
   std::vector<float> _centroids;
 
   // Number of clustering iterations
