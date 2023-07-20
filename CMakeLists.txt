@@ -6,6 +6,9 @@ project(FlatNav CXX)
 # This allows us to write #include <flatnav/...> instead of #include "../flatnav/..."
 include_directories(${CMAKE_SOURCE_DIR})
 
+# Include cereal 
+include_directories(${CMAKE_SOURCE_DIR}/external/cereal/include/)
+
 # set standard to c++17 in order to use std::unique_ptr(c++14) and nested
 # namespaces (c++17)
 set(CMAKE_CXX_STANDARD 17)
@@ -113,8 +116,8 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 
-add_library(FLAT_NAV_LIB SHARED
-            ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
+add_library(FLAT_NAV_LIB SHARED ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
+# target_include_directories(FLAT_NAV_LIB PRIVATE ${PROJECT_SOURCE_DIR}/external/cereal/include)
 add_dependencies(FLAT_NAV_LIB CNPY)
 
 target_link_libraries(FLAT_NAV_LIB ${CNPY_LIB})
@@ -127,7 +130,7 @@ message(STATUS "Building examples: ${BUILD_EXAMPLES}")
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples for Flatnav")
-  foreach(CONSTRUCT_EXEC index_construction construct_npy query)
+  foreach(CONSTRUCT_EXEC index_construction construct_npy query query_npy cereal_tests)
     add_executable(${CONSTRUCT_EXEC}
                    ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
     add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)

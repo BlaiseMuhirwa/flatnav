@@ -5,6 +5,10 @@
 #include "util/verifysimd.h"
 #include <algorithm> // for std::min
 #include <cassert>
+#include <cereal/access.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/cereal.hpp>
+#include <cereal/types/memory.hpp>
 #include <cstring>
 #include <fstream>
 #include <limits>  // for std::numeric_limits<T>::max()
@@ -40,17 +44,20 @@ public:
     _node_size_bytes =
         _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
 
-    size_t _index_memory_size = _node_size_bytes * _max_node_count;
+    size_t index_memory_size = _node_size_bytes * _max_node_count;
 
-    _index_memory = new char[_index_memory_size];
+    _index_memory = new char[index_memory_size];
     _transformed_query = new char[_data_size_bytes];
   }
 
-  Index(std::ofstream &stream)
+  Index(std::ifstream &stream)
       : _max_node_count(0), _cur_num_nodes(0), _index_memory(NULL),
         _transformed_query(NULL) {
     deserialize(/* stream = */ stream);
   }
+
+  // Private constructor for serialization with cereal
+  Index() = default;
 
   ~Index() {
     delete[] _index_memory;
@@ -80,7 +87,14 @@ public:
     return true;
   }
 
-  std::vector<dist_label_t> search(const void *query, const int num_results,
+  /***
+   * @brief Search the index for the k nearest neighbors of the query.
+   * @param query The query vector.
+   * @param K The number of nearest neighbors to return.
+   * @param ef_search The search beam width.
+   * @param num_initializations The number of random initializations to use.
+   */
+  std::vector<dist_label_t> search(const void *query, const int K,
                                    int ef_search,
                                    int num_initializations = 100) {
 
@@ -90,13 +104,23 @@ public:
     _distance->transformData(_transformed_query, query);
     node_id_t entry_node =
         initializeSearch(_transformed_query, num_initializations);
-    PriorityQueue neighbors =
-        beamSearch(_transformed_query, entry_node, ef_search);
+    PriorityQueue neighbors = beamSearch(/* query = */ _transformed_query,
+                                         /* entry_node = */ entry_node,
+                                         /* buffer_size = */ ef_search);
     std::vector<dist_label_t> results;
-    while (neighbors.size() > num_results) {
+    while (neighbors.size() > K) {
       neighbors.pop();
     }
+    uint32_t index = 0;
     while (neighbors.size() > 0) {
+
+      if (index < 100) {
+        std::cout << "[INFO] neighbor " << index
+                  << " distance: " << neighbors.top().first << std::endl;
+      }
+
+      std::cout << "[INFO] neighbor " << index++
+                << " id:  " << neighbors.top().second << std::endl;
       results.emplace_back(neighbors.top().first,
                            *getNodeLabel(neighbors.top().second));
       neighbors.pop();
@@ -108,6 +132,10 @@ public:
     return results;
   }
 
+  std::vector<dist_label_t> asymmetricSearch(const void *query, const int K,
+                                             int ef_search,
+                                             int num_initializations) {}
+
   void serialize(std::ofstream &stream) {
     // TODO: Make this safe across machines and compilers.
     _distance->serialize(stream);
@@ -117,8 +145,8 @@ public:
     stream.write(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
     stream.write(reinterpret_cast<char *>(&_M), sizeof(size_t));
     // Write the index data partition.
-    size_t _index_memory_size = _node_size_bytes * _max_node_count;
-    stream.write(reinterpret_cast<char *>(_index_memory), _index_memory_size);
+    size_t index_memory_size = _node_size_bytes * _max_node_count;
+    stream.write(reinterpret_cast<char *>(_index_memory), index_memory_size);
   }
 
   void deserialize(std::ifstream &stream) {
@@ -148,9 +176,9 @@ public:
       delete[] _index_memory;
       _index_memory = NULL;
     }
-    size_t _index_memory_size = _node_size_bytes * _max_node_count;
-    _index_memory = new char[_index_memory_size];
-    stream.read(reinterpret_cast<char *>(_index_memory), _index_memory_size);
+    size_t index_memory_size = _node_size_bytes * _max_node_count;
+    _index_memory = new char[index_memory_size];
+    stream.read(reinterpret_cast<char *>(_index_memory), index_memory_size);
 
     if (_transformed_query != NULL) {
       delete[] _transformed_query;
@@ -191,6 +219,58 @@ public:
     relabel(P);
   }
 
+  static std::unique_ptr<Index> loadIndex(const std::string &filename) {
+    std::ifstream stream(filename, std::ios::binary);
+
+    if (!stream.is_open()) {
+      throw std::runtime_error("Unable to open file for reading: " + filename);
+    }
+
+    cereal::BinaryInputArchive archive(stream);
+    std::unique_ptr<Index<dist_t, label_t>> index =
+        std::make_unique<Index<dist_t, label_t>>();
+
+    // 1. Deserialize metadata
+    archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
+            index->_max_node_count, index->_cur_num_nodes, index->_distance,
+            index->_visited_nodes);
+
+    // 2. Allocate memory using deserialized metadata
+    index->_index_memory =
+        new char[index->_node_size_bytes * index->_max_node_count];
+    index->_transformed_query = new char[index->_data_size_bytes];
+
+    // 3. Deserialize content into allocated memory
+    archive(
+        cereal::binary_data(index->_index_memory,
+                            index->_node_size_bytes * index->_max_node_count));
+    archive(cereal::binary_data(index->_transformed_query,
+                                index->_data_size_bytes));
+
+    return index;
+  }
+
+  void saveIndex(const std::string &filename) {
+    std::ofstream stream(filename, std::ios::binary);
+
+    if (!stream.is_open()) {
+      throw std::runtime_error("Unable to open file for writing: " + filename);
+    }
+
+    cereal::BinaryOutputArchive archive(stream);
+    archive(*this);
+  }
+
+  inline size_t maxEdgesPerNode() const { return _M; }
+  inline size_t dataSizeBytes() const { return _data_size_bytes; }
+
+  inline size_t nodeSizeBytes() const { return _node_size_bytes; }
+
+  inline size_t maxNodeCount() const { return _max_node_count; }
+
+  inline float *indexMemory() const { return _index_memory; }
+  inline size_t currentNumNodes() const { return _cur_num_nodes; }
+
 private:
   // internal node numbering scheme
   typedef unsigned int node_id_t;
@@ -219,6 +299,17 @@ private:
   // Remembers which nodes we've visited, to avoid re-computing distances.
   // Might be a caching problem in beamSearch - needs to be profiled.
   VisitedSet _visited_nodes;
+
+  friend class cereal::access;
+
+  template <typename Archive> void serialize(Archive &archive) {
+    archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
+            _cur_num_nodes, _distance, _visited_nodes);
+
+    archive(
+        cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
+    archive(cereal::binary_data(_transformed_query, _data_size_bytes));
+  }
 
   char *getNodeData(const node_id_t &n) const {
     char *location = _index_memory + (n * _node_size_bytes);
@@ -286,8 +377,8 @@ private:
     PriorityQueue candidates; // C in the HNSW paper
 
     _visited_nodes.clear();
-    float dist =
-        _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node));
+    float dist = _distance->distance(/* x = */ query,
+                                     /* y = */ getNodeData(entry_node));
     float max_dist = dist;
 
     candidates.emplace(-dist, entry_node);
@@ -326,7 +417,8 @@ private:
   }
 
   void selectNeighbors(PriorityQueue &neighbors, const int M) {
-    // selects neighbors from the PriorityQueue, according to the HNSW heuristic
+    // selects neighbors from the PriorityQueue, according to the HNSW
+    // heuristic
     if (neighbors.size() < M) {
       return;
     }

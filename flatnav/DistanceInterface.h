@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cereal/access.hpp>
+#include <cereal/cereal.hpp>
 #include <cstddef> // for size_t
 #include <fstream> // for ifstream, ofstream
 #include <iostream>
@@ -42,6 +44,11 @@ public:
   void deserialize(std::ifstream &in) {
     static_cast<T *>(this)->deserializeImpl(in);
   }
+
+private:
+  // Private constructor for cereal
+  friend class cereal::access;
+  template <typename Archive> void serialize(Archive &archive) {}
 };
 
 } // namespace flatnav

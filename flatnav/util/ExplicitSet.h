@@ -5,6 +5,8 @@
 #include <cstring>
 #include <iostream>
 // #include <stdint.h> // TODO: Use proper uint32_t everywhere
+#include <cereal/access.hpp>
+#include <cereal/cereal.hpp>
 
 namespace flatnav {
 
@@ -13,6 +15,15 @@ private:
   unsigned short _mark;
   unsigned short *_table;
   unsigned int _tableSize;
+
+  friend class cereal::access;
+  template <typename Archive> void serialize(Archive &archive) {
+    archive(_mark, _tableSize);
+
+    for (unsigned int i = 0; i < _tableSize; i++) {
+      archive(_table[i]);
+    }
+  }
 
 public:
   ExplicitSet() : _mark(0), _table(NULL), _tableSize(0) {}

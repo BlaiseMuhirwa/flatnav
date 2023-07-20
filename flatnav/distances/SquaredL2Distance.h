@@ -1,5 +1,8 @@
 #pragma once
 #include "../DistanceInterface.h"
+#include <cereal/access.hpp>
+#include <cereal/cereal.hpp>
+#include <cereal/types/polymorphic.hpp>
 #include <cstddef> // for size_t
 
 // This is the base distance function implementation for the L2 distance on
@@ -23,6 +26,16 @@ public:
   inline size_t getDimension() const { return _dimension; }
 
 private:
+  // Private constructor for cereal
+  SquaredL2Distance() = default;
+
+  friend class cereal::access;
+
+  template <typename Archive> void serialize(Archive &archive) {
+    archive(cereal::base_class<DistanceInterface<SquaredL2Distance>>(this),
+            _dimension, _data_size_bytes);
+  }
+
   size_t _dimension;
   size_t _data_size_bytes;
 
