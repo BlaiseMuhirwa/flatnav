@@ -1,20 +1,20 @@
 #pragma once
-#include "DistanceInterface.h"
-#include "util/ExplicitSet.h"
-#include "util/reordering.h"
-#include "util/verifysimd.h"
-#include <algorithm> // for std::min
+#include <algorithm>
 #include <cassert>
 #include <cereal/access.hpp>
 #include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
 #include <cstring>
+#include <flatnav/DistanceInterface.h>
+#include <flatnav/util/ExplicitSet.h>
+#include <flatnav/util/reordering.h>
+#include <flatnav/util/verifysimd.h>
 #include <fstream>
-#include <limits>  // for std::numeric_limits<T>::max()
-#include <memory>  // for std::unique_ptr
-#include <queue>   // for std::priority_queue
-#include <utility> // for std::pair
+#include <limits>
+#include <memory>
+#include <queue>
+#include <utility>
 #include <vector>
 
 namespace flatnav {
@@ -34,7 +34,7 @@ public:
    * inserted in the index.
    * @param max_edges_per_node  The maximum number of links per node.
    */
-  Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
+  Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
         _cur_num_nodes(0), _distance(std::move(dist)),
@@ -50,13 +50,8 @@ public:
     _transformed_query = new char[_data_size_bytes];
   }
 
-  Index(std::ifstream &stream)
-      : _max_node_count(0), _cur_num_nodes(0), _index_memory(NULL),
-        _transformed_query(NULL) {
-    deserialize(/* stream = */ stream);
-  }
-
-  // Private constructor for serialization with cereal
+  // Constructor for serialization with cereal. Do not use outside of
+  // this class.
   Index() = default;
 
   ~Index() {
@@ -113,14 +108,6 @@ public:
     }
     uint32_t index = 0;
     while (neighbors.size() > 0) {
-
-      if (index < 100) {
-        std::cout << "[INFO] neighbor " << index
-                  << " distance: " << neighbors.top().first << std::endl;
-      }
-
-      std::cout << "[INFO] neighbor " << index++
-                << " id:  " << neighbors.top().second << std::endl;
       results.emplace_back(neighbors.top().first,
                            *getNodeLabel(neighbors.top().second));
       neighbors.pop();
@@ -135,59 +122,6 @@ public:
   std::vector<dist_label_t> asymmetricSearch(const void *query, const int K,
                                              int ef_search,
                                              int num_initializations) {}
-
-  void serialize(std::ofstream &stream) {
-    // TODO: Make this safe across machines and compilers.
-    _distance->serialize(stream);
-    stream.write(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
-    stream.write(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
-    stream.write(reinterpret_cast<char *>(&_max_node_count), sizeof(size_t));
-    stream.write(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
-    stream.write(reinterpret_cast<char *>(&_M), sizeof(size_t));
-    // Write the index data partition.
-    size_t index_memory_size = _node_size_bytes * _max_node_count;
-    stream.write(reinterpret_cast<char *>(_index_memory), index_memory_size);
-  }
-
-  void deserialize(std::ifstream &stream) {
-    _distance->deserialize(stream);
-    stream.read(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
-    stream.read(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
-    stream.read(reinterpret_cast<char *>(&_max_node_count), sizeof(size_t));
-    stream.read(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
-    stream.read(reinterpret_cast<char *>(&_M), sizeof(size_t));
-
-    if (_data_size_bytes != _distance->dataSize()) {
-      throw std::invalid_argument(
-          "Error reading index: Data size from the index does not "
-          "match the data size from the distance. Is the dimension "
-          "correct?");
-    }
-    size_t _node_size_bytes_check =
-        _data_size_bytes + sizeof(node_id_t) * _M + sizeof(label_t);
-    if (_node_size_bytes != _node_size_bytes_check) {
-      throw std::invalid_argument(
-          "Error reading index: The node size from the index does not "
-          "match the expected node size based on max_edges, the vector "
-          "size and the label type.");
-    }
-
-    if (_index_memory != NULL) {
-      delete[] _index_memory;
-      _index_memory = NULL;
-    }
-    size_t index_memory_size = _node_size_bytes * _max_node_count;
-    _index_memory = new char[index_memory_size];
-    stream.read(reinterpret_cast<char *>(_index_memory), index_memory_size);
-
-    if (_transformed_query != NULL) {
-      delete[] _transformed_query;
-      _transformed_query = NULL;
-    }
-    _transformed_query = new char[_data_size_bytes];
-
-    _visited_nodes = VisitedSet(_max_node_count + 1);
-  }
 
   void reorder_gorder(const int window_size = 5) {
     std::vector<std::vector<node_id_t>> outdegree_table(_cur_num_nodes);
@@ -230,11 +164,14 @@ public:
     std::unique_ptr<Index<dist_t, label_t>> index =
         std::make_unique<Index<dist_t, label_t>>();
 
+    size_t data_dimension;
+
     // 1. Deserialize metadata
     archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
-            index->_max_node_count, index->_cur_num_nodes, index->_distance,
+            index->_max_node_count, index->_cur_num_nodes, data_dimension,
             index->_visited_nodes);
 
+    index->_distance = std::make_shared<dist_t>(data_dimension);
     // 2. Allocate memory using deserialized metadata
     index->_index_memory =
         new char[index->_node_size_bytes * index->_max_node_count];
@@ -268,7 +205,7 @@ public:
 
   inline size_t maxNodeCount() const { return _max_node_count; }
 
-  inline float *indexMemory() const { return _index_memory; }
+  inline char *indexMemory() const { return _index_memory; }
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
 
 private:
@@ -294,7 +231,7 @@ private:
   size_t _max_node_count; // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
 
-  std::unique_ptr<DistanceInterface<dist_t>> _distance;
+  std::shared_ptr<DistanceInterface<dist_t>> _distance;
 
   // Remembers which nodes we've visited, to avoid re-computing distances.
   // Might be a caching problem in beamSearch - needs to be profiled.
@@ -304,7 +241,7 @@ private:
 
   template <typename Archive> void serialize(Archive &archive) {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
-            _cur_num_nodes, _distance, _visited_nodes);
+            _cur_num_nodes, _distance->dimension(), _visited_nodes);
 
     archive(
         cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));

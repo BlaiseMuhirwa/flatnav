@@ -174,6 +174,7 @@ if(BUILD_TESTS)
 
   target_include_directories(FLAT_NAV_LIB
                              PUBLIC ${googletest_SOURCE_DIR}/googletest/include)
+  add_subdirectory(${PROJECT_SOURCE_DIR}/flatnav/tests)
   add_subdirectory(${PROJECT_SOURCE_DIR}/quantization/tests)
 
 endif()

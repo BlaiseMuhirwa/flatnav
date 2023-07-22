@@ -2,55 +2,59 @@
 
 #include "verifysimd.h"
 
+#include <cereal/access.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/cereal.hpp>
+#include <cereal/types/memory.hpp>
 #include <cstring>
 #include <iostream>
-// #include <stdint.h> // TODO: Use proper uint32_t everywhere
-#include <cereal/access.hpp>
-#include <cereal/cereal.hpp>
+#include <stdint.h>
 
 namespace flatnav {
 
 class ExplicitSet {
 private:
-  unsigned short _mark;
-  unsigned short *_table;
-  unsigned int _tableSize;
+  uint32_t _mark;
+  uint32_t *_table;
+  uint32_t _tableSize;
 
   friend class cereal::access;
   template <typename Archive> void serialize(Archive &archive) {
     archive(_mark, _tableSize);
 
-    for (unsigned int i = 0; i < _tableSize; i++) {
-      archive(_table[i]);
+    if (Archive::is_loading::value) {
+      // If we are loading, allocate memory for the table and delete
+      // previously allocated memory if any.
+      delete[] _table;
+      _table = new uint32_t[_tableSize];
     }
+
+    archive(cereal::binary_data(_table, _tableSize * sizeof(uint32_t)));
   }
 
 public:
-  ExplicitSet() : _mark(0), _table(NULL), _tableSize(0) {}
+  ExplicitSet() = default;
 
-  ExplicitSet(const unsigned int size) : _mark(0), _table(NULL), _tableSize(0) {
-    _mark = 0;
-    _tableSize = size;
-    _table = new unsigned short[_tableSize]();
+  ExplicitSet(const uint32_t size) : _mark(0), _table(NULL), _tableSize(size) {
+    // initialize values to 0
+    _table = new uint32_t[_tableSize]();
   }
 
-  inline void prefetch(const unsigned int num) const {
+  inline void prefetch(const uint32_t num) const {
 #ifdef USE_SSE
     _mm_prefetch((char *)_table[num], _MM_HINT_T0);
 #endif
   }
 
-  inline void insert(const unsigned int num) { set(num); }
+  inline void insert(const uint32_t num) { set(num); }
 
-  inline void set(const unsigned int num) { _table[num] = _mark; }
+  inline void set(const uint32_t num) { _table[num] = _mark; }
 
-  inline void reset(const unsigned int num) { _table[num] = _mark + 1; }
+  inline void reset(const uint32_t num) { _table[num] = _mark + 1; }
 
   inline void clear() { _mark++; }
 
-  inline bool operator[](const unsigned int num) {
-    return (_table[num] == _mark);
-  }
+  inline bool operator[](const uint32_t num) { return (_table[num] == _mark); }
 
   ~ExplicitSet() { delete[] _table; }
 
@@ -59,8 +63,8 @@ public:
     _tableSize = other._tableSize;
     _mark = other._mark;
     delete[] _table;
-    _table = new unsigned short[_tableSize];
-    std::memcpy(other._table, _table, _tableSize * sizeof(unsigned short));
+    _table = new uint32_t[_tableSize];
+    std::memcpy(other._table, _table, _tableSize * sizeof(uint32_t));
   }
 
   // move constructor

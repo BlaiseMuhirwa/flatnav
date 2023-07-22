@@ -1,6 +1,7 @@
 #pragma once
-#include "flatnav/DistanceInterface.h"
+
 #include <cstddef> // for size_t
+#include <flatnav/DistanceInterface.h>
 #include <limits>
 
 // This is the base distance function implementation for inner product distances
@@ -14,19 +15,16 @@ class InnerProductDistance : public DistanceInterface<InnerProductDistance> {
   enum { DISTANCE_ID = 1 };
 
 public:
-  InnerProductDistance(size_t dim) {
+  explicit InnerProductDistance(size_t dim) {
     _dimension = dim;
     _data_size_bytes = dim * sizeof(float);
   }
-
-  inline size_t getDimension() const { return _dimension; }
 
 private:
   size_t _dimension;
   size_t _data_size_bytes;
 
-  // private constructor for cereal
-  InnerProductDistance() = default;
+  inline size_t getDimension() const { return _dimension; }
 
   float distanceImpl(const void *x, const void *y) {
     // Default implementation of inner product distance, in case we cannot

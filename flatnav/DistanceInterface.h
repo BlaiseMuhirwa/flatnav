@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cereal/access.hpp>
-#include <cereal/cereal.hpp>
 #include <cstddef> // for size_t
 #include <fstream> // for ifstream, ofstream
 #include <iostream>
@@ -23,6 +21,11 @@ public:
     return static_cast<T *>(this)->distanceImpl(x, y);
   }
 
+  size_t dimension() {
+    // Returns the dimension of the input data.
+    return static_cast<T *>(this)->getDimension();
+  }
+
   size_t dataSize() {
     // Returns the size, in bytes, of the transformed data representation.
     return static_cast<T *>(this)->dataSizeImpl();
@@ -37,18 +40,6 @@ public:
     static_cast<T *>(this)->transformDataImpl(destination, src);
   }
 
-  void serialize(std::ofstream &out) {
-    static_cast<T *>(this)->serializeImpl(out);
-  }
-
-  void deserialize(std::ifstream &in) {
-    static_cast<T *>(this)->deserializeImpl(in);
-  }
-
-private:
-  // Private constructor for cereal
-  friend class cereal::access;
-  template <typename Archive> void serialize(Archive &archive) {}
 };
 
 } // namespace flatnav

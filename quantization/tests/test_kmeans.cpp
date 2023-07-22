@@ -1,7 +1,7 @@
 
-#include "../CentroidsGenerator.h"
 #include "gtest/gtest.h"
 #include <cstdint>
+#include <quantization/CentroidsGenerator.h>
 
 using flatnav::quantization::CentroidsGenerator;
 

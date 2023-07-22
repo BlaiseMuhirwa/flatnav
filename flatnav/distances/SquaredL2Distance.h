@@ -1,9 +1,6 @@
 #pragma once
-#include "../DistanceInterface.h"
-#include <cereal/access.hpp>
-#include <cereal/cereal.hpp>
-#include <cereal/types/polymorphic.hpp>
 #include <cstddef> // for size_t
+#include <flatnav/DistanceInterface.h>
 
 // This is the base distance function implementation for the L2 distance on
 // floating-point inputs. We provide specializations that use SIMD when
@@ -18,26 +15,16 @@ class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
   const int DISTANCE_ID = 0;
 
 public:
-  SquaredL2Distance(size_t dim) {
+  explicit SquaredL2Distance(size_t dim) {
     _dimension = dim;
     _data_size_bytes = dim * sizeof(float);
   }
 
-  inline size_t getDimension() const { return _dimension; }
-
 private:
-  // Private constructor for cereal
-  SquaredL2Distance() = default;
-
-  friend class cereal::access;
-
-  template <typename Archive> void serialize(Archive &archive) {
-    archive(cereal::base_class<DistanceInterface<SquaredL2Distance>>(this),
-            _dimension, _data_size_bytes);
-  }
-
   size_t _dimension;
   size_t _data_size_bytes;
+
+  inline size_t getDimension() const { return _dimension; }
 
   float distanceImpl(const void *x, const void *y) {
     // Default implementation of squared-L2 distance, in case we cannot
@@ -61,24 +48,24 @@ private:
     std::memcpy(destination, src, _data_size_bytes);
   }
 
-  void serializeImpl(std::ofstream &out) {
-    // TODO: Make this safe across machines and compilers.
-    out.write(reinterpret_cast<const char *>(&DISTANCE_ID), sizeof(int));
-    out.write(reinterpret_cast<char *>(&_dimension), sizeof(size_t));
-  }
+  // void serializeImpl(std::ofstream &out) {
+  //   // TODO: Make this safe across machines and compilers.
+  //   out.write(reinterpret_cast<const char *>(&DISTANCE_ID), sizeof(int));
+  //   out.write(reinterpret_cast<char *>(&_dimension), sizeof(size_t));
+  // }
 
-  void deserializeImpl(std::ifstream &in) {
-    // TODO: Make this safe across machines and compilers.
-    int distance_id_check;
-    in.read(reinterpret_cast<char *>(&distance_id_check), sizeof(int));
-    if (distance_id_check != DISTANCE_ID) {
-      throw std::invalid_argument(
-          "Error reading distance metric: Distance ID does not match "
-          "the ID of the deserialized distance instance.");
-    }
-    in.read(reinterpret_cast<char *>(&_dimension), sizeof(size_t));
-    _data_size_bytes = _dimension * sizeof(float);
-  }
+  // void deserializeImpl(std::ifstream &in) {
+  //   // TODO: Make this safe across machines and compilers.
+  //   int distance_id_check;
+  //   in.read(reinterpret_cast<char *>(&distance_id_check), sizeof(int));
+  //   if (distance_id_check != DISTANCE_ID) {
+  //     throw std::invalid_argument(
+  //         "Error reading distance metric: Distance ID does not match "
+  //         "the ID of the deserialized distance instance.");
+  //   }
+  //   in.read(reinterpret_cast<char *>(&_dimension), sizeof(size_t));
+  //   _data_size_bytes = _dimension * sizeof(float);
+  // }
 };
 
 } // namespace flatnav
