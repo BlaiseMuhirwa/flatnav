@@ -39,7 +39,6 @@ public:
   void transformData(void *destination, const void *src) {
     static_cast<T *>(this)->transformDataImpl(destination, src);
   }
-
 };
 
 } // namespace flatnav

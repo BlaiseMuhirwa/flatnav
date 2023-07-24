@@ -295,7 +295,7 @@ public:
    * http://www.vldb.org/pvldb/vol9/p288-andre.pdf
    *
    * @param x         input vector size d
-   * @param dis_table output table, size (_num_subquantizers x
+   * @param dist_table output table, size (_num_subquantizers x
    * _subq_centroids_count)
    */
   void computeDistanceTable(const float *vector, float *dist_table) const {
@@ -335,7 +335,10 @@ public:
                                  const float *dist_tables, uint64_t num_queries,
                                  const uint8_t *codes, const uint64_t ncodes,
                                  std::shared_ptr<MaxHeap> heap,
-                                 bool init_finalize_heap) {}
+                                 bool init_finalize_heap) {
+
+    
+  }
 
   /**
    * @brief perform search
