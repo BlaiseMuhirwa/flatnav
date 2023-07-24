@@ -43,8 +43,7 @@ void run(float *data,
             << std::endl;
 
   std::clog << "Saving index to: " << save_file << std::endl;
-  std::ofstream stream(save_file);
-  index->serialize(/* filename = */ stream);
+  index->saveIndex(/* filename = */ save_file);
 
   delete index;
 }

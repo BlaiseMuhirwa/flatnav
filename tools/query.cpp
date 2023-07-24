@@ -83,11 +83,15 @@ int main(int argc, char **argv) {
   }
 
   // Optional arguments.
-  int num_queries = 0;
+  int num_queries = 10000;
   bool reorder = false;
   int reorder_ID = 0;
   int ef_profile = 100;
   int num_profile = 1000;
+
+  std::string train_file = "data/mnist/mnist-784-euclidean.train.npy";
+  std::string queries_file = "data/mnist/mnist-784-euclidean.test.npy";
+  std::string groundtruth_file = "data/mnist/mnist-784-euclidean.gtruth.npy";
 
   for (int i = 0; i < argc; ++i) {
     if (std::strcmp("--nq", argv[i]) == 0) {
@@ -128,34 +132,34 @@ int main(int argc, char **argv) {
     }
   }
   // Positional arguments.
-  std::string indexfilename(argv[1]); // Index filename.
-  int space_ID = std::stoi(argv[2]);  // Space ID for querying.
+  std::string indexfilename(train_file); // Index filename.
+  int space_ID = 0;                      // Space ID for querying.
 
   // Load queries.
   std::clog << "[INFO] Loading queries." << std::endl;
-  cnpy::NpyArray queries_file = cnpy::npy_load(argv[3]);
-  float *queries = queries_file.data<float>();
+  cnpy::NpyArray queries_array = cnpy::npy_load(queries_file);
+  float *queries = queries_array.data<float>();
 
   // Load ground truth.
   std::clog << "[INFO] Loading ground truth." << std::endl;
-  cnpy::NpyArray gtruth_file = cnpy::npy_load(argv[4]);
-  uint32_t *gtruth = gtruth_file.data<uint32_t>();
+  cnpy::NpyArray gtruth_array = cnpy::npy_load(groundtruth_file);
+  uint32_t *gtruth = gtruth_array.data<uint32_t>();
 
   // EF search vector.
-  std::vector<int> ef_searches{100, 102};
+  std::vector<int> ef_searches{100};
 
   // Number of search results.
-  int k = std::stoi(argv[6]);
+  int k = 100;
 
   std::clog << "[INFO] Loading training data." << std::endl;
-  cnpy::NpyArray datafile = cnpy::npy_load(argv[1]);
-  float *data = datafile.data<float>();
+  cnpy::NpyArray train_data_array = cnpy::npy_load(train_file);
+  float *data = train_data_array.data<float>();
 
   std::clog << "[INFO] Building index from " << indexfilename << std::endl;
 
   uint32_t dim = 784;
   auto index = buildIndex(/* data = */ data, /* dim = */ dim, /* N = */ 60000,
-                          /* max_edges = */ 16, /* ef_construction = */ 100);
+                          /* max_edges = */ 16, /* ef_construction = */ 200);
 
   // Do reordering, if necessary.
   if (num_profile > num_queries) {
@@ -187,33 +191,31 @@ int main(int argc, char **argv) {
 
     auto start_q = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_queries; i++) {
-      float *q = queries + dim * i;
-      unsigned int *g = gtruth + num_gtruth_entries * i;
+      float *query = queries + dim * i;
+      uint32_t *g = gtruth + num_gtruth_entries * i;
 
-      std::vector<std::pair<float, int>> result =
-          index->search(q, k, ef_search);
+      std::vector<std::pair<float, int>> result = index->search(
+          /* query = */ query, /* K = */ k, /* ef_search = */ ef_search);
 
       double recall = 0;
       for (int j = 0; j < k; j++) {
         for (int l = 0; l < k; l++) {
-          if (result[j].second == g[l]) {
-            recall = recall + 1;
+          if (static_cast<uint32_t>(result[j].second) == g[l]) {
+            recall += 1;
+            break;
           }
         }
       }
-      recall = recall / k;
+      recall /= k;
       mean_recall = mean_recall + recall;
     }
     auto stop_q = std::chrono::high_resolution_clock::now();
     auto duration_q =
         std::chrono::duration_cast<std::chrono::milliseconds>(stop_q - start_q);
-    std::cout << mean_recall / num_queries << ","
+    std::cout << "[INFO] recall: " << mean_recall / num_queries << std::endl;
+    std::cout << "[INFO] mean_latency_ms: "
               << (float)(duration_q.count()) / num_queries << std::endl;
   }
-
-  delete[] queries;
-  delete[] gtruth;
-  delete[] data;
 
   return 0;
 }
