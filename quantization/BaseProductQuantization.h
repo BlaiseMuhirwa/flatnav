@@ -1,14 +1,18 @@
 #pragma once
 
-#include "../flatnav/DistanceInterface.h"
-#include "CentroidsGenerator.h"
-#include "Utils.h"
 #include <algorithm>
 #include <cassert>
+#include <cereal/access.hpp>
+#include <cereal/cereal.hpp>
+#include <cereal/types/memory.hpp>
+#include <cereal/types/vector.hpp>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <flatnav/DistanceInterface.h>
 #include <memory>
+#include <quantization/CentroidsGenerator.h>
+#include <quantization/Utils.h>
 #include <queue>
 #include <stdexcept>
 #include <string>
@@ -95,7 +99,7 @@ public:
   ProductQuantizer(std::unique_ptr<DistanceInterface<dist_t>> dist,
                    uint32_t dim, uint32_t M, uint32_t nbits)
       : _num_subquantizers(M), _num_bits(nbits), _distance(std::move(dist)),
-        _train_type(TrainType::DEFAULT) {
+        _is_trained(false), _train_type(TrainType::DEFAULT) {
 
     if (dim % _num_subquantizers) {
       throw std::invalid_argument("The dataset dimension must be a multiple of "
@@ -250,6 +254,8 @@ public:
       setParameters(/* centroids_ = */ centroids_generator.centroids().data(),
                     /* m = */ m);
     }
+
+    _is_trained = true;
   }
 
   /**
@@ -306,7 +312,7 @@ public:
                              uint64_t n) const {
     // TODO: Use SIMD
     auto dim = _subvector_dim * _num_subquantizers;
-#pragma omp parallel for
+#pragma omp parallel for if (n > 1)
     for (uint64_t i = 0; i < n; i++) {
       computeDistanceTable(
           vectors + (i * dim),
@@ -341,7 +347,7 @@ public:
    */
   void search(const float *__restrict query_vectors, uint64_t num_queries,
               const uint8_t *codes, const uint64_t ncodes,
-              bool init_finalize_heap) const {
+              bool init_finalize_heap = false) const {
 
     std::unique_ptr<float[]> dist_tables(
         new float[num_queries * _subq_centroids_count * _num_subquantizers]);
@@ -365,6 +371,8 @@ public:
   inline uint32_t getCentroidsCount() const { return _subq_centroids_count; }
 
   inline uint32_t getCodeSize() const { return _code_size; }
+
+  inline bool isTrained() const { return _is_trained; }
 
 private:
   /**
@@ -462,6 +470,9 @@ private:
   // Layout: (_subvector_dim x _num_subquantizers x _subq_centroids_count)
   std::vector<float> _transposed_centroids;
 
+  // Indicates if the PQ has been trained or not
+  bool _is_trained;
+
   // Initialization
   enum TrainType {
     DEFAULT,
@@ -476,6 +487,16 @@ private:
 
   TrainType _train_type;
   std::unique_ptr<DistanceInterface<dist_t>> _distance;
+
+  friend class cereal::access;
+  // Private constructor for serialization
+  ProductQuantizer() = default;
+
+  template <typename Archive> void serialize(Archive &ar) {
+    ar(_num_subquantizers, _num_bits, _subvector_dim, _subq_centroids_count,
+       _centroids, _transposed_centroids, _is_trained, _train_type,
+       _distance->dimension());
+  }
 };
 
 } // namespace flatnav::quantization

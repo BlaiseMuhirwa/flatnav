@@ -5,6 +5,7 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
+#include <cereal/types/optional.hpp>
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/ExplicitSet.h>
@@ -13,9 +14,13 @@
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <quantization/BaseProductQuantization.h>
 #include <queue>
 #include <utility>
 #include <vector>
+
+using flatnav::quantization::ProductQuantizer;
 
 namespace flatnav {
 
@@ -34,13 +39,25 @@ public:
    * inserted in the index.
    * @param max_edges_per_node  The maximum number of links per node.
    */
-  Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
-        int max_edges_per_node)
+  Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
+        int max_edges_per_node,
+        std::optional<ProductQuantizer<dist_t>> pq = std::nullopt)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
         _cur_num_nodes(0), _distance(std::move(dist)),
-        _visited_nodes(dataset_size + 1) {
+        _visited_nodes(dataset_size + 1), _product_quantizer(std::move(pq)) {
+
+    if (_product_quantizer.has_value() &&
+        !_product_quantizer.value().isTrained()) {
+      throw std::runtime_error("Product quantizer must be trained before use.");
+    }
 
     _data_size_bytes = _distance->dataSize();
+
+    if (_product_quantizer.has_value()) {
+      // For now, this is expected to be 8 (1 byte for each of the 8
+      // subvectors)
+      _data_size_bytes = _product_quantizer.value().getCodeSize();
+    }
     _node_size_bytes =
         _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
 
@@ -171,7 +188,7 @@ public:
             index->_max_node_count, index->_cur_num_nodes, data_dimension,
             index->_visited_nodes);
 
-    index->_distance = std::make_shared<dist_t>(data_dimension);
+    index->_distance = std::make_unique<dist_t>(data_dimension);
     // 2. Allocate memory using deserialized metadata
     index->_index_memory =
         new char[index->_node_size_bytes * index->_max_node_count];
@@ -231,17 +248,20 @@ private:
   size_t _max_node_count; // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
 
-  std::shared_ptr<DistanceInterface<dist_t>> _distance;
+  std::unique_ptr<DistanceInterface<dist_t>> _distance;
 
   // Remembers which nodes we've visited, to avoid re-computing distances.
   // Might be a caching problem in beamSearch - needs to be profiled.
   VisitedSet _visited_nodes;
 
+  std::optional<ProductQuantizer<dist_t>> _product_quantizer;
+
   friend class cereal::access;
 
   template <typename Archive> void serialize(Archive &archive) {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
-            _cur_num_nodes, _distance->dimension(), _visited_nodes);
+            _cur_num_nodes, _distance->dimension(), _visited_nodes,
+            _product_quantizer);
 
     archive(
         cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
@@ -264,19 +284,35 @@ private:
     return reinterpret_cast<label_t *>(location);
   }
 
+  // TODO: Add optional argument here for quantized data vector. 
   bool allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
     if (_cur_num_nodes >= _max_node_count) {
       return false;
     }
     new_node_id = _cur_num_nodes;
 
-    // Transforms and writes data into the index at the correct location.
-    _distance->transformData(/* destination = */ getNodeData(_cur_num_nodes),
-                             /* src = */ data);
+    if (_product_quantizer.has_value()) {
+      // Quantize the data vector and write the quantized vector into the
+      // index at the correct location.
+      uint32_t code_size = _product_quantizer.value().getCodeSize();
+      uint8_t *code = new uint8_t[code_size];
+
+      _product_quantizer.value().computePQCode(
+          /* vector = */ (float *)data,
+          /* code = */ code);
+
+      _distance->transformData(/* destination = */ getNodeData(_cur_num_nodes),
+                               /* src = */ code.data());
+      delete[] code;
+    } else {
+      // Transforms and writes data into the index at the correct location.
+      _distance->transformData(/* destination = */ getNodeData(_cur_num_nodes),
+                               /* src = */ data);
+    }
     *(getNodeLabel(_cur_num_nodes)) = label;
 
     node_id_t *links = getNodeLinks(_cur_num_nodes);
-    for (int i = 0; i < _M; i++) {
+    for (uint32_t i = 0; i < _M; i++) {
       links[i] = _cur_num_nodes;
     }
 
@@ -462,6 +498,15 @@ private:
     }
   }
 
+  /**
+   * @brief Selects a node to use as the entry point for a new node.
+   * This proceeds in a greedy fashion, by selecting the node with
+   * the smallest distance to the query.
+   *
+   * @param query
+   * @param num_initializations
+   * @return node_id_t
+   */
   inline node_id_t initializeSearch(const void *query,
                                     int num_initializations) {
     // select entry_node from a set of random entry point options
@@ -475,7 +520,22 @@ private:
     node_id_t entry_node = 0;
 
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
-      float dist = _distance->distance(query, getNodeData(node));
+      float dist = std::numeric_limits<float>::max();
+
+      if (_product_quantizer.has_value()) {
+        uint32_t code_size = _product_quantizer.value().getCodeSize();
+        std::vector<uint8_t> code(code_size);
+
+        _product_quantizer.value().computePQCode(
+            /* vector = */ (float *)query.data(),
+            /* code = */ code.data());
+
+        // If we have a quantizer, we will run asymmetric distance computation
+        dist = _product_quantizer.value().distance(
+            /* x = */ query, /* y = */ getNodeData(node));
+      } else {
+        dist = _distance->distance(query, getNodeData(node));
+      }
       if (dist < min_dist) {
         min_dist = dist;
         entry_node = node;
