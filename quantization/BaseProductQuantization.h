@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cereal/access.hpp>
+#include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
 #include <cereal/types/vector.hpp>
@@ -96,10 +97,9 @@ public:
    * This will be possible once the PQ integration with the flatnav
    * index is complete.
    */
-  ProductQuantizer(std::unique_ptr<DistanceInterface<dist_t>> dist,
-                   uint32_t dim, uint32_t M, uint32_t nbits)
-      : _num_subquantizers(M), _num_bits(nbits), _distance(std::move(dist)),
-        _is_trained(false), _train_type(TrainType::DEFAULT) {
+  ProductQuantizer(uint32_t dim, uint32_t M, uint32_t nbits)
+      : _num_subquantizers(M), _num_bits(nbits), _is_trained(false),
+        _train_type(TrainType::DEFAULT) {
 
     if (dim % _num_subquantizers) {
       throw std::invalid_argument("The dataset dimension must be a multiple of "
@@ -107,6 +107,8 @@ public:
     }
     _code_size = (_num_bits * 8 + 7) / 8;
     _subvector_dim = dim / _num_subquantizers;
+    _distance = std::make_shared<dist_t>(_subvector_dim);
+
     _subq_centroids_count = 1 << _num_bits;
     _centroids.resize(_subq_centroids_count * dim);
   }
@@ -134,10 +136,8 @@ public:
   void computePQCode(const float *vector, uint8_t *code) const {
     std::vector<float> distances(_subq_centroids_count);
 
-    // TODO check whether this const_cast does not cause any issues
-    PQCodeManager<uint8_t> code_manager(
-        /* code = */ reinterpret_cast<uint8_t *>(const_cast<float *>(vector)),
-        /* nbits = */ 8);
+    PQCodeManager<uint8_t> code_manager(/* code = */ code,
+                                        /* nbits = */ 8);
 
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
       const float *subvector = vector + (m * _subvector_dim);
@@ -214,13 +214,14 @@ public:
       }
     }
 
-    // float *slice = new float[n * _subvector_dim];
-    std::shared_ptr<float[]> slice(new float[n * _subvector_dim]);
-
+    float *slice = new float[n * _subvector_dim];
     auto dim = _subvector_dim * _num_subquantizers;
+
+    // Arrange the vectors such that the first subvector of each vector is
+    // contiguous, then the second subvector, and so on.
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
       for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
-        std::memcpy(slice.get() + (vec_index * _subvector_dim),
+        std::memcpy(slice + (vec_index * _subvector_dim),
                     vectors + (vec_index * dim) + (m * _subvector_dim),
                     _subvector_dim * sizeof(float));
       }
@@ -235,7 +236,7 @@ public:
       case TrainType::HYPERCUBE:
         initHypercube(
             /* dim = */ _subvector_dim, /* num_bits = */ _num_bits, /* n = */ n,
-            /* data = */ slice.get(),
+            /* data = */ slice,
             /* centroids = */ centroids_generator.centroids().data());
         break;
 
@@ -249,13 +250,15 @@ public:
 
       // generate the actual centroids
       centroids_generator.generateCentroids(
-          /* vectors = */ slice.get(), /* vec_weights = */ NULL, /* n = */ n);
+          /* vectors = */ slice, /* vec_weights = */ NULL, /* n = */ n);
 
       setParameters(/* centroids_ = */ centroids_generator.centroids().data(),
                     /* m = */ m);
     }
 
+    computeInterCentroidDistanceTables();
     _is_trained = true;
+    delete[] slice;
   }
 
   /**
@@ -269,7 +272,7 @@ public:
   void decode(const uint8_t *code, float *vector) const {
     // TODO check whether this const_cast does not cause any issues
     PQCodeManager<uint8_t> code_manager(
-        /* code = */ reinterpret_cast<uint8_t *>(const_cast<float *>(vector)),
+        /* code = */ const_cast<uint8_t *>(code),
         /* nbits = */ 8);
 
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
@@ -299,6 +302,7 @@ public:
    * _subq_centroids_count)
    */
   void computeDistanceTable(const float *vector, float *dist_table) const {
+
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
       flatnav::registerSquaredL2Distances(
           /* distances_buffer = */ dist_table + (m * _subq_centroids_count),
@@ -335,10 +339,7 @@ public:
                                  const float *dist_tables, uint64_t num_queries,
                                  const uint8_t *codes, const uint64_t ncodes,
                                  std::shared_ptr<MaxHeap> heap,
-                                 bool init_finalize_heap) {
-
-    
-  }
+                                 bool init_finalize_heap) {}
 
   /**
    * @brief perform search
@@ -367,6 +368,42 @@ public:
         /* init_finalize_heap = */ init_finalize_heap);
   }
 
+  float getDistance(const float *__restrict query_vector, const uint8_t *code) {
+    std::unique_ptr<float[]> dist_table(
+        new float[_subq_centroids_count * _num_subquantizers]);
+
+    computeDistanceTable(/* vector = */ query_vector,
+                         /* dist_table = */ dist_table.get());
+
+    float distance = 0.0;
+
+    for (uint32_t m = 0; m < _num_subquantizers; m++) {
+      distance += dist_table[(m * _subq_centroids_count) + code[m]];
+    }
+
+    return distance;
+  }
+
+  /**
+   * @brief computes the distance between two vectors in the quantization
+   * space.
+   *
+   * @param code1
+   * @param code2
+   * @return float
+   */
+  float getSymmetricDistance(const uint8_t *code1, const uint8_t *code2) {
+
+    float distance = 0.0;
+
+    for (uint32_t m = 0; m < _num_subquantizers; m++) {
+      distance += _inter_centroid_tables[m][(code1[m] * _subq_centroids_count) +
+                                            code2[m]];
+    }
+
+    return distance;
+  }
+
   inline uint32_t getNumSubquantizers() const { return _num_subquantizers; }
 
   inline uint32_t getNumBitsPerIndex() const { return _num_bits; }
@@ -377,7 +414,39 @@ public:
 
   inline bool isTrained() const { return _is_trained; }
 
+  void printQuantizerParams() const {
+    std::cout << "\nProduct Quantizer Parameters" << std::endl;
+    std::cout << "-----------------------------" << std::endl;
+    std::cout << "Number of subquantizers (M): " << _num_subquantizers
+              << std::endl;
+    std::cout << "Number of bits per index: " << _num_bits << std::endl;
+    std::cout << "Subvector dimension: " << _subvector_dim << std::endl;
+    std::cout << "Subquantizer centroids count: " << _subq_centroids_count
+              << std::endl;
+    std::cout << "Code size: " << _code_size << std::endl;
+    std::cout << "Is trained: " << _is_trained << std::endl;
+    std::cout << "Train type: " << _train_type << std::endl;
+    std::cout << "\n" << std::endl;
+  }
+
 private:
+  void computeInterCentroidDistanceTables() {
+    // for each subquantizer
+    for (uint32_t m = 0; m < _num_subquantizers; m++) {
+      auto table = std::make_unique<float[]>(_subq_centroids_count *
+                                             _subq_centroids_count);
+
+      // compute the pairwise distance for each pair of centroids
+      for (uint32_t i = 0; i < _subq_centroids_count; i++) {
+        for (uint32_t j = 0; j < _subq_centroids_count; j++) {
+          table[(i * _subq_centroids_count) + j] =
+              _distance->distance(getCentroids(m, i), getCentroids(m, j));
+        }
+      }
+      _inter_centroid_tables.push_back(std::move(table));
+    }
+  }
+
   /**
    * @brief This function initializes a set of 2^(_num_bits) centroids spread
    around
@@ -473,6 +542,8 @@ private:
   // Layout: (_subvector_dim x _num_subquantizers x _subq_centroids_count)
   std::vector<float> _transposed_centroids;
 
+  std::vector<std::unique_ptr<float[]>> _inter_centroid_tables;
+
   // Indicates if the PQ has been trained or not
   bool _is_trained;
 
@@ -489,16 +560,37 @@ private:
   };
 
   TrainType _train_type;
-  std::unique_ptr<DistanceInterface<dist_t>> _distance;
+  std::shared_ptr<DistanceInterface<dist_t>> _distance;
 
   friend class cereal::access;
   // Private constructor for serialization
   ProductQuantizer() = default;
 
-  template <typename Archive> void serialize(Archive &ar) {
-    ar(_num_subquantizers, _num_bits, _subvector_dim, _subq_centroids_count,
-       _centroids, _transposed_centroids, _is_trained, _train_type,
-       _distance->dimension());
+  template <typename Archive> void serialize(Archive &archive) {
+
+    archive(_code_size, _num_subquantizers, _num_bits, _subvector_dim,
+            _subq_centroids_count, _centroids, _transposed_centroids,
+            _is_trained, _train_type);
+
+    if constexpr (Archive::is_loading::value) {
+      // loading PQ
+      _distance = std::make_shared<dist_t>(_subvector_dim);
+      _inter_centroid_tables.resize(_num_subquantizers);
+      for (size_t i = 0; i < _num_subquantizers; i++) {
+        _inter_centroid_tables[i] = std::make_unique<float[]>(
+            _subq_centroids_count * _subq_centroids_count);
+        archive(cereal::binary_data(_inter_centroid_tables[i].get(),
+                                    sizeof(float) * _subq_centroids_count *
+                                        _subq_centroids_count));
+      }
+
+    } else {
+      for (const auto &table : _inter_centroid_tables) {
+        archive(cereal::binary_data(table.get(), sizeof(float) *
+                                                     _subq_centroids_count *
+                                                     _subq_centroids_count));
+      }
+    }
   }
 };
 

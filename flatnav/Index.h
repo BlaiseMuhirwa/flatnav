@@ -39,15 +39,16 @@ public:
    * inserted in the index.
    * @param max_edges_per_node  The maximum number of links per node.
    */
-  Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
+  Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node,
-        std::optional<ProductQuantizer<dist_t>> pq = std::nullopt)
+        std::optional<std::unique_ptr<ProductQuantizer<dist_t>>> pq =
+            std::nullopt)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(std::move(dist)),
-        _visited_nodes(dataset_size + 1), _product_quantizer(std::move(pq)) {
+        _cur_num_nodes(0), _distance(dist), _visited_nodes(dataset_size + 1),
+        _product_quantizer(std::move(pq)) {
 
     if (_product_quantizer.has_value() &&
-        !_product_quantizer.value().isTrained()) {
+        !_product_quantizer.value()->isTrained()) {
       throw std::runtime_error("Product quantizer must be trained before use.");
     }
 
@@ -56,7 +57,7 @@ public:
     if (_product_quantizer.has_value()) {
       // For now, this is expected to be 8 (1 byte for each of the 8
       // subvectors)
-      _data_size_bytes = _product_quantizer.value().getCodeSize();
+      _data_size_bytes = _product_quantizer.value()->getCodeSize();
     }
     _node_size_bytes =
         _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
@@ -113,17 +114,16 @@ public:
     // We use a pre-allocated buffer for the transformed query, for speed
     // reasons, but it would also be acceptable to manage this buffer
     // dynamically (e.g. in the multi-threaded setting).
-    _distance->transformData(_transformed_query, query);
-    node_id_t entry_node =
-        initializeSearch(_transformed_query, num_initializations);
-    PriorityQueue neighbors = beamSearch(/* query = */ _transformed_query,
+    // _distance->transformData(_transformed_query, query);
+
+    node_id_t entry_node = initializeSearch(query, num_initializations);
+    PriorityQueue neighbors = beamSearch(/* query = */ query,
                                          /* entry_node = */ entry_node,
                                          /* buffer_size = */ ef_search);
     std::vector<dist_label_t> results;
     while (neighbors.size() > K) {
       neighbors.pop();
     }
-    uint32_t index = 0;
     while (neighbors.size() > 0) {
       results.emplace_back(neighbors.top().first,
                            *getNodeLabel(neighbors.top().second));
@@ -135,10 +135,6 @@ public:
               });
     return results;
   }
-
-  std::vector<dist_label_t> asymmetricSearch(const void *query, const int K,
-                                             int ef_search,
-                                             int num_initializations) {}
 
   void reorder_gorder(const int window_size = 5) {
     std::vector<std::vector<node_id_t>> outdegree_table(_cur_num_nodes);
@@ -170,7 +166,8 @@ public:
     relabel(P);
   }
 
-  static std::unique_ptr<Index> loadIndex(const std::string &filename) {
+  static std::unique_ptr<Index<dist_t, label_t>>
+  loadIndex(const std::string &filename) {
     std::ifstream stream(filename, std::ios::binary);
 
     if (!stream.is_open()) {
@@ -186,9 +183,9 @@ public:
     // 1. Deserialize metadata
     archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
             index->_max_node_count, index->_cur_num_nodes, data_dimension,
-            index->_visited_nodes);
+            index->_visited_nodes, index->_product_quantizer);
 
-    index->_distance = std::make_unique<dist_t>(data_dimension);
+    index->_distance = std::make_shared<dist_t>(data_dimension);
     // 2. Allocate memory using deserialized metadata
     index->_index_memory =
         new char[index->_node_size_bytes * index->_max_node_count];
@@ -225,6 +222,24 @@ public:
   inline char *indexMemory() const { return _index_memory; }
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
 
+  void printIndexParams() const {
+    std::cout << "\nIndex Parameters" << std::endl;
+    std::cout << "-----------------------------" << std::endl;
+    std::cout << "max_edges_per_node (M): " << _M << std::endl;
+    std::cout << "data_size_bytes: " << _data_size_bytes << std::endl;
+    std::cout << "node_size_bytes: " << _node_size_bytes << std::endl;
+    std::cout << "max_node_count: " << _max_node_count << std::endl;
+    std::cout << "cur_num_nodes: " << _cur_num_nodes << std::endl;
+    std::cout << "visited_nodes size: " << _visited_nodes.size() << std::endl;
+    std::cout << "distance dimension: " << _distance->dimension() << std::endl;
+    std::cout << "product quantizer: " << _product_quantizer.has_value()
+              << std::endl;
+
+    if (_product_quantizer.has_value()) {
+      _product_quantizer.value()->printQuantizerParams();
+    }
+  }
+
 private:
   // internal node numbering scheme
   typedef unsigned int node_id_t;
@@ -248,13 +263,13 @@ private:
   size_t _max_node_count; // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
 
-  std::unique_ptr<DistanceInterface<dist_t>> _distance;
+  std::shared_ptr<DistanceInterface<dist_t>> _distance;
 
   // Remembers which nodes we've visited, to avoid re-computing distances.
   // Might be a caching problem in beamSearch - needs to be profiled.
   VisitedSet _visited_nodes;
 
-  std::optional<ProductQuantizer<dist_t>> _product_quantizer;
+  std::optional<std::unique_ptr<ProductQuantizer<dist_t>>> _product_quantizer;
 
   friend class cereal::access;
 
@@ -284,7 +299,7 @@ private:
     return reinterpret_cast<label_t *>(location);
   }
 
-  // TODO: Add optional argument here for quantized data vector. 
+  // TODO: Add optional argument here for quantized data vector.
   bool allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
     if (_cur_num_nodes >= _max_node_count) {
       return false;
@@ -294,15 +309,13 @@ private:
     if (_product_quantizer.has_value()) {
       // Quantize the data vector and write the quantized vector into the
       // index at the correct location.
-      uint32_t code_size = _product_quantizer.value().getCodeSize();
-      uint8_t *code = new uint8_t[code_size];
+      uint32_t code_size = _product_quantizer.value()->getCodeSize();
+      uint8_t *code = new uint8_t[code_size]();
 
-      _product_quantizer.value().computePQCode(
-          /* vector = */ (float *)data,
-          /* code = */ code);
+      _product_quantizer.value()->computePQCode(/* vector = */ (float *)data,
+                                                /* code = */ code);
 
-      _distance->transformData(/* destination = */ getNodeData(_cur_num_nodes),
-                               /* src = */ code.data());
+      std::memcpy(getNodeData(_cur_num_nodes), code, _data_size_bytes);
       delete[] code;
     } else {
       // Transforms and writes data into the index at the correct location.
@@ -341,6 +354,16 @@ private:
     return;
   }
 
+  /**
+   * @brief Performs beam search for the nearest neighbors of the query.
+   * @TODO: Add `entry_node_dist` argument to this function since we expect to
+   * have computed that a priori.
+   *
+   * @param query
+   * @param entry_node
+   * @param buffer_size
+   * @return PriorityQueue
+   */
   PriorityQueue beamSearch(const void *query, const node_id_t entry_node,
                            const int buffer_size) {
 
@@ -350,8 +373,16 @@ private:
     PriorityQueue candidates; // C in the HNSW paper
 
     _visited_nodes.clear();
-    float dist = _distance->distance(/* x = */ query,
-                                     /* y = */ getNodeData(entry_node));
+    float dist = std::numeric_limits<float>::max();
+
+    if (_product_quantizer.has_value()) {
+      dist = _product_quantizer.value()->getDistance(
+          /* query_vector = */ (float *)query,
+          /* code = */ reinterpret_cast<uint8_t *>(getNodeData(entry_node)));
+    } else {
+      dist = _distance->distance(query, getNodeData(entry_node));
+    }
+
     float max_dist = dist;
 
     candidates.emplace(-dist, entry_node);
@@ -370,7 +401,18 @@ private:
         if (!_visited_nodes[d_node_links[i]]) {
           // If we haven't visited the node yet.
           _visited_nodes.insert(d_node_links[i]);
-          dist = _distance->distance(query, getNodeData(d_node_links[i]));
+
+          if (_product_quantizer.has_value()) {
+            dist = _product_quantizer.value()->getDistance(
+                /* query_vector = */ (float *)query,
+                /* code = */
+                reinterpret_cast<uint8_t *>(getNodeData(d_node_links[i])));
+          } else {
+            dist = _distance->distance(query, getNodeData(d_node_links[i]));
+          }
+
+          // dist = _distance->distance(query, getNodeData(d_node_links[i]));
+
           // Include the node in the buffer if buffer isn't full or
           // if the node is closer than a node already in the buffer.
           if (neighbors.size() < buffer_size || dist < max_dist) {
@@ -414,9 +456,19 @@ private:
 
       bool should_keep_candidate = true;
       for (const dist_node_t &second_pair : saved_candidates) {
-        float cur_dist =
-            _distance->distance(/* x = */ getNodeData(second_pair.second),
-                                /* y = */ getNodeData(current_pair.second));
+        float cur_dist = std::numeric_limits<float>::max();
+
+        if (_product_quantizer.has_value()) {
+          cur_dist = _product_quantizer.value()->getSymmetricDistance(
+              /* code1 = */
+              reinterpret_cast<uint8_t *>(getNodeData(second_pair.second)),
+              /* code2 = */
+              reinterpret_cast<uint8_t *>(getNodeData(current_pair.second)));
+        } else {
+          cur_dist =
+              _distance->distance(/* x = */ getNodeData(second_pair.second),
+                                  /* y = */ getNodeData(current_pair.second));
+        }
         if (cur_dist < (-current_pair.first)) {
           should_keep_candidate = false;
           break;
@@ -463,17 +515,40 @@ private:
         // very careful. To ensure we respect the pruning heuristic, we
         // construct a candidate set including the old links AND our new
         // one, then prune this candidate set to get the new neighbors.
-        float max_dist = _distance->distance(getNodeData(new_node_id),
-                                             getNodeData(neighbor_node_id));
+
+        float max_dist = std::numeric_limits<float>::max();
+        if (_product_quantizer.has_value()) {
+          max_dist = _product_quantizer.value()->getSymmetricDistance(
+              /* code1 = */
+              reinterpret_cast<uint8_t *>(getNodeData(neighbor_node_id)),
+              /* code2 = */
+              reinterpret_cast<uint8_t *>(getNodeData(new_node_id)));
+        } else {
+          max_dist = _distance->distance(getNodeData(neighbor_node_id),
+                                         getNodeData(new_node_id));
+        }
+
         PriorityQueue candidates;
         candidates.emplace(max_dist, new_node_id);
         for (int j = 0; j < _M; j++) {
           if (neighbor_node_links[j] != neighbor_node_id) {
-            candidates.emplace(
-                _distance->distance(
-                    /* x = */ getNodeData(neighbor_node_id),
-                    /* y = */ getNodeData(neighbor_node_links[j])),
-                neighbor_node_links[j]);
+            if (_product_quantizer.has_value()) {
+              candidates.emplace(
+                  _product_quantizer.value()->getSymmetricDistance(
+                      /* code1 = */
+                      reinterpret_cast<uint8_t *>(
+                          getNodeData(neighbor_node_id)),
+                      /* code2 = */
+                      reinterpret_cast<uint8_t *>(
+                          getNodeData(neighbor_node_links[j]))),
+                  neighbor_node_links[j]);
+            } else {
+              candidates.emplace(
+                  _distance->distance(
+                      /* x = */ getNodeData(neighbor_node_id),
+                      /* y = */ getNodeData(neighbor_node_links[j])),
+                  neighbor_node_links[j]);
+            }
           }
         }
         selectNeighbors(candidates, _M);
@@ -511,6 +586,7 @@ private:
                                     int num_initializations) {
     // select entry_node from a set of random entry point options
     assert(num_initializations != 0);
+
     int step_size = _cur_num_nodes / num_initializations;
     if (step_size <= 0) {
       step_size = 1;
@@ -519,20 +595,29 @@ private:
     float min_dist = std::numeric_limits<float>::max();
     node_id_t entry_node = 0;
 
+    /**
+     * @brief If we use a product quantizer, this is what will happen:
+     * 1. When comparing the query to a database vector (during insertion or
+     * search in HNSW), you don't directly compute a distance using their
+     * original vectors or even use the PQ code of the query. Instead, for each
+     * segment of the database vector, look up the distance between the query's
+     * segment and the database vector's corresponding centroid using the
+     * pre-computed distance table for that segment. Sum these distances across
+     * all segments to get the total asymmetric distance between the query and
+     * the database vector.
+     *
+     */
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
       float dist = std::numeric_limits<float>::max();
 
       if (_product_quantizer.has_value()) {
-        uint32_t code_size = _product_quantizer.value().getCodeSize();
-        std::vector<uint8_t> code(code_size);
+        char *pq_code = getNodeData(node);
+        auto code_size = _product_quantizer.value()->getCodeSize();
 
-        _product_quantizer.value().computePQCode(
-            /* vector = */ (float *)query.data(),
-            /* code = */ code.data());
+        dist = _product_quantizer.value()->getDistance(
+            /* query_vector = */ (float *)query,
+            /* code = */ reinterpret_cast<uint8_t *>(pq_code));
 
-        // If we have a quantizer, we will run asymmetric distance computation
-        dist = _product_quantizer.value().distance(
-            /* x = */ query, /* y = */ getNodeData(node));
       } else {
         dist = _distance->distance(query, getNodeData(node));
       }

@@ -1,4 +1,6 @@
 #pragma once
+#include <cereal/access.hpp>
+#include <cereal/cereal.hpp>
 #include <cstddef> // for size_t
 #include <flatnav/DistanceInterface.h>
 
@@ -23,6 +25,14 @@ public:
 private:
   size_t _dimension;
   size_t _data_size_bytes;
+
+  friend class cereal::access;
+
+  SquaredL2Distance() = default;
+
+  template <typename Archive> void serialize(Archive &ar) {
+    ar(_dimension, _data_size_bytes);
+  }
 
   inline size_t getDimension() const { return _dimension; }
 

@@ -39,6 +39,11 @@ public:
   void transformData(void *destination, const void *src) {
     static_cast<T *>(this)->transformDataImpl(destination, src);
   }
+
+  template <typename Archive> void serialize(Archive &archive) {
+    // Serializes the distance function to disk.
+    static_cast<T *>(this)->template serialize<Archive>(archive);
+  }
 };
 
 } // namespace flatnav

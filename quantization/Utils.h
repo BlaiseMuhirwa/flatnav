@@ -31,7 +31,8 @@ namespace flatnav {
 static float squaredL2(const float *x, const float *y, uint32_t dim) {
   float l2_squared = 0;
   for (uint32_t i = 0; i < dim; i++) {
-    l2_squared += (x[i] - y[i]) * (x[i] - y[i]);
+    auto difference = x[i] - y[i];
+    l2_squared += difference * difference;
   }
   return l2_squared;
 }

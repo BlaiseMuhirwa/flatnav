@@ -12,8 +12,12 @@ include_directories(${CMAKE_SOURCE_DIR}/external/cereal/include/)
 # set standard to c++17 in order to use std::unique_ptr(c++14) and nested
 # namespaces (c++17)
 set(CMAKE_CXX_STANDARD 17)
+
+# I added compiler flags for ASan (address sanitizer). It is supposed to be very fast, but if we find it 
+# slow, we can remove it for good or use compiler directives to skip analyzing functions 
+# __attribute__((no_sanitize_address))
 set(CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS}  -std=c++17 -Wall -Ofast -DHAVE_CXX0X -DNDEBUG -openmp -fpic -w -ffast-math -funroll-loops -ftree-vectorize -g -Qunused-arguments"
+    "${CMAKE_CXX_FLAGS}  -std=c++17 -Wall -Ofast -DHAVE_CXX0X -DNDEBUG -openmp -fpic -w -ffast-math -funroll-loops -ftree-vectorize -g -fsanitize=address"
 )
 
 include(ExternalProject)

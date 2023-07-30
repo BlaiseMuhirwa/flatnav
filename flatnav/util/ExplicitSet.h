@@ -50,6 +50,8 @@ public:
 
   inline void set(const uint32_t num) { _table[num] = _mark; }
 
+  inline uint32_t size() const { return _tableSize; }
+
   inline void reset(const uint32_t num) { _table[num] = _mark + 1; }
 
   inline void clear() { _mark++; }

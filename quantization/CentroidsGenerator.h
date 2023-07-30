@@ -47,7 +47,7 @@ public:
       std::sample(indices.begin(), indices.end(), sample_indices.begin(),
                   _num_centroids, generator);
 
-      for (uint64_t i = 0; i < _num_centroids; i++) {
+      for (uint32_t i = 0; i < _num_centroids; i++) {
         auto sample_index = sample_indices[i];
 
         for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
@@ -87,9 +87,9 @@ public:
                          uint64_t n) {
     if (n < _num_centroids) {
       throw std::runtime_error(
-          "Invalid configuration. The number of centroids " +
+          "Invalid configuration. The number of centroids: " +
           std::to_string(_num_centroids) +
-          " is bigger than the number of data points " + std::to_string(n));
+          " is bigger than the number of data points: " + std::to_string(n));
     }
 
     std::vector<std::vector<float>> data(n, std::vector<float>(_dim));
@@ -123,10 +123,10 @@ public:
           float distance = 0.0;
 
           for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-            distance += (data[vec_index][dim_index] -
-                         _centroids[(c_index * _dim) + dim_index]) *
-                        (data[vec_index][dim_index] -
-                         _centroids[(c_index * _dim) + dim_index]);
+            auto temp = data[vec_index][dim_index] -
+                        _centroids[c_index * _dim + dim_index];
+
+            distance += temp * temp;
           }
           if (distance < min_distance) {
             assignment[vec_index] = c_index;
@@ -159,6 +159,8 @@ public:
     }
   }
 
+  // NOTE: This is non-const because we need to resize the dimension of the
+  // centroids from outside the class in some cases.
   inline std::vector<float> &centroids() { return _centroids; }
 
 private:

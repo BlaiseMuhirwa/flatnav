@@ -23,7 +23,11 @@ void run(float *queries, int *gtruth, const std::string &index_filename,
          const std::vector<int> &ef_searches, int K, int num_queries,
          int num_gtruth, int dim, bool reorder = false) {
 
-  auto index = Index<dist_t, int>::loadIndex(index_filename);
+  std::unique_ptr<Index<dist_t, int>> index =
+      Index<dist_t, int>::loadIndex(index_filename);
+
+  std::cout << "[INFO] Index loaded" << std::endl;
+  index->printIndexParams();
 
   if (reorder) {
     std::clog << "[INFO] Gorder Reordering: " << std::endl;
@@ -35,6 +39,7 @@ void run(float *queries, int *gtruth, const std::string &index_filename,
     std::clog << "Reordering time: " << (float)(duration_r.count()) / (1000.0)
               << " seconds" << std::endl;
   }
+
   for (const auto &ef_search : ef_searches) {
     double mean_recall = 0;
 
@@ -124,12 +129,15 @@ int main(int argc, char **argv) {
                            /* ef_searches = */ ef_searches, /* K = */ k,
                            /* num_queries = */ num_queries,
                            /* num_gtruth = */ n_gt, /* dim = */ dim);
-  } else if (space_ID == 1) {
-    run<InnerProductDistance>(/* queries = */ queries, /* gtruth = */ gtruth,
-                              /* index_filename = */ indexfilename,
-                              /* ef_searches = */ ef_searches, /* K = */ k,
-                              /* num_queries = */ num_queries,
-                              /* num_gtruth = */ n_gt, /* dim = */ dim);
+
+    // } else if (space_ID == 1) {
+    //   run<InnerProductDistance>(/* queries = */ queries, /* gtruth = */
+    //   gtruth,
+    //                             /* index_filename = */ indexfilename,
+    //                             /* ef_searches = */ ef_searches, /* K = */ k,
+    //                             /* num_queries = */ num_queries,
+    //                             /* num_gtruth = */ n_gt, /* dim = */ dim);
+    //
   } else {
     throw std::invalid_argument("Invalid space ID. Valid IDs are 0 and 1.");
   }

@@ -1,18 +1,17 @@
 
 
-#include "../BaseProductQuantization.h"
-#include <flatnav/DistanceInterface.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <gtest/gtest.h>
 #include <memory>
+#include <quantization/BaseProductQuantization.h>
 #include <random>
 
 using flatnav::quantization::ProductQuantizer;
 
 namespace flatnav::quantization {
 
-const std::vector<float> generateRandomVectors(uint32_t count, uint32_t dim) {
-  std::vector<float> vectors(dim * count);
+std::vector<float> generateRandomVectors(uint32_t count, uint32_t dim) {
+  std::vector<float> vectors(dim * count, 0.F);
 
   std::mt19937 gen(1234);
   std::uniform_real_distribution<float> dis(-1.0, 1.0);
@@ -33,43 +32,45 @@ TEST(ProductQuantizationTest, TestComputeCodes) {
   // Number of testing vectors
   const uint32_t num_vectors = 1000;
 
-  auto distance = std::make_unique<SquaredL2Distance>(dim);
-  ProductQuantizer<SquaredL2Distance> pq(/* dist = */ std::move(distance),
-                                         /* dim = */ dim, /* M = */ M,
+  ProductQuantizer<SquaredL2Distance> pq(/* dim = */ dim, /* M = */ M,
                                          /* nbits = */ nbits);
 
   // Generate random vectors
-  auto testing_vectors =
+  std::vector<float> testing_vectors =
       generateRandomVectors(/* count = */ num_vectors, /* dim = */ dim);
 
   // Train the quantizer
   pq.train(/* vectors = */ testing_vectors.data(),
-           /* num_vectors = */ testing_vectors.size());
+           /* num_vectors = */ num_vectors);
 
   auto code_size = pq.getCodeSize();
   std::cout << "[INFO] Code size: " << code_size << std::endl;
 
   // Encode
-  std::vector<uint8_t> codes(code_size * num_vectors);
+  uint8_t *codes = new uint8_t[code_size * num_vectors];
+
   pq.computePQCodes(/* vectors = */ testing_vectors.data(),
-                    /* codes = */ codes.data(), /* n = */ num_vectors);
+                    /* codes = */ codes, /* n = */ num_vectors);
 
   // Decode
   std::vector<float> decoded_vectors(dim * num_vectors);
-  pq.decode(/* code = */ codes.data(), /* vectors = */ decoded_vectors.data(),
+  pq.decode(/* code = */ codes, /* vectors = */ decoded_vectors.data(),
             /* n = */ num_vectors);
 
   // Encode the second time
-  std::vector<uint8_t> second_encoding(code_size * num_vectors);
+  uint8_t *second_encoding = new uint8_t[code_size * num_vectors];
 
   pq.computePQCodes(/* vectors = */ testing_vectors.data(),
-                    /* codes = */ second_encoding.data(),
+                    /* codes = */ second_encoding,
                     /* n = */ num_vectors);
 
   // Check that the second encoding is the same as the first one
-  for (uint32_t i = 0; i < codes.size(); i++) {
+  for (uint32_t i = 0; i < code_size * num_vectors; i++) {
     ASSERT_EQ(codes[i], second_encoding[i]);
   }
+
+  delete[] codes;
+  delete[] second_encoding;
 }
 
 } // namespace flatnav::quantization
