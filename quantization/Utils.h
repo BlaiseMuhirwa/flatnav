@@ -96,4 +96,9 @@ static uint64_t squaredL2WithKNeighbors(float *distances_buffer, const float *x,
   return squaredL2WithKNeighbors_(distances_buffer, x, y, dim, target_set_size);
 }
 
+// TODO: Implement this with BLAS
+static void computePairwiseL2Distances(uint32_t dim, uint64_t num_x,
+                                       const float *x, uint64_t num_y,
+                                       const float *y, float *distances) {}
+
 } // namespace flatnav

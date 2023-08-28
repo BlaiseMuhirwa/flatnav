@@ -40,24 +40,21 @@ public:
    * @param max_edges_per_node  The maximum number of links per node.
    */
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
-        int max_edges_per_node,
-        std::optional<std::unique_ptr<ProductQuantizer<dist_t>>> pq =
-            std::nullopt)
+        int max_edges_per_node, ProductQuantizer<dist_t> *pq = nullptr)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
         _cur_num_nodes(0), _distance(dist), _visited_nodes(dataset_size + 1),
-        _product_quantizer(std::move(pq)) {
+        _product_quantizer(pq) {
 
-    if (_product_quantizer.has_value() &&
-        !_product_quantizer.value()->isTrained()) {
+    if (_product_quantizer && !_product_quantizer->isTrained()) {
       throw std::runtime_error("Product quantizer must be trained before use.");
     }
 
     _data_size_bytes = _distance->dataSize();
 
-    if (_product_quantizer.has_value()) {
+    if (_product_quantizer) {
       // For now, this is expected to be 8 (1 byte for each of the 8
       // subvectors)
-      _data_size_bytes = _product_quantizer.value()->getCodeSize();
+      _data_size_bytes = _product_quantizer->getCodeSize();
     }
     _node_size_bytes =
         _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
@@ -121,14 +118,25 @@ public:
                                          /* entry_node = */ entry_node,
                                          /* buffer_size = */ ef_search);
     std::vector<dist_label_t> results;
+
+    // std::cout << "[info] neighbors size = " << neighbors.size() << std::endl;
+
     while (neighbors.size() > K) {
       neighbors.pop();
     }
     while (neighbors.size() > 0) {
       results.emplace_back(neighbors.top().first,
                            *getNodeLabel(neighbors.top().second));
+      // std::cout << "[results-size]: " << results.size() << std::endl;
       neighbors.pop();
     }
+    // Print out the value in the results vector
+    for (int i = 0; i < results.size(); i++) {
+      std::cout << "[results]: (distance=" << results[i].first
+                << ", label=" << results[i].second << ")" << std::endl;
+    }
+
+    std::cout << "[DEBUG]" << std::endl;
     std::sort(results.begin(), results.end(),
               [](const dist_label_t &left, const dist_label_t &right) {
                 return left.first < right.first;
@@ -183,15 +191,27 @@ public:
     // 1. Deserialize metadata
     archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
             index->_max_node_count, index->_cur_num_nodes, data_dimension,
-            index->_visited_nodes, index->_product_quantizer);
+            index->_visited_nodes);
+
+    // 2. Deserialize product quantizer
+    // bool has_product_quantizer;
+    // archive(has_product_quantizer);
+    // if (has_product_quantizer) {
+    //   index->_product_quantizer = new ProductQuantizer<dist_t>();
+    //   archive(*index->_product_quantizer);
+    // } else {
+    //   index->_product_quantizer = nullptr;
+    // }
+
+    index->_product_quantizer = nullptr;
 
     index->_distance = std::make_shared<dist_t>(data_dimension);
-    // 2. Allocate memory using deserialized metadata
+    // 3. Allocate memory using deserialized metadata
     index->_index_memory =
         new char[index->_node_size_bytes * index->_max_node_count];
     index->_transformed_query = new char[index->_data_size_bytes];
 
-    // 3. Deserialize content into allocated memory
+    // 4. Deserialize content into allocated memory
     archive(
         cereal::binary_data(index->_index_memory,
                             index->_node_size_bytes * index->_max_node_count));
@@ -232,11 +252,11 @@ public:
     std::cout << "cur_num_nodes: " << _cur_num_nodes << std::endl;
     std::cout << "visited_nodes size: " << _visited_nodes.size() << std::endl;
     std::cout << "distance dimension: " << _distance->dimension() << std::endl;
-    std::cout << "product quantizer: " << _product_quantizer.has_value()
-              << std::endl;
+    bool has_product_quantizer = _product_quantizer != nullptr;
+    std::cout << "product quantizer: " << has_product_quantizer << std::endl;
 
-    if (_product_quantizer.has_value()) {
-      _product_quantizer.value()->printQuantizerParams();
+    if (_product_quantizer) {
+      _product_quantizer->printQuantizerParams();
     }
   }
 
@@ -269,15 +289,35 @@ private:
   // Might be a caching problem in beamSearch - needs to be profiled.
   VisitedSet _visited_nodes;
 
-  std::optional<std::unique_ptr<ProductQuantizer<dist_t>>> _product_quantizer;
+  ProductQuantizer<dist_t> *_product_quantizer;
 
   friend class cereal::access;
 
   template <typename Archive> void serialize(Archive &archive) {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
-            _cur_num_nodes, _distance->dimension(), _visited_nodes,
-            _product_quantizer);
+            _cur_num_nodes, _distance->dimension(), _visited_nodes);
 
+    // Handle serializing the product quantizer.
+    // if constexpr (!Archive::is_loading::value) {
+    //   // We are serializing
+    //   bool has_product_quantizer = _product_quantizer != nullptr;
+    //   archive(has_product_quantizer);
+    //   if (has_product_quantizer) {
+    //     archive(*_product_quantizer);
+    //   }
+    // } else {
+    //   // We are deserializing.
+    //   bool has_product_quantizer;
+    //   archive(has_product_quantizer);
+    //   if (has_product_quantizer) {
+    //     _product_quantizer = new ProductQuantizer<dist_t>();
+    //     archive(*_product_quantizer);
+    //   } else {
+    //     _product_quantizer = nullptr;
+    //   }
+    // }
+
+    // Serialize the allocated memory for the index & query.
     archive(
         cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
     archive(cereal::binary_data(_transformed_query, _data_size_bytes));
@@ -306,14 +346,14 @@ private:
     }
     new_node_id = _cur_num_nodes;
 
-    if (_product_quantizer.has_value()) {
+    if (_product_quantizer) {
       // Quantize the data vector and write the quantized vector into the
       // index at the correct location.
-      uint32_t code_size = _product_quantizer.value()->getCodeSize();
+      uint32_t code_size = _product_quantizer->getCodeSize();
       uint8_t *code = new uint8_t[code_size]();
 
-      _product_quantizer.value()->computePQCode(/* vector = */ (float *)data,
-                                                /* code = */ code);
+      _product_quantizer->computePQCode(/* vector = */ (float *)data,
+                                        /* code = */ code);
 
       std::memcpy(getNodeData(_cur_num_nodes), code, _data_size_bytes);
       delete[] code;
@@ -375,13 +415,23 @@ private:
     _visited_nodes.clear();
     float dist = std::numeric_limits<float>::max();
 
-    if (_product_quantizer.has_value()) {
-      dist = _product_quantizer.value()->getDistance(
+    if (_product_quantizer) {
+      // Print out the computed code we get from calling getNodeData(entry_node)
+      uint8_t* code = reinterpret_cast<uint8_t *>(getNodeData(entry_node));
+      for (int i = 0; i < _product_quantizer->getCodeSize(); i++) {
+        std::cout << "[info] code[" << i << "] = " << (int)code[i] << std::endl;
+      }
+
+      dist = _product_quantizer->getDistance(
           /* query_vector = */ (float *)query,
           /* code = */ reinterpret_cast<uint8_t *>(getNodeData(entry_node)));
     } else {
       dist = _distance->distance(query, getNodeData(entry_node));
     }
+    
+
+    // Print out the distance 
+    // std::cout << "[info] beam-search-distance = " << dist << std::endl;
 
     float max_dist = dist;
 
@@ -402,8 +452,8 @@ private:
           // If we haven't visited the node yet.
           _visited_nodes.insert(d_node_links[i]);
 
-          if (_product_quantizer.has_value()) {
-            dist = _product_quantizer.value()->getDistance(
+          if (_product_quantizer) {
+            dist = _product_quantizer->getDistance(
                 /* query_vector = */ (float *)query,
                 /* code = */
                 reinterpret_cast<uint8_t *>(getNodeData(d_node_links[i])));
@@ -458,8 +508,8 @@ private:
       for (const dist_node_t &second_pair : saved_candidates) {
         float cur_dist = std::numeric_limits<float>::max();
 
-        if (_product_quantizer.has_value()) {
-          cur_dist = _product_quantizer.value()->getSymmetricDistance(
+        if (_product_quantizer) {
+          cur_dist = _product_quantizer->getSymmetricDistance(
               /* code1 = */
               reinterpret_cast<uint8_t *>(getNodeData(second_pair.second)),
               /* code2 = */
@@ -517,8 +567,8 @@ private:
         // one, then prune this candidate set to get the new neighbors.
 
         float max_dist = std::numeric_limits<float>::max();
-        if (_product_quantizer.has_value()) {
-          max_dist = _product_quantizer.value()->getSymmetricDistance(
+        if (_product_quantizer) {
+          max_dist = _product_quantizer->getSymmetricDistance(
               /* code1 = */
               reinterpret_cast<uint8_t *>(getNodeData(neighbor_node_id)),
               /* code2 = */
@@ -532,16 +582,15 @@ private:
         candidates.emplace(max_dist, new_node_id);
         for (int j = 0; j < _M; j++) {
           if (neighbor_node_links[j] != neighbor_node_id) {
-            if (_product_quantizer.has_value()) {
-              candidates.emplace(
-                  _product_quantizer.value()->getSymmetricDistance(
-                      /* code1 = */
-                      reinterpret_cast<uint8_t *>(
-                          getNodeData(neighbor_node_id)),
-                      /* code2 = */
-                      reinterpret_cast<uint8_t *>(
-                          getNodeData(neighbor_node_links[j]))),
-                  neighbor_node_links[j]);
+            if (_product_quantizer) {
+              candidates.emplace(_product_quantizer->getSymmetricDistance(
+                                     /* code1 = */
+                                     reinterpret_cast<uint8_t *>(
+                                         getNodeData(neighbor_node_id)),
+                                     /* code2 = */
+                                     reinterpret_cast<uint8_t *>(
+                                         getNodeData(neighbor_node_links[j]))),
+                                 neighbor_node_links[j]);
             } else {
               candidates.emplace(
                   _distance->distance(
@@ -610,11 +659,11 @@ private:
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
       float dist = std::numeric_limits<float>::max();
 
-      if (_product_quantizer.has_value()) {
+      if (_product_quantizer) {
         char *pq_code = getNodeData(node);
-        auto code_size = _product_quantizer.value()->getCodeSize();
+        auto code_size = _product_quantizer->getCodeSize();
 
-        dist = _product_quantizer.value()->getDistance(
+        dist = _product_quantizer->getDistance(
             /* query_vector = */ (float *)query,
             /* code = */ reinterpret_cast<uint8_t *>(pq_code));
 

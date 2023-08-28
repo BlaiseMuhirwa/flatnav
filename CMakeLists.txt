@@ -2,23 +2,37 @@ cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 project(FlatNav CXX)
 
-# Add the parent directory to the include path 
-# This allows us to write #include <flatnav/...> instead of #include "../flatnav/..."
+# Add the parent directory to the include path This allows us to write #include
+# <flatnav/...> instead of #include "../flatnav/..."
 include_directories(${CMAKE_SOURCE_DIR})
 
-# Include cereal 
+# Include cereal
 include_directories(${CMAKE_SOURCE_DIR}/external/cereal/include/)
 
 # set standard to c++17 in order to use std::unique_ptr(c++14) and nested
 # namespaces (c++17)
 set(CMAKE_CXX_STANDARD 17)
 
-# I added compiler flags for ASan (address sanitizer). It is supposed to be very fast, but if we find it 
-# slow, we can remove it for good or use compiler directives to skip analyzing functions 
-# __attribute__((no_sanitize_address))
+# I added compiler flags for ASan (address sanitizer). It is supposed to be very
+# fast, but if we find it slow, we can remove it for good or use compiler
+# directives to skip analyzing functions __attribute__((no_sanitize_address))
 set(CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS}  -std=c++17 -Wall -Ofast -DHAVE_CXX0X -DNDEBUG -openmp -fpic -w -ffast-math -funroll-loops -ftree-vectorize -g -fsanitize=address"
-)
+    "${CMAKE_CXX_FLAGS} \
+    -Xclang -std=c++17 \
+    -Wall -Ofast \
+    -DHAVE_CXX0X \
+    -DNDEBUG \
+    -openmp \
+    -L/opt/homebrew/opt/libomp/lib \
+    -I/opt/homebrew/opt/libomp/include \
+    -lomp \
+    -fpic \
+    -w \
+    -ffast-math \
+    -funroll-loops \
+    -ftree-vectorize \
+    -g \
+    -fsanitize=address")
 
 include(ExternalProject)
 include(FeatureSummary)
@@ -101,6 +115,37 @@ include_directories(${PROJECT_BINARY_DIR}/ep/include)
 
 set(CNPY_LIB ${PROJECT_BINARY_DIR}/ep/lib/libcnpy.a)
 
+find_package(OpenMP)
+if(OpenMP_FOUND)
+  message(STATUS "OpenMP Found. Building the Package using the system OpenMP.")
+else()
+  message(
+    "OpenMP Not Found. Building the Package using LLVM's OpenMP. This is slower than the system OpenMP."
+  )
+endif(OpenMP_FOUND)
+
+# find_package(OpenMP) if(NOT OpenMP_FOUND) message("OpenMP Not Found. Building
+# the Package using LLVM's OpenMP.") set(LLVM_OPENMP_VERSION "16.0.0")
+# set(LLVM_OPENMP_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/openmp")
+
+# if(NOT EXISTS ${LLVM_OPENMP_SOURCE_DIR}) message("Downloading
+# openmp-${LLVM_OPENMP_VERSION} into ${LLVM_OPENMP_SOURCE_DIR}")
+# set(LLVM_OPENMP_DOWNLOAD_URL
+# "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_OPENMP_VERSION}/openmp-${LLVM_OPENMP_VERSION}.src.tar.xz")
+
+# file( DOWNLOAD ${LLVM_OPENMP_DOWNLOAD_URL}
+# "${CMAKE_CURRENT_BINARY_DIR}/openmp-${LLVM_OPENMP_VERSION}.tar.bz2" )
+# file(ARCHIVE_EXTRACT INPUT
+# "${CMAKE_CURRENT_BINARY_DIR}/openmp-${LLVM_OPENMP_VERSION}.tar.bz2"
+# DESTINATION ${CMAKE_CURRENT_BINARY_DIR} ) file(RENAME
+# "${CMAKE_CURRENT_BINARY_DIR}/openmp-${LLVM_OPENMP_VERSION}.src"
+# "${LLVM_OPENMP_SOURCE_DIR}" ) endif() set(OPENMP_STANDALONE_BUILD ON)
+# add_subdirectory(${LLVM_OPENMP_SOURCE_DIR} EXCLUDE_FROM_ALL)
+# add_library(OpenMP::OpenMP_CXX ALIAS omp)
+
+# else() message(STATUS "OpenMP Found. Building the Package using the system
+# OpenMP.") endif(NOT OpenMP_FOUND)
+
 # TODO: Using globbing or some other command that does not require writing down
 # every header file
 set(HEADERS
@@ -120,11 +165,13 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 
-add_library(FLAT_NAV_LIB SHARED ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
-# target_include_directories(FLAT_NAV_LIB PRIVATE ${PROJECT_SOURCE_DIR}/external/cereal/include)
+add_library(FLAT_NAV_LIB SHARED
+            ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
+# target_include_directories(FLAT_NAV_LIB PRIVATE
+# ${PROJECT_SOURCE_DIR}/external/cereal/include)
 add_dependencies(FLAT_NAV_LIB CNPY)
 
-target_link_libraries(FLAT_NAV_LIB ${CNPY_LIB})
+target_link_libraries(FLAT_NAV_LIB PUBLIC ${CNPY_LIB} OpenMP::OpenMP_CXX)
 set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
 option(BUILD_TESTS "Builds all tests" OFF)
@@ -134,7 +181,8 @@ message(STATUS "Building examples: ${BUILD_EXAMPLES}")
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples for Flatnav")
-  foreach(CONSTRUCT_EXEC index_construction construct_npy query query_npy cereal_tests)
+  foreach(CONSTRUCT_EXEC index_construction construct_npy query query_npy
+                         cereal_tests)
     add_executable(${CONSTRUCT_EXEC}
                    ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
     add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)

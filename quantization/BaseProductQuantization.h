@@ -12,6 +12,7 @@
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
 #include <memory>
+#include <omp.h>
 #include <quantization/CentroidsGenerator.h>
 #include <quantization/Utils.h>
 #include <queue>
@@ -87,6 +88,9 @@ template <typename dist_t> class ProductQuantizer {
       MaxHeap;
 
 public:
+  // Constructor for serializaiton
+  ProductQuantizer() = default;
+
   /** PQ Constructor.
    *
    * @param dim      dimensionality of the input vectors
@@ -256,8 +260,8 @@ public:
                     /* m = */ m);
     }
 
-    computeInterCentroidDistanceTables();
     _is_trained = true;
+    computeSymmetricDistanceTables();
     delete[] slice;
   }
 
@@ -384,24 +388,16 @@ public:
     return distance;
   }
 
-  /**
-   * @brief computes the distance between two vectors in the quantization
-   * space.
-   *
-   * @param code1
-   * @param code2
-   * @return float
-   */
-  float getSymmetricDistance(const uint8_t *code1, const uint8_t *code2) {
-
+  float getSymmetricDistance(const uint8_t *code1, const uint8_t *code2) const {
     float distance = 0.0;
 
-    for (uint32_t m = 0; m < _num_subquantizers; m++) {
-      distance += _inter_centroid_tables[m][(code1[m] * _subq_centroids_count) +
-                                            code2[m]];
-    }
+    // Get a pointer to the distance table for the first subquantizer
+    const float *dist_table = _symmetric_distance_tables.data();
 
-    return distance;
+    for (uint32_t m = 0; m < _num_subquantizers; m++) {
+      distance += dist_table[(code1[m] * _subq_centroids_count) + code2[m]];
+      dist_table += _subq_centroids_count * _subq_centroids_count;
+    }
   }
 
   inline uint32_t getNumSubquantizers() const { return _num_subquantizers; }
@@ -430,22 +426,65 @@ public:
   }
 
 private:
-  void computeInterCentroidDistanceTables() {
-    // for each subquantizer
-    for (uint32_t m = 0; m < _num_subquantizers; m++) {
-      auto table = std::make_unique<float[]>(_subq_centroids_count *
-                                             _subq_centroids_count);
+  /**
+   * @brief Computes pair-wise distances between all pairs of centroids
+   * for each subquantizer.
+   * The symmetric distance table is essentially a 3D array of size
+   * (_num_subquantizers x _subq_centroids_count x _subq_centroids_count).
+   * This means that for each subquantizer, we have a 2D symmetric matrix
+   * of size (_subq_centroids_count x _subq_centroids_count).
+   * The current implementation, in fact, is not efficient since we are
+   * computing the distance between all pairs of centroids twice. We can
+   * improve this by leveraging the symmetric property of each matrix.
+   *
+   * @TODO: Use BLAS in regimes where _subvector_dim is large since we can gain
+   * some speed.
+   *
+   */
+  void computeSymmetricDistanceTables() {
+    _symmetric_distance_tables.resize(
+        _num_subquantizers * _subq_centroids_count * _subq_centroids_count);
 
-      // compute the pairwise distance for each pair of centroids
-      for (uint32_t i = 0; i < _subq_centroids_count; i++) {
-        for (uint32_t j = 0; j < _subq_centroids_count; j++) {
-          table[(i * _subq_centroids_count) + j] =
-              _distance->distance(getCentroids(m, i), getCentroids(m, j));
-        }
-      }
-      _inter_centroid_tables.push_back(std::move(table));
+#pragma omp parallel for
+    for (uint64_t mk = 0; mk < _num_subquantizers * _subq_centroids_count;
+         mk++) {
+      // allow omp to schedule in a more fine-grained way.
+      // `collapse` is not supported in openmp 2.x
+      auto m = mk / _subq_centroids_count;
+      auto k = mk % _subq_centroids_count;
+      const float *centroids =
+          _centroids.data() + (m * _subq_centroids_count * _subvector_dim);
+      const float *centroid_i = centroids + (k * _subvector_dim);
+      float *dist_table = _symmetric_distance_tables.data() +
+                          (m * _subq_centroids_count * _subq_centroids_count);
+      flatnav::registerSquaredL2Distances(
+          /* distances_buffer = */ dist_table + (k * _subq_centroids_count),
+          /* x = */ centroid_i, /* y = */ centroids,
+          /* dim = */ _subvector_dim,
+          /* target_set_size = */ _subq_centroids_count);
     }
   }
+
+  /**
+   * @brief
+   *
+   */
+  // void computeInterCentroidDistanceTables() {
+  //   // for each subquantizer
+  //   for (uint32_t m = 0; m < _num_subquantizers; m++) {
+  //     auto table = std::make_unique<float[]>(_subq_centroids_count *
+  //                                            _subq_centroids_count);
+
+  //     // compute the pairwise distance for each pair of centroids
+  //     for (uint32_t i = 0; i < _subq_centroids_count; i++) {
+  //       for (uint32_t j = 0; j < _subq_centroids_count; j++) {
+  //         table[(i * _subq_centroids_count) + j] =
+  //             _distance->distance(getCentroids(m, i), getCentroids(m, j));
+  //       }
+  //     }
+  //     _inter_centroid_tables.push_back(std::move(table));
+  //   }
+  // }
 
   /**
    * @brief This function initializes a set of 2^(_num_bits) centroids spread
@@ -542,7 +581,9 @@ private:
   // Layout: (_subvector_dim x _num_subquantizers x _subq_centroids_count)
   std::vector<float> _transposed_centroids;
 
-  std::vector<std::unique_ptr<float[]>> _inter_centroid_tables;
+  // std::vector<std::unique_ptr<float[]>> _inter_centroid_tables;
+
+  std::vector<float> _symmetric_distance_tables;
 
   // Indicates if the PQ has been trained or not
   bool _is_trained;
@@ -564,32 +605,17 @@ private:
 
   friend class cereal::access;
   // Private constructor for serialization
-  ProductQuantizer() = default;
+  // ProductQuantizer() = default;
 
   template <typename Archive> void serialize(Archive &archive) {
 
     archive(_code_size, _num_subquantizers, _num_bits, _subvector_dim,
-            _subq_centroids_count, _centroids, _transposed_centroids,
+            _subq_centroids_count, _centroids, _symmetric_distance_tables,
             _is_trained, _train_type);
 
     if constexpr (Archive::is_loading::value) {
       // loading PQ
       _distance = std::make_shared<dist_t>(_subvector_dim);
-      _inter_centroid_tables.resize(_num_subquantizers);
-      for (size_t i = 0; i < _num_subquantizers; i++) {
-        _inter_centroid_tables[i] = std::make_unique<float[]>(
-            _subq_centroids_count * _subq_centroids_count);
-        archive(cereal::binary_data(_inter_centroid_tables[i].get(),
-                                    sizeof(float) * _subq_centroids_count *
-                                        _subq_centroids_count));
-      }
-
-    } else {
-      for (const auto &table : _inter_centroid_tables) {
-        archive(cereal::binary_data(table.get(), sizeof(float) *
-                                                     _subq_centroids_count *
-                                                     _subq_centroids_count));
-      }
     }
   }
 };

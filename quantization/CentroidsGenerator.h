@@ -30,7 +30,7 @@ public:
         _normalized(normalized), _verbose(verbose),
         _centroids_initialized(false), _seed(3333) {}
 
-  void initializeCentroids(const std::vector<std::vector<float>> &data,
+  void initializeCentroids(const float *data, uint64_t n,
                            const std::string &initialization_type) {
     // TODO: Move hypercube initialization from the ProductQuantizer class
     // to here.
@@ -39,7 +39,7 @@ public:
                    [](unsigned char c) { return std::tolower(c); });
 
     if (initialization_type == "default") {
-      std::vector<uint64_t> indices(data.size());
+      std::vector<uint64_t> indices(n);
 
       std::iota(indices.begin(), indices.end(), 0);
       std::mt19937 generator(_seed);
@@ -51,16 +51,16 @@ public:
         auto sample_index = sample_indices[i];
 
         for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-          _centroids[(i * _dim) + dim_index] = data[sample_index][dim_index];
+          _centroids[(i * _dim) + dim_index] =
+              data[(sample_index * _dim) + dim_index];
         }
       }
       _centroids_initialized = true;
-      return;
+    } else {
+      throw std::invalid_argument(
+          "Invalid centroids initialization initialization type: " +
+          initialization_type);
     }
-
-    throw std::invalid_argument(
-        "Invalid centroids initialization initialization type: " +
-        initialization_type);
   }
 
   /**
@@ -104,7 +104,7 @@ public:
     // data points
     if (!_centroids_initialized) {
       _centroids.resize(_num_centroids * _dim);
-      initializeCentroids(/* data = */ data,
+      initializeCentroids(/* data = */ vectors, /* n = */ n,
                           /* initialization_type = */ "default");
     }
 
@@ -123,7 +123,7 @@ public:
           float distance = 0.0;
 
           for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-            auto temp = data[vec_index][dim_index] -
+            auto temp = vectors[vec_index * _dim + dim_index] -
                         _centroids[c_index * _dim + dim_index];
 
             distance += temp * temp;
@@ -143,7 +143,7 @@ public:
       for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
         for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
           sums[assignment[vec_index] * _dim + dim_index] +=
-              data[vec_index][dim_index];
+              vectors[vec_index * _dim + dim_index];
         }
         counts[assignment[vec_index]]++;
       }
