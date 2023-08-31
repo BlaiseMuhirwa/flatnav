@@ -57,25 +57,6 @@ private:
   void transformDataImpl(void *destination, const void *src) {
     std::memcpy(destination, src, _data_size_bytes);
   }
-
-  // void serializeImpl(std::ofstream &out) {
-  //   // TODO: Make this safe across machines and compilers.
-  //   out.write(reinterpret_cast<const char *>(&DISTANCE_ID), sizeof(int));
-  //   out.write(reinterpret_cast<char *>(&_dimension), sizeof(size_t));
-  // }
-
-  // void deserializeImpl(std::ifstream &in) {
-  //   // TODO: Make this safe across machines and compilers.
-  //   int distance_id_check;
-  //   in.read(reinterpret_cast<char *>(&distance_id_check), sizeof(int));
-  //   if (distance_id_check != DISTANCE_ID) {
-  //     throw std::invalid_argument(
-  //         "Error reading distance metric: Distance ID does not match "
-  //         "the ID of the deserialized distance instance.");
-  //   }
-  //   in.read(reinterpret_cast<char *>(&_dimension), sizeof(size_t));
-  //   _data_size_bytes = _dimension * sizeof(float);
-  // }
 };
 
 } // namespace flatnav

@@ -21,7 +21,7 @@ namespace flatnav::quantization {
 class CentroidsGenerator {
 public:
   CentroidsGenerator(uint32_t dim, uint32_t num_centroids,
-                     uint32_t num_iterations = 25,
+                     uint32_t num_iterations = 50,
                      uint32_t max_points_per_centroid = 256,
                      bool normalized = true, bool verbose = false)
       : _dim(dim), _num_centroids(num_centroids),
@@ -92,14 +92,6 @@ public:
           " is bigger than the number of data points: " + std::to_string(n));
     }
 
-    std::vector<std::vector<float>> data(n, std::vector<float>(_dim));
-
-    for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
-      for (uint64_t dim_index = 0; dim_index < _dim; dim_index++) {
-        data[vec_index][dim_index] = vectors[(vec_index * _dim) + dim_index];
-      }
-    }
-
     // Initialize the centroids by randomly sampling k centroids among the n
     // data points
     if (!_centroids_initialized) {
@@ -142,9 +134,11 @@ public:
 #pragma omp parallel for
       for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
         for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
+#pragma omp atomic
           sums[assignment[vec_index] * _dim + dim_index] +=
               vectors[vec_index * _dim + dim_index];
         }
+#pragma omp atomic
         counts[assignment[vec_index]]++;
       }
 #pragma omp parallel for

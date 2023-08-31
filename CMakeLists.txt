@@ -31,8 +31,8 @@ set(CMAKE_CXX_FLAGS
     -ffast-math \
     -funroll-loops \
     -ftree-vectorize \
-    -g \
-    -fsanitize=address")
+    -g")
+# -fsanitize=address")
 
 include(ExternalProject)
 include(FeatureSummary)

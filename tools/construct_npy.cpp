@@ -7,6 +7,7 @@
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <quantization/BaseProductQuantization.h>
 #include <random>
@@ -26,13 +27,13 @@ void run(float *data, std::shared_ptr<DistanceInterface<dist_t>> &&distance,
          int N, int M, int dim, int ef_construction,
          const std::string &save_file, bool quantize = false) {
 
-  ProductQuantizer<dist_t> *pq = nullptr;
-
+  std::unique_ptr<ProductQuantizer<dist_t>> pq = nullptr;
   if (quantize) {
     std::clog << "Quantizing data" << std::endl;
 
-    pq = new ProductQuantizer<dist_t>(
-        /* dim = */ dim, /* M = */ 8, /* nbits = */ 8);
+    pq = std::make_unique<ProductQuantizer<dist_t>>(
+        /* dim = */ dim, /* M = */ 8, /* nbits = */ 16);
+
     auto start = std::chrono::high_resolution_clock::now();
     pq->train(/* vectors = */ data, /* num_vectors = */ N);
     auto stop = std::chrono::high_resolution_clock::now();
@@ -44,7 +45,7 @@ void run(float *data, std::shared_ptr<DistanceInterface<dist_t>> &&distance,
 
   auto index = new Index<dist_t, int>(
       /* dist = */ distance, /* dataset_size = */ N,
-      /* max_edges = */ M, /* pq = */ pq);
+      /* max_edges = */ M, /* pq = */ std::move(pq));
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -67,9 +68,6 @@ void run(float *data, std::shared_ptr<DistanceInterface<dist_t>> &&distance,
   index->saveIndex(/* filename = */ save_file);
 
   delete index;
-  if (pq) {
-    delete pq;
-  }
 }
 
 int main(int argc, char **argv) {

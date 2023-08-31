@@ -65,8 +65,9 @@ void run(float *queries, int *gtruth, const std::string &index_filename,
     auto stop_q = std::chrono::high_resolution_clock::now();
     auto duration_q =
         std::chrono::duration_cast<std::chrono::milliseconds>(stop_q - start_q);
-    std::cout << mean_recall / num_queries << ","
-              << (float)(duration_q.count()) / num_queries << std::endl;
+    std::cout << "[INFO] Mean Recall: " << mean_recall / num_queries
+              << ", Duration:" << (float)(duration_q.count()) / num_queries
+              << " milliseconds" << std::endl;
   }
 }
 
@@ -130,14 +131,14 @@ int main(int argc, char **argv) {
                            /* num_queries = */ num_queries,
                            /* num_gtruth = */ n_gt, /* dim = */ dim);
 
-    // } else if (space_ID == 1) {
-    //   run<InnerProductDistance>(/* queries = */ queries, /* gtruth = */
-    //   gtruth,
-    //                             /* index_filename = */ indexfilename,
-    //                             /* ef_searches = */ ef_searches, /* K = */ k,
-    //                             /* num_queries = */ num_queries,
-    //                             /* num_gtruth = */ n_gt, /* dim = */ dim);
-    //
+  } else if (space_ID == 1) {
+    run<InnerProductDistance>(/* queries = */ queries, /* gtruth = */
+                              gtruth,
+                              /* index_filename = */ indexfilename,
+                              /* ef_searches = */ ef_searches, /* K = */ k,
+                              /* num_queries = */ num_queries,
+                              /* num_gtruth = */ n_gt, /* dim = */ dim);
+
   } else {
     throw std::invalid_argument("Invalid space ID. Valid IDs are 0 and 1.");
   }
