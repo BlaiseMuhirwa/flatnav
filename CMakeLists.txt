@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 project(FlatNav CXX)
 
+# print ${PROJECT_SOURCE_DIR} and ${PROJECT_BINARY_DIR}
+message(STATUS "PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
+message(STATUS "PROJECT_BINARY_DIR: ${PROJECT_BINARY_DIR}")
+message(STATUS "CMake CXX Compiler: ${CMAKE_CXX_COMPILER}")
+
 # Add the parent directory to the include path This allows us to write #include
 # <flatnav/...> instead of #include "../flatnav/..."
 include_directories(${CMAKE_SOURCE_DIR})
@@ -15,18 +20,20 @@ set(CMAKE_CXX_STANDARD 17)
 
 # I added compiler flags for ASan (address sanitizer). It is supposed to be very
 # fast, but if we find it slow, we can remove it for good or use compiler
-# directives to skip analyzing functions __attribute__((no_sanitize_address))
+# directives to skip analyzing functions __attribute__((no_sanitize_address)) #
+# -openmp \ -L/opt/homebrew/opt/libomp/lib \ -I/opt/homebrew/opt/libomp/include
+# \ -lomp \ -fopenmp \ -Xclang \
+
+set(CMAKE_CXX_COMPILER "clang++")
+
+
 set(CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} \
-    -Xclang -std=c++17 \
-    -Wall -Ofast \
+   "-std=c++17 \
+    -Wall \
+    -Ofast \
     -DHAVE_CXX0X \
     -DNDEBUG \
-    -openmp \
-    -L/opt/homebrew/opt/libomp/lib \
-    -I/opt/homebrew/opt/libomp/include \
-    -lomp \
-    -fpic \
+    -fPIC \
     -w \
     -ffast-math \
     -funroll-loops \
@@ -34,11 +41,15 @@ set(CMAKE_CXX_FLAGS
     -g")
 # -fsanitize=address")
 
+# set(OpenMP_CXX_FLAGS "-fopenmp") set(OpenMP_CXX_LIB_NAMES "omp")
+# link_libraries(omp)
+
 include(ExternalProject)
 include(FeatureSummary)
 include(FetchContent)
 
 find_package(Git REQUIRED)
+# find_package(OpenMP REQUIRED)
 
 option(USE_GIT_PROTOCOL
        "If behind a firewall turn this off to use HTTPS instead." OFF)
@@ -165,9 +176,11 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 
-add_library(FLAT_NAV_LIB SHARED
-            ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
-# target_include_directories(FLAT_NAV_LIB PRIVATE
+add_library(FLAT_NAV_LIB STATIC ${PROJECT_SOURCE_DIR}/tools/construct_npy.cpp
+                                ${HEADERS})
+
+# add_library(FLAT_NAV_LIB SHARED ${PROJECT_SOURCE_DIR}/tools/construct_npy.cpp
+# ${HEADERS}) target_include_directories(FLAT_NAV_LIB PRIVATE
 # ${PROJECT_SOURCE_DIR}/external/cereal/include)
 add_dependencies(FLAT_NAV_LIB CNPY)
 

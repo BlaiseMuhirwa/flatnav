@@ -1,3 +1,4 @@
+#include <omp.h>
 #include "cnpy.h"
 #include <algorithm>
 #include <chrono>

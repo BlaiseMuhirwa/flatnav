@@ -11,3 +11,6 @@ build/construct_npy 1 0 data/sift/sift-128-euclidean.train.npy 16 128 sift_128.i
 # Query 
 build/query_npy 0 sift_128.index data/sift/sift-128-euclidean.test.npy data/sift/sift-128-euclidean.gtruth.npy 128,256 100 0
 
+
+
+
