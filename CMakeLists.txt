@@ -26,9 +26,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_CXX_COMPILER "clang++")
 
-
 set(CMAKE_CXX_FLAGS
-   "-std=c++17 \
+    "-std=c++17 \
     -Wall \
     -Ofast \
     -DHAVE_CXX0X \
@@ -38,7 +37,8 @@ set(CMAKE_CXX_FLAGS
     -ffast-math \
     -funroll-loops \
     -ftree-vectorize \
-    -g")
+    -g \
+    -fsanitize=address")
 # -fsanitize=address")
 
 # set(OpenMP_CXX_FLAGS "-fopenmp") set(OpenMP_CXX_LIB_NAMES "omp")

@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include <algorithm>
@@ -21,46 +19,35 @@ namespace flatnav::quantization {
 class CentroidsGenerator {
 public:
   CentroidsGenerator(uint32_t dim, uint32_t num_centroids,
-                     uint32_t num_iterations = 50,
+                     uint32_t num_iterations = 5,
                      uint32_t max_points_per_centroid = 256,
-                     bool normalized = true, bool verbose = false)
+                     bool normalized = true, bool verbose = false,
+                     const std::string &initialization_type = "default")
       : _dim(dim), _num_centroids(num_centroids),
         _clustering_iterations(num_iterations),
         _max_points_per_centroid(max_points_per_centroid),
         _normalized(normalized), _verbose(verbose),
-        _centroids_initialized(false), _seed(3333) {}
+        _centroids_initialized(false), _seed(3333),
+        _initialization_type(initialization_type) {}
 
-  void initializeCentroids(const float *data, uint64_t n,
-                           const std::string &initialization_type) {
+  void initializeCentroids(const float *data, uint64_t n) {
     // TODO: Move hypercube initialization from the ProductQuantizer class
     // to here.
-    auto type = initialization_type;
-    std::transform(type.begin(), type.end(), type.begin(),
+    auto initialization_type = _initialization_type;
+    std::transform(initialization_type.begin(), initialization_type.end(),
+                   initialization_type.begin(),
                    [](unsigned char c) { return std::tolower(c); });
 
     if (initialization_type == "default") {
-      std::vector<uint64_t> indices(n);
-
-      std::iota(indices.begin(), indices.end(), 0);
-      std::mt19937 generator(_seed);
-      std::vector<uint64_t> sample_indices(_num_centroids);
-      std::sample(indices.begin(), indices.end(), sample_indices.begin(),
-                  _num_centroids, generator);
-
-      for (uint32_t i = 0; i < _num_centroids; i++) {
-        auto sample_index = sample_indices[i];
-
-        for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-          _centroids[(i * _dim) + dim_index] =
-              data[(sample_index * _dim) + dim_index];
-        }
-      }
-      _centroids_initialized = true;
+      randomInitialize(data, n);
+    } else if (initialization_type == "kmeans++") {
+      kmeansPlusPlusInitialize(data, n);
     } else {
       throw std::invalid_argument(
           "Invalid centroids initialization initialization type: " +
           initialization_type);
     }
+    _centroids_initialized = true;
   }
 
   /**
@@ -96,8 +83,7 @@ public:
     // data points
     if (!_centroids_initialized) {
       _centroids.resize(_num_centroids * _dim);
-      initializeCentroids(/* data = */ vectors, /* n = */ n,
-                          /* initialization_type = */ "default");
+      initializeCentroids(/* data = */ vectors, /* n = */ n);
     }
 
     // Temporary array to store assigned centroids for each vector
@@ -158,6 +144,98 @@ public:
   inline std::vector<float> &centroids() { return _centroids; }
 
 private:
+  /**
+   * @brief Initialize the centroids by randomly sampling k centroids among the
+   * n data points
+   * @param data  The input data points
+   * @param n     The number of data points
+   */
+  void randomInitialize(const float *data, uint64_t n) {
+    if (_centroids_initialized) {
+      return;
+    }
+    std::vector<uint64_t> indices(n);
+
+    std::iota(indices.begin(), indices.end(), 0);
+    std::mt19937 generator(_seed);
+    std::vector<uint64_t> sample_indices(_num_centroids);
+    std::sample(indices.begin(), indices.end(), sample_indices.begin(),
+                _num_centroids, generator);
+
+    for (uint32_t i = 0; i < _num_centroids; i++) {
+      auto sample_index = sample_indices[i];
+
+      for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
+        _centroids[(i * _dim) + dim_index] =
+            data[(sample_index * _dim) + dim_index];
+      }
+    }
+  }
+
+  /**
+   * @brief Initialize the centroids using the kmeans++ algorithm
+   * @param data  The input data points
+   * @param n     The number of data points
+   */
+  void kmeansPlusPlusInitialize(const float *data, uint64_t n) {
+    if (_centroids_initialized) {
+      return;
+    }
+    std::mt19937 generator(_seed);
+    std::uniform_int_distribution<uint64_t> distribution(0, n - 1);
+
+    // Step 1. Select the first centroid at random
+    uint64_t first_centroid_index = distribution(generator);
+    for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
+      _centroids[dim_index] = data[first_centroid_index * _dim + dim_index];
+    }
+
+    std::vector<double> min_squared_distances(
+        n, std::numeric_limits<double>::max());
+
+    // Step 2. For k-1 remaining centroids
+    for (uint32_t cent_idx = 1; cent_idx < _num_centroids; cent_idx++) {
+      // Compute squared distances from the points to the nearest centroid
+      double sum = 0.0;
+
+      for (uint64_t i = 0; i < n; i++) {
+        double min_distance = std::numeric_limits<double>::max();
+
+        for (uint64_t c = 0; c < cent_idx; c++) {
+          double distance = 0.0;
+          for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
+            auto diff =
+                _centroids[c * _dim + dim_index] - data[c * _dim + dim_index];
+            distance += diff * diff;
+          }
+          if (distance < min_distance) {
+            min_distance = distance;
+          }
+        }
+        min_squared_distances[i] = min_distance;
+        sum += min_distance;
+      }
+
+      // Choose the next centroid based on weighted probability
+      std::uniform_real_distribution<double> distribution(0.0, sum);
+      double threshold = distribution(generator);
+      sum = 0.0;
+      uint64_t next_centroid_index = 0;
+      for (; next_centroid_index < n; next_centroid_index++) {
+        sum += min_squared_distances[next_centroid_index];
+        if (sum >= threshold) {
+          break;
+        }
+      }
+
+      // Add selected centroid the the centroids array
+      for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
+        _centroids[cent_idx * _dim + dim_index] =
+            data[next_centroid_index * _dim + dim_index];
+      }
+    }
+  }
+
   uint32_t _dim;
 
   // Number of cluster centroids
@@ -179,6 +257,8 @@ private:
 
   // seed for random number generator;
   int _seed;
+
+  std::string _initialization_type;
 };
 
 } // namespace flatnav::quantization

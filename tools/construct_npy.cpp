@@ -1,4 +1,3 @@
-#include <omp.h>
 #include "cnpy.h"
 #include <algorithm>
 #include <chrono>
@@ -9,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <omp.h>
 #include <optional>
 #include <quantization/BaseProductQuantization.h>
 #include <random>
@@ -33,7 +33,7 @@ void run(float *data, std::shared_ptr<DistanceInterface<dist_t>> &&distance,
     std::clog << "Quantizing data" << std::endl;
 
     pq = std::make_unique<ProductQuantizer<dist_t>>(
-        /* dim = */ dim, /* M = */ 8, /* nbits = */ 16);
+        /* dim = */ dim, /* M = */ 8, /* nbits = */ 8);
 
     auto start = std::chrono::high_resolution_clock::now();
     pq->train(/* vectors = */ data, /* num_vectors = */ N);
@@ -50,7 +50,7 @@ void run(float *data, std::shared_ptr<DistanceInterface<dist_t>> &&distance,
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  for (int label = 0; label < N; label++) {
+  for (int label = 0; label < 50000; label++) {
     float *element = data + (dim * label);
     index->add(/* data = */ (void *)element, /* label = */ label,
                /* ef_construction */ ef_construction);
@@ -59,7 +59,7 @@ void run(float *data, std::shared_ptr<DistanceInterface<dist_t>> &&distance,
   }
   std::clog << std::endl;
 
-  auto stop = std::chrono::high_resolution_clock::now();
+  auto stop = std::chrono::high_resolution_clock ::now();
   auto duration =
       std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
   std::clog << "Build time: " << (float)duration.count() << " milliseconds"
@@ -106,8 +106,6 @@ int main(int argc, char **argv) {
   std::clog << "Loading " << dim << "-dimensional dataset with N = " << N
             << std::endl;
   float *data = datafile.data<float>();
-
-  std::clog << "before index initialization " << std::endl;
 
   if (metric_id == 0) {
     auto distance = std::make_unique<SquaredL2Distance>(dim);

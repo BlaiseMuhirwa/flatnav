@@ -52,7 +52,8 @@ public:
 
     _data_size_bytes = _distance->dataSize();
 
-    if (_product_quantizer) {
+    if (_product_quantizer != nullptr) {
+      std::cout << "Using product quantizer" << std::endl;
       // For now, this is expected to be 8 (1 byte for each of the 8
       // subvectors)
       _data_size_bytes = _product_quantizer->getCodeSize();
@@ -237,7 +238,7 @@ public:
     bool has_product_quantizer = _product_quantizer != nullptr;
     std::cout << "product quantizer: " << has_product_quantizer << std::endl;
 
-    if (_product_quantizer) {
+    if (_product_quantizer != nullptr) {
       _product_quantizer->printQuantizerParams();
     }
   }
@@ -309,7 +310,7 @@ private:
     }
     new_node_id = _cur_num_nodes;
 
-    if (_product_quantizer) {
+    if (_product_quantizer != nullptr) {
       // Quantize the data vector and write the quantized vector into the
       // index at the correct location.
       uint32_t code_size = _product_quantizer->getCodeSize();
@@ -317,6 +318,13 @@ private:
 
       _product_quantizer->computePQCode(/* vector = */ (float *)data,
                                         /* code = */ code);
+
+      // Print out the code value for the vector
+      // std::cout << "[allocate-node] code: ";
+      // for (int i = 0; i < code_size; i++) {
+      //   std::cout << (int)code[i] << " ";
+      // }
+      // std::cout << "[allocate-node] node_id: " << new_node_id << std::endl;
 
       std::memcpy(getNodeData(_cur_num_nodes), code, _data_size_bytes);
       delete[] code;
@@ -376,16 +384,12 @@ private:
     PriorityQueue candidates; // C in the HNSW paper
 
     _visited_nodes.clear();
-    // float dist = std::numeric_limits<float>::max();
-    float dist = _distance->distance(query, getNodeData(entry_node));
-
-    // if (_product_quantizer) {
-    //   dist = _product_quantizer->getDistance(
-    //       /* query_vector = */ (float *)query,
-    //       /* code = */ reinterpret_cast<uint8_t *>(getNodeData(entry_node)));
-    // } else {
-    //   dist = _distance->distance(query, getNodeData(entry_node));
-    // }
+    float dist = _product_quantizer != nullptr
+                     ? _product_quantizer->getDistance(
+                           /* query_vector = */ (float *)query,
+                           /* code = */
+                           reinterpret_cast<uint8_t *>(getNodeData(entry_node)))
+                     : _distance->distance(query, getNodeData(entry_node));
 
     float max_dist = dist;
 
@@ -406,7 +410,7 @@ private:
           // If we haven't visited the node yet.
           _visited_nodes.insert(d_node_links[i]);
 
-          if (_product_quantizer) {
+          if (_product_quantizer != nullptr) {
             dist = _product_quantizer->getDistance(
                 /* query_vector = */ (float *)query,
                 /* code = */
@@ -462,7 +466,25 @@ private:
       for (const dist_node_t &second_pair : saved_candidates) {
         float cur_dist = std::numeric_limits<float>::max();
 
-        if (_product_quantizer) {
+        // uint8_t *code1 =
+        //     reinterpret_cast<uint8_t *>(getNodeData(second_pair.second));
+        // uint8_t *code2 =
+        //     reinterpret_cast<uint8_t *>(getNodeData(current_pair.second));
+        // // Print out the quantization code for both vectors.
+        // std::cout << "[select-neighbors] code1: ";
+
+        // for (int i = 0; i < 8; i++) {
+        //   std::cout << (int)code1[i] << " ";
+        // }
+        // std::cout << "\n [node_id]: " << second_pair.second << std::endl;
+        // std::cout << "[select-neighbors] code2: ";
+        // for (int i = 0; i < 8; i++) {
+        //   std::cout << (int)code2[i] << " ";
+        // }
+        // std::cout << "\n [node_id]: " << current_pair.second << std::endl;
+        // exit(0);
+
+        if (_product_quantizer != nullptr) {
           cur_dist = _product_quantizer->getSymmetricDistance(
               /* code1 = */
               reinterpret_cast<uint8_t *>(getNodeData(second_pair.second)),
@@ -521,7 +543,7 @@ private:
         // one, then prune this candidate set to get the new neighbors.
 
         float max_dist = std::numeric_limits<float>::max();
-        if (_product_quantizer) {
+        if (_product_quantizer != nullptr) {
           max_dist = _product_quantizer->getSymmetricDistance(
               /* code1 = */
               reinterpret_cast<uint8_t *>(getNodeData(neighbor_node_id)),
@@ -536,21 +558,19 @@ private:
         candidates.emplace(max_dist, new_node_id);
         for (int j = 0; j < _M; j++) {
           if (neighbor_node_links[j] != neighbor_node_id) {
-            if (_product_quantizer) {
-              candidates.emplace(_product_quantizer->getSymmetricDistance(
-                                     /* code1 = */
-                                     reinterpret_cast<uint8_t *>(
-                                         getNodeData(neighbor_node_id)),
-                                     /* code2 = */
-                                     reinterpret_cast<uint8_t *>(
-                                         getNodeData(neighbor_node_links[j]))),
-                                 neighbor_node_links[j]);
+            auto label = neighbor_node_links[j];
+            if (_product_quantizer != nullptr) {
+              auto distance = _product_quantizer->getSymmetricDistance(
+                  /* code1 = */
+                  reinterpret_cast<uint8_t *>(getNodeData(neighbor_node_id)),
+                  /* code2 = */
+                  reinterpret_cast<uint8_t *>(getNodeData(label)));
+              candidates.emplace(distance, label);
             } else {
-              candidates.emplace(
-                  _distance->distance(
-                      /* x = */ getNodeData(neighbor_node_id),
-                      /* y = */ getNodeData(neighbor_node_links[j])),
-                  neighbor_node_links[j]);
+              auto distance = _distance->distance(
+                  /* x = */ getNodeData(neighbor_node_id),
+                  /* y = */ getNodeData(label));
+              candidates.emplace(distance, label);
             }
           }
         }
@@ -613,7 +633,7 @@ private:
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
       float dist = std::numeric_limits<float>::max();
 
-      if (_product_quantizer) {
+      if (_product_quantizer != nullptr) {
         char *pq_code = getNodeData(node);
         auto code_size = _product_quantizer->getCodeSize();
 
