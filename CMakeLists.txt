@@ -27,19 +27,26 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_COMPILER "clang++")
 
 set(CMAKE_CXX_FLAGS
-    "-std=c++17 \
-    -Wall \
-    -Ofast \
+    "${CMAKE_CXX_FLAGS} \
+    -Xclang -std=c++17 \
+    -Wall -Ofast \
     -DHAVE_CXX0X \
     -DNDEBUG \
-    -fPIC \
+    -openmp \
+    -L/opt/homebrew/opt/libomp/lib \
+    -I/opt/homebrew/opt/libomp/include \
+    -lomp \
+    -fpic \
     -w \
     -ffast-math \
     -funroll-loops \
     -ftree-vectorize \
     -g \
     -fsanitize=address")
-# -fsanitize=address")
+
+# set(CMAKE_CXX_FLAGS "-std=c++17 \ -Wall \ -Ofast \ -DHAVE_CXX0X \ -DNDEBUG \
+# -fPIC \ -w \ -ffast-math \ -funroll-loops \ -ftree-vectorize \ -g \
+# -fsanitize=address") -fsanitize=address")
 
 # set(OpenMP_CXX_FLAGS "-fopenmp") set(OpenMP_CXX_LIB_NAMES "omp")
 # link_libraries(omp)

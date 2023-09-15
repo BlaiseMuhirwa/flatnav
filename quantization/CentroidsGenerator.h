@@ -19,10 +19,10 @@ namespace flatnav::quantization {
 class CentroidsGenerator {
 public:
   CentroidsGenerator(uint32_t dim, uint32_t num_centroids,
-                     uint32_t num_iterations = 5,
+                     uint32_t num_iterations = 62,
                      uint32_t max_points_per_centroid = 256,
                      bool normalized = true, bool verbose = false,
-                     const std::string &initialization_type = "default")
+                     const std::string &initialization_type = "kmeans++")
       : _dim(dim), _num_centroids(num_centroids),
         _clustering_iterations(num_iterations),
         _max_points_per_centroid(max_points_per_centroid),
@@ -173,7 +173,17 @@ private:
   }
 
   /**
-   * @brief Initialize the centroids using the kmeans++ algorithm
+   * @brief Initialize the centroids using the kmeans++ algorithm.
+   * The algorithm proceeds as follows:
+   * - Select the first centroid at random
+   * - For k-1 remaining centroids, do
+   *  - For each point in the dataset, compute the squared distance to the
+   * nearest centroid that has already been chosen.
+   *  - Choose the next centroid from the dataset with probability proportional
+   * to the squared distance to the nearest centroid. This means that points
+   * that are farther from existing centroids are more likely to be selected as
+   * the next centroids. 
+   *
    * @param data  The input data points
    * @param n     The number of data points
    */
@@ -198,6 +208,7 @@ private:
       // Compute squared distances from the points to the nearest centroid
       double sum = 0.0;
 
+#pragma omp parallel for reduction(+ : sum)
       for (uint64_t i = 0; i < n; i++) {
         double min_distance = std::numeric_limits<double>::max();
 
@@ -205,7 +216,7 @@ private:
           double distance = 0.0;
           for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
             auto diff =
-                _centroids[c * _dim + dim_index] - data[c * _dim + dim_index];
+                _centroids[c * _dim + dim_index] - data[i * _dim + dim_index];
             distance += diff * diff;
           }
           if (distance < min_distance) {

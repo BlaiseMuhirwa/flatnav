@@ -21,7 +21,7 @@ using flatnav::SquaredL2Distance;
 template <typename dist_t>
 void run(float *queries, int *gtruth, const std::string &index_filename,
          const std::vector<int> &ef_searches, int K, int num_queries,
-         int num_gtruth, int dim, bool reorder = false) {
+         int num_gtruth, int dim, bool reorder = true) {
 
   std::unique_ptr<Index<dist_t, int>> index =
       Index<dist_t, int>::loadIndex(index_filename);
@@ -102,6 +102,8 @@ int main(int argc, char **argv) {
   int k = std::stoi(argv[6]);
   int reorder_ID = std::stoi(argv[7]);
 
+  bool reorder = reorder_ID ? true : false;
+
   cnpy::NpyArray queryfile = cnpy::npy_load(argv[3]);
   cnpy::NpyArray truthfile = cnpy::npy_load(argv[4]);
   if ((queryfile.shape.size() != 2) || (truthfile.shape.size() != 2)) {
@@ -129,7 +131,8 @@ int main(int argc, char **argv) {
                            /* index_filename = */ indexfilename,
                            /* ef_searches = */ ef_searches, /* K = */ k,
                            /* num_queries = */ num_queries,
-                           /* num_gtruth = */ n_gt, /* dim = */ dim);
+                           /* num_gtruth = */ n_gt, /* dim = */ dim,
+                           /* reorder = */ reorder);
 
   } else if (space_ID == 1) {
     run<InnerProductDistance>(/* queries = */ queries, /* gtruth = */
@@ -137,7 +140,8 @@ int main(int argc, char **argv) {
                               /* index_filename = */ indexfilename,
                               /* ef_searches = */ ef_searches, /* K = */ k,
                               /* num_queries = */ num_queries,
-                              /* num_gtruth = */ n_gt, /* dim = */ dim);
+                              /* num_gtruth = */ n_gt, /* dim = */ dim,
+                              /* reorder = */ reorder);
 
   } else {
     throw std::invalid_argument("Invalid space ID. Valid IDs are 0 and 1.");

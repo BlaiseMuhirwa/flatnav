@@ -50,7 +50,7 @@ void run(float *data, std::shared_ptr<DistanceInterface<dist_t>> &&distance,
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  for (int label = 0; label < 50000; label++) {
+  for (int label = 0; label < N; label++) {
     float *element = data + (dim * label);
     index->add(/* data = */ (void *)element, /* label = */ label,
                /* ef_construction */ ef_construction);
