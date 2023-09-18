@@ -102,7 +102,6 @@ BENCHMARK_TEMPLATE_DEFINE_F(BenchmarkFixture, InnerProductBasedBenchmarkRun,
 
     // benchmark::DoNotOptimize(_index);
   }
-
 }
 
 std::string validated_config_file() {
@@ -206,8 +205,8 @@ int main(int argc, char **argv) {
     }
   }
 
-    benchmark::Initialize(&argc, argv);
-    benchmark::RunSpecifiedBenchmarks();
+  benchmark::Initialize(&argc, argv);
+  benchmark::RunSpecifiedBenchmarks();
 
-    return 0;
-  }
+  return 0;
+}
