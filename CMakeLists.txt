@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
 project(FlatNav CXX)
 
+# Add the parent directory to the include path This allows us to write #include
+# <flatnav/...> instead of #include "../flatnav/..."
+include_directories(${CMAKE_SOURCE_DIR})
+
 # set standard to c++14 in order to use call to std::make_unique
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
@@ -71,19 +75,18 @@ include_directories(${PROJECT_BINARY_DIR}/ep/include)
 
 set(CNPY_LIB ${PROJECT_BINARY_DIR}/ep/lib/libcnpy.a)
 
-option(RUN_BENCHMARKS "Builds unit and integration tests" OFF)
-message(STATUS "Running benchmarks: ${RUN_BENCHMARKS}")
+option(BUILD_TESTS "Builds unit and integration tests")
+option(BUILD_BENCHMARKS "Builds ANNS Benchmarks")
+message(STATUS "Running benchmarks: ${BUILD_BENCHMARKS}")
 
-if(RUN_BENCHMARKS)
+if(BUILD_BENCHMARKS)
   enable_testing()
 
   message(STATUS "Running a suite of benchmarks using Google Benchmark")
-  set(GOOGLE_BENCHMARK_DIR "${PROJECT_BINARY_DIR}/benchmark")
-  set(TOML_PLUS_PLUS "${PROJECT_BINARY_DIR}/benchmark")
+  set(GOOGLE_BENCHMARK_DIR "${PROJECT_BINARY_DIR}/include/google-benchmark")
 
   if(NOT EXISTS ${GOOGLE_BENCHMARK_DIR})
-    message(
-      STATUS "Downloading google-benchmark to ${PROJECT_BINARY_DIR}/ep/include")
+    message(STATUS "Downloading google-benchmark to ${GOOGLE_BENCHMARK_DIR}")
 
     FetchContent_Declare(
       googletest
@@ -96,15 +99,26 @@ if(RUN_BENCHMARKS)
 
     FetchContent_MakeAvailable(googletest googlebenchmark)
 
+  else()
+    add_subdirectory(${GOOGLE_BENCHMARK_DIR})
   endif()
-  if(NOT EXISTS ${TOML_PLUS_PLUS})
-    message(STATUS "Downloading toml++ to ${PROJECT_BINARY_DIR}/ep/include")
-    FetchContent_Declare(
-      tomlplusplus
-      GIT_REPOSITORY https://github.com/marzer/tomlplusplus.git
-      GIT_TAG v3.3.0)
-    FetchContent_MakeAvailable(tomlplusplus)
 
+  set(YAML_CPP_DIR "${PROJECT_SOURCE_DIR}/external/yaml-cpp")
+
+  # Disable building tests for YAML-CPP
+  set(YAML_CPP_BUILD_TESTS
+      OFF
+      CACHE BOOL "Enable testing" FORCE)
+  # Fetch the YAML submodule if it doesn't exist
+  if(NOT EXISTS ${YAML_CPP_DIR})
+    message(STATUS "Fetching yaml-cpp submodule")
+    FetchContent_Declare(
+      yamlcpp
+      GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+      GIT_TAG yaml-cpp-0.6.3)
+    FetchContent_MakeAvailable(yamlcpp)
+  else()
+    add_subdirectory(${YAML_CPP_DIR})
   endif()
 
 endif()
@@ -130,12 +144,16 @@ add_dependencies(FLAT_NAV_LIB CNPY)
 target_link_libraries(FLAT_NAV_LIB ${CNPY_LIB})
 set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
-if(RUN_BENCHMARKS)
+if(BUILD_BENCHMARKS)
   target_link_libraries(FLAT_NAV_LIB benchmark::benchmark)
   add_executable(run_benchmark ${PROJECT_SOURCE_DIR}/benchmarks/runner.cpp)
   target_link_libraries(
-    run_benchmark benchmark::benchmark tomlplusplus::tomlplusplus FLAT_NAV_LIB
-    ${CNPY_LIB} ${ZLIB_LIB_RELEASE})
+    run_benchmark
+    benchmark::benchmark
+    yaml-cpp
+    FLAT_NAV_LIB
+    ${CNPY_LIB}
+    ${ZLIB_LIB_RELEASE})
   install(TARGETS run_benchmark DESTINATION BIN)
 endif()
 
