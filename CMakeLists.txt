@@ -147,13 +147,8 @@ set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 if(BUILD_BENCHMARKS)
   target_link_libraries(FLAT_NAV_LIB benchmark::benchmark)
   add_executable(run_benchmark ${PROJECT_SOURCE_DIR}/benchmarks/runner.cpp)
-  target_link_libraries(
-    run_benchmark
-    benchmark::benchmark
-    yaml-cpp
-    FLAT_NAV_LIB
-    ${CNPY_LIB}
-    ${ZLIB_LIB_RELEASE})
+  target_link_libraries(run_benchmark benchmark::benchmark yaml-cpp
+                        FLAT_NAV_LIB ${CNPY_LIB} ${ZLIB_LIB_RELEASE})
   install(TARGETS run_benchmark DESTINATION BIN)
 endif()
 
