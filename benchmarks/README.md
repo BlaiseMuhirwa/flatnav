@@ -30,7 +30,6 @@ Example Usage:
   ./download_anns_datasets.sh glove-25-angular --normalize
 ```
 
-
 ### Running Benchmarks 
 
 This directory contains the following files that are useful for benchmarking Flatnav against [ANNS Datasets](https://github.com/erikbern/ann-benchmarks).
