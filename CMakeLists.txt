@@ -86,6 +86,8 @@ function(functionInstallExternalCMakeProject ep_name)
   install(SCRIPT ${binary_dir}/cmake_install.cmake)
 endfunction()
 
+# TODO(blaise): Remove this old school way of including external libraries via
+# ExternalProject_Add. Use FetchContent instead, which is much cleaner
 ExternalProject_Add(
   ZLIB
   DEPENDS ""
@@ -164,6 +166,57 @@ endif(OpenMP_FOUND)
 # else() message(STATUS "OpenMP Found. Building the Package using the system
 # OpenMP.") endif(NOT OpenMP_FOUND)
 
+option(BUILD_TESTS "Build all tests")
+option(BUIL_EXAMPLES "Build examples")
+option(BUILD_BENCHMARKS "Build ANNS benchmarks")
+message(STATUS "Building tests: ${BUILD_TESTS}")
+message(STATUS "Building examples: ${BUILD_EXAMPLES}")
+message(STATUS "Building benchmarks: ${BUILD_BENCHMARKS}")
+
+if(BUILD_BENCHMARKS)
+  enable_testing()
+
+  message(STATUS "Running a suite of benchmarks using Google Benchmark")
+  set(GOOGLE_BENCHMARK_DIR "${PROJECT_BINARY_DIR}/include/google-benchmark")
+
+  if(NOT EXISTS ${GOOGLE_BENCHMARK_DIR})
+    message(STATUS "Downloading google-benchmark to ${GOOGLE_BENCHMARK_DIR}")
+
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      GIT_TAG main)
+    FetchContent_Declare(
+      googlebenchmark
+      GIT_REPOSITORY https://github.com/google/benchmark.git
+      GIT_TAG main) # need main for benchmark::benchmark
+
+    FetchContent_MakeAvailable(googletest googlebenchmark)
+
+  else()
+    add_subdirectory(${GOOGLE_BENCHMARK_DIR})
+  endif()
+
+  set(YAML_CPP_DIR "${PROJECT_SOURCE_DIR}/external/yaml-cpp")
+
+  # Disable building tests for YAML-CPP
+  set(YAML_CPP_BUILD_TESTS
+      OFF
+      CACHE BOOL "Enable testing" FORCE)
+  # Fetch the YAML submodule if it doesn't exist
+  if(NOT EXISTS ${YAML_CPP_DIR})
+    message(STATUS "Fetching yaml-cpp submodule")
+    FetchContent_Declare(
+      yamlcpp
+      GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+      GIT_TAG yaml-cpp-0.6.3)
+    FetchContent_MakeAvailable(yamlcpp)
+  else()
+    add_subdirectory(${YAML_CPP_DIR})
+  endif()
+
+endif()
+
 # TODO: Using globbing or some other command that does not require writing down
 # every header file
 set(HEADERS
@@ -185,19 +238,10 @@ set(HEADERS
 
 add_library(FLAT_NAV_LIB STATIC ${PROJECT_SOURCE_DIR}/tools/construct_npy.cpp
                                 ${HEADERS})
-
-# add_library(FLAT_NAV_LIB SHARED ${PROJECT_SOURCE_DIR}/tools/construct_npy.cpp
-# ${HEADERS}) target_include_directories(FLAT_NAV_LIB PRIVATE
-# ${PROJECT_SOURCE_DIR}/external/cereal/include)
 add_dependencies(FLAT_NAV_LIB CNPY)
 
 target_link_libraries(FLAT_NAV_LIB PUBLIC ${CNPY_LIB} OpenMP::OpenMP_CXX)
 set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
-
-option(BUILD_TESTS "Builds all tests" OFF)
-option(BUIL_EXAMPLES "Builds examples" OFF)
-message(STATUS "Building tests: ${BUILD_TESTS}")
-message(STATUS "Building examples: ${BUILD_EXAMPLES}")
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples for Flatnav")
@@ -215,7 +259,7 @@ endif()
 
 if(BUILD_TESTS)
   message(
-    STATUS "Building flatnav + quantization unit tests using Google Benchmark")
+    STATUS "Building flatnav + quantization unit tests using gtest")
   set(GOOGLE_TEST_DIR "${PROJECT_BINARY_DIR}/_deps/googletest-src")
 
   if(NOT EXISTS ${GOOGLE_TEST_DIR})
@@ -251,10 +295,28 @@ if(BUILD_TESTS)
 
 endif()
 
-get_property(
-  dirs
-  TARGET FLAT_NAV_LIB
-  PROPERTY INCLUDE_DIRECTORIES)
-foreach(dir ${dirs})
-  message(STATUS "dir='${dir}'")
-endforeach()
+if(BUILD_BENCHMARKS)
+  target_link_libraries(FLAT_NAV_LIB benchmark::benchmark)
+  add_executable(run_benchmark ${PROJECT_SOURCE_DIR}/benchmarks/runner.cpp)
+  target_link_libraries(run_benchmark benchmark::benchmark yaml-cpp
+                        FLAT_NAV_LIB ${CNPY_LIB} ${ZLIB_LIB_RELEASE})
+  install(TARGETS run_benchmark DESTINATION BIN)
+endif()
+
+# get_property(
+#   dirs
+#   TARGET FLAT_NAV_LIB
+#   PROPERTY INCLUDE_DIRECTORIES)
+# foreach(dir ${dirs})
+#   message(STATUS "dir='${dir}'")
+# endforeach()
+
+
+# foreach(CONSTRUCT_EXEC index_construction construct_npy)
+#   add_executable(${CONSTRUCT_EXEC}
+#                  ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
+#   add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)
+#   target_link_libraries(${CONSTRUCT_EXEC} FLAT_NAV_LIB ${CNPY_LIB}
+#                         ${ZLIB_LIB_RELEASE})
+#   install(TARGETS ${CONSTRUCT_EXEC} DESTINATION bin)
+# endforeach(CONSTRUCT_EXEC)

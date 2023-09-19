@@ -4,7 +4,7 @@ import numpy as np
 
 filename = sys.argv[1]
 normalize = False
-if '-normalize' in sys.argv:
+if '--normalize' in sys.argv:
     print("Normalizing") 
     normalize = True
 
