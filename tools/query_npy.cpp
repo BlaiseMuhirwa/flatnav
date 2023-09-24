@@ -5,6 +5,7 @@
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <fstream>
 #include <iostream>
+#include <quantization/ProductQuantization.h>
 #include <random>
 #include <utility>
 #include <vector>
@@ -17,6 +18,7 @@
 using flatnav::Index;
 using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
+using flatnav::quantization::ProductQuantizer;
 
 template <typename dist_t>
 void run(float *queries, int *gtruth, const std::string &index_filename,
@@ -73,10 +75,10 @@ void run(float *queries, int *gtruth, const std::string &index_filename,
 
 int main(int argc, char **argv) {
 
-  if (argc < 8) {
+  if (argc < 9) {
     std::clog << "Usage: " << std::endl;
     std::clog << "query <space> <index> <queries> <gtruth> <ef_search> <k> "
-                 "<Reorder ID>"
+                 "<Reorder ID> <Quantized>"
               << std::endl;
     std::clog << "\t <data> <queries> <gtruth>: .npy files (float, float, int) "
                  "from ann-benchmarks"
@@ -85,6 +87,10 @@ int main(int argc, char **argv) {
     std::clog << "\t <ef_construction>: int " << std::endl;
     std::clog << "\t <ef_search>: int,int,int,int...,int " << std::endl;
     std::clog << "\t <k>: number of neighbors " << std::endl;
+    std::clog << "\t <Reorder ID>: 0 for no reordering, 1 for reordering"
+              << std::endl;
+    std::clog << "\t <Quantized>: 0 for no quantization, 1 for quantization"
+              << std::endl;
     return -1;
   }
 
@@ -101,6 +107,7 @@ int main(int argc, char **argv) {
   }
   int k = std::stoi(argv[6]);
   int reorder_ID = std::stoi(argv[7]);
+  bool quantized = std::stoi(argv[8]) ? true : false;
 
   bool reorder = reorder_ID ? true : false;
 
@@ -126,7 +133,15 @@ int main(int argc, char **argv) {
             << " ground truth results with k = " << k << std::endl;
   int *gtruth = truthfile.data<int>();
 
-  if (space_ID == 0) {
+  if (quantized) {
+    run<ProductQuantizer>(/* queries = */ queries, /* gtruth = */
+                          gtruth,
+                          /* index_filename = */ indexfilename,
+                          /* ef_searches = */ ef_searches, /* K = */ k,
+                          /* num_queries = */ num_queries,
+                          /* num_gtruth = */ n_gt, /* dim = */ dim,
+                          /* reorder = */ reorder);
+  } else if (space_ID == 0) {
     run<SquaredL2Distance>(/* queries = */ queries, /* gtruth = */ gtruth,
                            /* index_filename = */ indexfilename,
                            /* ef_searches = */ ef_searches, /* K = */ k,

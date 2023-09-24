@@ -89,9 +89,12 @@ int main(int argc, char **argv) {
   int ef_profile = 100;
   int num_profile = 1000;
 
-  std::string train_file = "data/mnist/mnist-784-euclidean.train.npy";
-  std::string queries_file = "data/mnist/mnist-784-euclidean.test.npy";
-  std::string groundtruth_file = "data/mnist/mnist-784-euclidean.gtruth.npy";
+  std::string train_file =
+      "data/mnist-784-euclidean/mnist-784-euclidean.train.npy";
+  std::string queries_file =
+      "data/mnist-784-euclidean/mnist-784-euclidean.test.npy";
+  std::string groundtruth_file =
+      "data/mnist-784-euclidean/mnist-784-euclidean.gtruth.npy";
 
   for (int i = 0; i < argc; ++i) {
     if (std::strcmp("--nq", argv[i]) == 0) {

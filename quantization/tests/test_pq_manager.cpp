@@ -1,5 +1,5 @@
 
-#include "../BaseProductQuantization.h"
+#include "../ProductQuantization.h"
 #include <cstdlib>
 #include <gtest/gtest.h>
 #include <vector>

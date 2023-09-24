@@ -24,8 +24,6 @@ set(CMAKE_CXX_STANDARD 17)
 # -openmp \ -L/opt/homebrew/opt/libomp/lib \ -I/opt/homebrew/opt/libomp/include
 # \ -lomp \ -fopenmp \ -Xclang \
 
-set(CMAKE_CXX_COMPILER "clang++")
-
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} \
     -Xclang -std=c++17 \
@@ -43,10 +41,6 @@ set(CMAKE_CXX_FLAGS
     -ftree-vectorize \
     -g \
     -fsanitize=address")
-
-# set(CMAKE_CXX_FLAGS "-std=c++17 \ -Wall \ -Ofast \ -DHAVE_CXX0X \ -DNDEBUG \
-# -fPIC \ -w \ -ffast-math \ -funroll-loops \ -ftree-vectorize \ -g \
-# -fsanitize=address") -fsanitize=address")
 
 # set(OpenMP_CXX_FLAGS "-fopenmp") set(OpenMP_CXX_LIB_NAMES "omp")
 # link_libraries(omp)
@@ -232,7 +226,7 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/util/verifysimd.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h
-    ${PROJECT_SOURCE_DIR}/quantization/BaseProductQuantization.h
+    ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
     ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 
@@ -258,8 +252,7 @@ if(BUILD_EXAMPLES)
 endif()
 
 if(BUILD_TESTS)
-  message(
-    STATUS "Building flatnav + quantization unit tests using gtest")
+  message(STATUS "Building flatnav + quantization unit tests using gtest")
   set(GOOGLE_TEST_DIR "${PROJECT_BINARY_DIR}/_deps/googletest-src")
 
   if(NOT EXISTS ${GOOGLE_TEST_DIR})
@@ -302,21 +295,3 @@ if(BUILD_BENCHMARKS)
                         FLAT_NAV_LIB ${CNPY_LIB} ${ZLIB_LIB_RELEASE})
   install(TARGETS run_benchmark DESTINATION BIN)
 endif()
-
-# get_property(
-#   dirs
-#   TARGET FLAT_NAV_LIB
-#   PROPERTY INCLUDE_DIRECTORIES)
-# foreach(dir ${dirs})
-#   message(STATUS "dir='${dir}'")
-# endforeach()
-
-
-# foreach(CONSTRUCT_EXEC index_construction construct_npy)
-#   add_executable(${CONSTRUCT_EXEC}
-#                  ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
-#   add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)
-#   target_link_libraries(${CONSTRUCT_EXEC} FLAT_NAV_LIB ${CNPY_LIB}
-#                         ${ZLIB_LIB_RELEASE})
-#   install(TARGETS ${CONSTRUCT_EXEC} DESTINATION bin)
-# endforeach(CONSTRUCT_EXEC)

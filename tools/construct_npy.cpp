@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <flatnav/DistanceInterface.h>
 #include <flatnav/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
@@ -10,7 +11,7 @@
 #include <memory>
 #include <omp.h>
 #include <optional>
-#include <quantization/BaseProductQuantization.h>
+#include <quantization/ProductQuantization.h>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -24,29 +25,14 @@ using flatnav::SquaredL2Distance;
 using flatnav::quantization::ProductQuantizer;
 
 template <typename dist_t>
-void run(float *data, std::shared_ptr<DistanceInterface<dist_t>> &&distance,
-         int N, int M, int dim, int ef_construction,
-         const std::string &save_file, bool quantize = false) {
+void runUnquantized(float *data, flatnav::METRIC_TYPE metric_type, int N, int M,
+                    int dim, int ef_construction,
+                    const std::string &save_file) {
 
-  std::unique_ptr<ProductQuantizer<dist_t>> pq = nullptr;
-  if (quantize) {
-    std::clog << "Quantizing data" << std::endl;
-
-    pq = std::make_unique<ProductQuantizer<dist_t>>(
-        /* dim = */ dim, /* M = */ 8, /* nbits = */ 8);
-
-    auto start = std::chrono::high_resolution_clock::now();
-    pq->train(/* vectors = */ data, /* num_vectors = */ N);
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    std::clog << "Quantization time: " << (float)duration.count()
-              << " milliseconds" << std::endl;
-  }
-
+  auto distance = std::make_shared<dist_t>(dim);
   auto index = new Index<dist_t, int>(
-      /* dist = */ distance, /* dataset_size = */ N,
-      /* max_edges = */ M, /* pq = */ std::move(pq));
+      /* dist = */ std::move(distance), /* dataset_size = */ N,
+      /* max_edges = */ M);
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -69,6 +55,59 @@ void run(float *data, std::shared_ptr<DistanceInterface<dist_t>> &&distance,
   index->saveIndex(/* filename = */ save_file);
 
   delete index;
+}
+
+void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
+         int ef_construction, const std::string &save_file,
+         bool quantize = false) {
+
+  if (quantize) {
+    auto quantizer = std::make_shared<ProductQuantizer>(
+        /* dim = */ dim, /* M = */ 5, /* nbits = */ 8,
+        /* metric_type = */ metric_type);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    quantizer->train(/* vectors = */ data, /* num_vectors = */ N);
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    std::clog << "Quantization time: " << (float)duration.count()
+              << " milliseconds" << std::endl;
+
+    auto index = new Index<ProductQuantizer, int>(
+        /* dist = */ std::move(quantizer), /* dataset_size = */ N,
+        /* max_edges = */ M);
+
+    start = std::chrono::high_resolution_clock::now();
+
+    for (int label = 0; label < N; label++) {
+      float *element = data + (dim * label);
+      index->add(/* data = */ (void *)element, /* label = */ label,
+                 /* ef_construction */ ef_construction);
+      if (label % 10000 == 0)
+        std::clog << "." << std::flush;
+    }
+    std::clog << std::endl;
+
+    stop = std::chrono::high_resolution_clock ::now();
+    duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    std::clog << "Build time: " << (float)duration.count() << " milliseconds"
+              << std::endl;
+
+    std::clog << "Saving index to: " << save_file << std::endl;
+    index->saveIndex(/* filename = */ save_file);
+
+    delete index;
+  } else {
+    if (metric_type == flatnav::METRIC_TYPE::EUCLIDEAN) {
+      runUnquantized<SquaredL2Distance>(data, metric_type, N, M, dim,
+                                        ef_construction, save_file);
+    } else if (metric_type == flatnav::METRIC_TYPE::INNER_PRODUCT) {
+      runUnquantized<InnerProductDistance>(data, metric_type, N, M, dim,
+                                           ef_construction, save_file);
+    }
+  }
 }
 
 int main(int argc, char **argv) {
@@ -106,27 +145,15 @@ int main(int argc, char **argv) {
   std::clog << "Loading " << dim << "-dimensional dataset with N = " << N
             << std::endl;
   float *data = datafile.data<float>();
+  flatnav::METRIC_TYPE metric_type = metric_id == 0
+                                         ? flatnav::METRIC_TYPE::EUCLIDEAN
+                                         : flatnav::METRIC_TYPE::INNER_PRODUCT;
 
-  if (metric_id == 0) {
-    auto distance = std::make_unique<SquaredL2Distance>(dim);
-    run<SquaredL2Distance>(
-        /* data = */ data,
-        /* distance = */ std::move(distance),
-        /* N = */ N, /* M = */ M, /* dim = */ dim,
-        /* ef_construction = */ ef_construction, /* save_file = */ argv[6],
-        /* quantize = */ quantize);
-  } else if (metric_id == 1) {
-    auto distance = std::make_unique<InnerProductDistance>(dim);
-    run<InnerProductDistance>(
-        /* data = */ data,
-        /* distance = */ std::move(distance),
-        /* N = */ N, /* M = */ M, dim,
-        /* ef_construction = */ ef_construction, /* save_file = */ argv[6],
-        /* quantize = */ quantize);
-  } else {
-    throw std::invalid_argument("Provided metric ID " +
-                                std::to_string(metric_id) + "is invalid.");
-  }
+  run(/* data = */ data,
+      /* metric_type = */ metric_type,
+      /* N = */ N, /* M = */ M, /* dim = */ dim,
+      /* ef_construction = */ ef_construction, /* save_file = */ argv[6],
+      /* quantize = */ quantize);
 
   return 0;
 }

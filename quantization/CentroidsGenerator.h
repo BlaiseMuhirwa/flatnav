@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <iterator>
 #include <memory>
@@ -21,18 +22,15 @@ public:
   CentroidsGenerator(uint32_t dim, uint32_t num_centroids,
                      uint32_t num_iterations = 62,
                      uint32_t max_points_per_centroid = 256,
-                     bool normalized = true, bool verbose = false,
-                     const std::string &initialization_type = "kmeans++")
+                     bool normalized = true, bool verbose = false)
       : _dim(dim), _num_centroids(num_centroids),
         _clustering_iterations(num_iterations),
         _max_points_per_centroid(max_points_per_centroid),
         _normalized(normalized), _verbose(verbose),
         _centroids_initialized(false), _seed(3333),
-        _initialization_type(initialization_type) {}
+        _initialization_type("default") {}
 
   void initializeCentroids(const float *data, uint64_t n) {
-    // TODO: Move hypercube initialization from the ProductQuantizer class
-    // to here.
     auto initialization_type = _initialization_type;
     std::transform(initialization_type.begin(), initialization_type.end(),
                    initialization_type.begin(),
@@ -42,6 +40,8 @@ public:
       randomInitialize(data, n);
     } else if (initialization_type == "kmeans++") {
       kmeansPlusPlusInitialize(data, n);
+    } else if (initialization_type == "hypercube") {
+      hypercubeInitialize(data, n);
     } else {
       throw std::invalid_argument(
           "Invalid centroids initialization initialization type: " +
@@ -143,6 +143,10 @@ public:
   // centroids from outside the class in some cases.
   inline std::vector<float> &centroids() { return _centroids; }
 
+  inline void setInitializationType(const std::string &initialization_type) {
+    _initialization_type = initialization_type;
+  }
+
 private:
   /**
    * @brief Initialize the centroids by randomly sampling k centroids among the
@@ -182,7 +186,7 @@ private:
    *  - Choose the next centroid from the dataset with probability proportional
    * to the squared distance to the nearest centroid. This means that points
    * that are farther from existing centroids are more likely to be selected as
-   * the next centroids. 
+   * the next centroids.
    *
    * @param data  The input data points
    * @param n     The number of data points
@@ -243,6 +247,65 @@ private:
       for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
         _centroids[cent_idx * _dim + dim_index] =
             data[next_centroid_index * _dim + dim_index];
+      }
+    }
+  }
+
+  /**
+ * @brief This function initializes a set of 2^(_num_bits) centroids spread
+ around
+ *  the mean of the input data in a hypercube configuration. For each
+ dimension up
+ *  to _num_bits, the centroid coordinates will be either mean[j] - maxm or
+ *  mean[j] + maxm, creating a uniform distribution in a binary hypercube
+ pattern.
+ *
+ *  The remaining coordinates (from _num_bits to dim) will be set to the mean
+ of the
+ *  dataset, collapsing the hypercube into a lower-dimensional hyperplane if
+ _num_bits < dim.
+ *  This kind of setup is a good initialization step for quantization or
+ clustering
+ *  as it ensures a good spread of centroids across the data space.
+ *
+ *
+ * @param data       The actual dataset
+ * @param n          The number of data points in the dataset
+ *
+ * TODO: Move the initialization to the CentroidsGenerator class
+
+ */
+
+  void hypercubeInitialize(const float *data, uint64_t n) {
+    if (_centroids_initialized) {
+      return;
+    }
+
+    std::vector<float> means(_dim);
+    for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
+      for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
+        means[dim_index] += data[(vec_index * _dim) + dim_index];
+      }
+    }
+
+    float maxm = 0;
+    for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
+      means[dim_index] /= n;
+
+      maxm = fabs(means[dim_index]) > maxm ? fabs(means[dim_index]) : maxm;
+    }
+
+    float *centroids = _centroids.data();
+    auto num_bits = log2(_num_centroids);
+
+    for (uint64_t i = 0; i < _num_centroids; i++) {
+      float *centroid = const_cast<float *>(centroids + (i * _dim));
+      for (uint64_t j = 0; j < num_bits; j++) {
+        centroid[j] = means[j] + (((i >> j) & 1) ? 1 : -1) * maxm;
+      }
+
+      for (uint64_t j = num_bits; j < _dim; j++) {
+        centroid[j] = means[j];
       }
     }
   }

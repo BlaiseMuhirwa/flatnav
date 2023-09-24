@@ -11,6 +11,8 @@
 #include <cstdint>
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
+#include <flatnav/distances/InnerProductDistance.h>
+#include <flatnav/distances/SquaredL2Distance.h>
 #include <memory>
 #include <omp.h>
 #include <quantization/CentroidsGenerator.h>
@@ -18,10 +20,12 @@
 #include <queue>
 #include <stdexcept>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace flatnav::quantization {
 
+using flatnav::METRIC_TYPE;
 using flatnav::quantization::CentroidsGenerator;
 
 template <typename n_bits_t> struct PQCodeManager {
@@ -75,17 +79,11 @@ template <typename n_bits_t> struct PQCodeManager {
  *
  */
 
-template <typename dist_t> class ProductQuantizer {
+class ProductQuantizer : public flatnav::DistanceInterface<ProductQuantizer> {
+  friend class flatnav::DistanceInterface<ProductQuantizer>;
+
   // Represents the block size used in ProductQuantizer::computePQCodes
   static const uint64_t BLOCK_SIZE = 256 * 1024;
-
-  // This heap array maintains an ordering of pairs of computed distances
-  // (float) and their assigned ID's (int64_t).
-  // TODO: Implement a modular heap class that can both be used
-  // in Flatnav's Index and Quantization
-  typedef std::priority_queue<std::pair<float, int64_t>,
-                              std::vector<std::pair<float, int64_t>>>
-      MaxHeap;
 
 public:
   // Constructor for serializaiton
@@ -101,9 +99,10 @@ public:
    * This will be possible once the PQ integration with the flatnav
    * index is complete.
    */
-  ProductQuantizer(uint32_t dim, uint32_t M, uint32_t nbits)
+  ProductQuantizer(uint32_t dim, uint32_t M, uint32_t nbits,
+                   METRIC_TYPE metric_type)
       : _num_subquantizers(M), _num_bits(nbits), _is_trained(false),
-        _train_type(TrainType::DEFAULT) {
+        _metric_type(metric_type), _train_type(TrainType::DEFAULT) {
 
     if (dim % _num_subquantizers) {
       throw std::invalid_argument("The dataset dimension must be a multiple of "
@@ -111,7 +110,14 @@ public:
     }
     _code_size = (_num_bits * 8 + 7) / 8;
     _subvector_dim = dim / _num_subquantizers;
-    _distance = std::make_shared<dist_t>(_subvector_dim);
+
+    if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
+      _distance = SquaredL2Distance(_subvector_dim);
+    } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
+      _distance = InnerProductDistance(_subvector_dim);
+    } else {
+      throw std::invalid_argument("Invalid metric type");
+    }
 
     _subq_centroids_count = 1 << _num_bits;
     _centroids.resize(_subq_centroids_count * dim);
@@ -143,12 +149,15 @@ public:
     PQCodeManager<uint8_t> code_manager(/* code = */ code,
                                         /* nbits = */ 8);
 
+    auto dist_func = getDistFuncFromVariant();
+
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
       const float *subvector = vector + (m * _subvector_dim);
-      uint64_t minimizer_index = squaredL2WithKNeighbors(
+      uint64_t minimizer_index = flatnav::distanceWithKNeighbors(
           /* distances_tmp_buffer = */ distances.data(), /* x = */ subvector,
           /* y = */ getCentroids(m, 0), /* dim = */ _subvector_dim,
-          /* target_set_size = */ _subq_centroids_count);
+          /* target_set_size = */ _subq_centroids_count,
+          /* dist_func = */ dist_func);
 
       code_manager.encode(minimizer_index);
     }
@@ -238,10 +247,7 @@ public:
 
       switch (final_train_type) {
       case TrainType::HYPERCUBE:
-        initHypercube(
-            /* dim = */ _subvector_dim, /* num_bits = */ _num_bits, /* n = */ n,
-            /* data = */ slice,
-            /* centroids = */ centroids_generator.centroids().data());
+        centroids_generator.setInitializationType("hypercube");
         break;
 
       case TrainType::HOT_START:
@@ -305,112 +311,56 @@ public:
    * @param dist_table output table, size (_num_subquantizers x
    * _subq_centroids_count)
    */
-  void computeDistanceTable(const float *vector, float *dist_table) const {
+  void computeDistanceTable(
+      const float *vector, float *dist_table,
+      std::function<float(const float *, const float *)> &dist_func) const {
 
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
-      flatnav::registerSquaredL2Distances(
+      flatnav::copyDistancesIntoBuffer(
           /* distances_buffer = */ dist_table + (m * _subq_centroids_count),
           /* x = */ vector + (m * _subvector_dim), /* y = */ getCentroids(m, 0),
           /* dim = */ _subvector_dim,
-          /* target_set_size = */ _subq_centroids_count);
+          /* target_set_size = */ _subq_centroids_count,
+          /* dist_func = */ dist_func);
     }
   }
 
   void computeDistanceTables(const float *vectors, float *dist_tables,
                              uint64_t n) const {
+
+    auto dist_func = getDistFuncFromVariant();
     // TODO: Use SIMD
     auto dim = _subvector_dim * _num_subquantizers;
 #pragma omp parallel for if (n > 1)
     for (uint64_t i = 0; i < n; i++) {
-      computeDistanceTable(
-          vectors + (i * dim),
-          dist_tables + (i * _subq_centroids_count * _num_subquantizers));
+      computeDistanceTable(vectors + (i * dim),
+                           dist_tables +
+                               (i * _subq_centroids_count * _num_subquantizers),
+                           dist_func);
     }
   }
 
-  template <typename T>
-  void pqEstimatorsFromTables(const ProductQuantizer &pq, const uint8_t *codes,
-                              const uint64_t ncodes, const float *dist_table);
+  ////////////////////////////////////////////////////////////////////////////////////////
+  //                     Implementation of DistanceInterface Methods //
+  //                                                                                    //
+  ////////////////////////////////////////////////////////////////////////////////////////
+  inline size_t getDimension() const { return getCodeSize(); }
 
-  /**
-   * @NOTE: This function, in principle, supports searching with multiple
-   * queries in parallel. However, we are currently limited by our heap
-   * implementation, which does not allow us to process multiple queries at
-   * once. So, we will assume for now that `num_queries` = 1.
-   *
-   */
-  void searchUsingDistanceTables(const ProductQuantizer &pq, uint32_t num_bits,
-                                 const float *dist_tables, uint64_t num_queries,
-                                 const uint8_t *codes, const uint64_t ncodes,
-                                 std::shared_ptr<MaxHeap> heap,
-                                 bool init_finalize_heap) {}
+  inline size_t dataSizeImpl() { return getCodeSize(); }
 
-  /**
-   * @brief perform search
-   *
-   * @param query_vectors        query vectors, size num_queries * d
-   * @param num_queries          number of queries
-   * @param codes                PQ codes, size ncodes * code_size
-   * @param ncodes               nb of vectors
-   */
-  void search(const float *__restrict query_vectors, uint64_t num_queries,
-              const uint8_t *codes, const uint64_t ncodes,
-              bool init_finalize_heap = false) const {
+  void transformDataImpl(void *destination, const void *src) {
+    uint8_t *code = new uint8_t[_code_size]();
+    computePQCode(static_cast<const float *>(src), code);
 
-    std::unique_ptr<float[]> dist_tables(
-        new float[num_queries * _subq_centroids_count * _num_subquantizers]);
+    std::memcpy(destination, code, _code_size);
 
-    computeDistanceTables(/* vectors = */ query_vectors,
-                          /* dist_tables = */ dist_tables,
-                          /* n = */ num_queries);
-
-    searchUsingDistanceTables(
-        /* pq = */ *this,
-        /* num_bits = */ _num_bits, /* dist_tables = */ dist_tables.get(),
-        /* num_queries = */ num_queries,
-        /* codes = */ codes, /* ncodes = */ ncodes, /* heap = */ NULL,
-        /* init_finalize_heap = */ init_finalize_heap);
+    delete[] code;
   }
 
-  float getDistance(const float *__restrict query_vector, const uint8_t *code) {
-    std::unique_ptr<float[]> dist_table(
-        new float[_subq_centroids_count * _num_subquantizers]);
+  template <DistanceMode mode>
+  float distanceImpl(const void *x, const void *y) const; // forward declaration
 
-    computeDistanceTable(/* vector = */ query_vector,
-                         /* dist_table = */ dist_table.get());
-
-    float distance = 0.0;
-
-    for (uint32_t m = 0; m < _num_subquantizers; m++) {
-      distance += dist_table[(m * _subq_centroids_count) + code[m]];
-    }
-
-    return distance;
-  }
-
-  float getSymmetricDistance(const uint8_t *code1, const uint8_t *code2) const {
-    float distance = 0.0;
-
-    // Get a pointer to the distance table for the first subquantizer
-    const float *dist_table = _symmetric_distance_tables.data();
-
-    for (uint32_t m = 0; m < _num_subquantizers; m++) {
-      distance += dist_table[(code1[m] * _subq_centroids_count) + code2[m]];
-      dist_table += _subq_centroids_count * _subq_centroids_count;
-    }
-  }
-
-  inline uint32_t getNumSubquantizers() const { return _num_subquantizers; }
-
-  inline uint32_t getNumBitsPerIndex() const { return _num_bits; }
-
-  inline uint32_t getCentroidsCount() const { return _subq_centroids_count; }
-
-  inline uint32_t getCodeSize() const { return _code_size; }
-
-  inline bool isTrained() const { return _is_trained; }
-
-  void printQuantizerParams() const {
+  void printParamsImpl() const {
     std::cout << "\nProduct Quantizer Parameters" << std::endl;
     std::cout << "-----------------------------" << std::endl;
     std::cout << "Number of subquantizers (M): " << _num_subquantizers
@@ -425,7 +375,33 @@ public:
     std::cout << "\n" << std::endl;
   }
 
+  inline uint32_t getNumSubquantizers() const { return _num_subquantizers; }
+
+  inline uint32_t getNumBitsPerIndex() const { return _num_bits; }
+
+  inline uint32_t getCentroidsCount() const { return _subq_centroids_count; }
+
+  inline uint32_t getCodeSize() const { return _code_size; }
+
+  inline bool isTrained() const { return _is_trained; }
+
 private:
+  std::function<float(const float *, const float *)>
+  getDistFuncFromVariant() const {
+    if (_distance.index() == 0) {
+      return [local_distance = _distance](const float *a,
+                                          const float *b) -> float {
+        return std::get<SquaredL2Distance>(local_distance)
+            .distanceImpl<flatnav::DistanceMode::Symmetric>(a, b);
+      };
+    }
+    return
+        [local_distance = _distance](const float *a, const float *b) -> float {
+          return std::get<InnerProductDistance>(local_distance)
+              .distanceImpl<flatnav::DistanceMode::Symmetric>(a, b);
+        };
+  }
+
   /**
    * @brief Computes pair-wise distances between all pairs of centroids
    * for each subquantizer.
@@ -445,11 +421,11 @@ private:
     _symmetric_distance_tables.resize(
         _num_subquantizers * _subq_centroids_count * _subq_centroids_count);
 
+    auto dist_func = getDistFuncFromVariant();
+
 #pragma omp parallel for
     for (uint64_t mk = 0; mk < _num_subquantizers * _subq_centroids_count;
          mk++) {
-      // allow omp to schedule in a more fine-grained way.
-      // `collapse` is not supported in openmp 2.x
       auto m = mk / _subq_centroids_count;
       auto k = mk % _subq_centroids_count;
       const float *centroids =
@@ -457,89 +433,13 @@ private:
       const float *centroid_i = centroids + (k * _subvector_dim);
       float *dist_table = _symmetric_distance_tables.data() +
                           (m * _subq_centroids_count * _subq_centroids_count);
-      flatnav::registerSquaredL2Distances(
+
+      flatnav::copyDistancesIntoBuffer(
           /* distances_buffer = */ dist_table + (k * _subq_centroids_count),
           /* x = */ centroid_i, /* y = */ centroids,
           /* dim = */ _subvector_dim,
-          /* target_set_size = */ _subq_centroids_count);
-    }
-  }
-
-  /**
-   * @brief
-   *
-   */
-  // void computeInterCentroidDistanceTables() {
-  //   // for each subquantizer
-  //   for (uint32_t m = 0; m < _num_subquantizers; m++) {
-  //     auto table = std::make_unique<float[]>(_subq_centroids_count *
-  //                                            _subq_centroids_count);
-
-  //     // compute the pairwise distance for each pair of centroids
-  //     for (uint32_t i = 0; i < _subq_centroids_count; i++) {
-  //       for (uint32_t j = 0; j < _subq_centroids_count; j++) {
-  //         table[(i * _subq_centroids_count) + j] =
-  //             _distance->distance(getCentroids(m, i), getCentroids(m, j));
-  //       }
-  //     }
-  //     _inter_centroid_tables.push_back(std::move(table));
-  //   }
-  // }
-
-  /**
-   * @brief This function initializes a set of 2^(_num_bits) centroids spread
-   around
-   *  the mean of the input data in a hypercube configuration. For each
-   dimension up
-   *  to _num_bits, the centroid coordinates will be either mean[j] - maxm or
-   *  mean[j] + maxm, creating a uniform distribution in a binary hypercube
-   pattern.
-   *
-   *  The remaining coordinates (from _num_bits to dim) will be set to the mean
-   of the
-   *  dataset, collapsing the hypercube into a lower-dimensional hyperplane if
-   _num_bits < dim.
-   *  This kind of setup is a good initialization step for quantization or
-   clustering
-   *  as it ensures a good spread of centroids across the data space.
-   *
-   *
-   * @param dim        This is essentially the subvector dimension (i.e.,
-   *                    _subvector_dim)
-   * @param num_bits   The number of bits we use to represent each pq code/index
-   * @param n          The number of data points in the dataset
-   * @param data       The actual dataset
-   * @param centroids  Uninitialized centroids.
-   *
-   * TODO: Move the initialization to the CentroidsGenerator class
-
-   */
-
-  void initHypercube(uint32_t dim, uint32_t num_bits, uint64_t n,
-                     const float *data, const float *centroids) {
-    std::vector<float> means(dim);
-    for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
-      for (uint32_t dim_index = 0; dim_index < dim; dim_index++) {
-        means[dim_index] += data[(vec_index * dim) + dim_index];
-      }
-    }
-
-    float maxm = 0;
-    for (uint32_t dim_index = 0; dim_index < dim; dim_index++) {
-      means[dim_index] /= n;
-
-      maxm = fabs(means[dim_index]) > maxm ? fabs(means[dim_index]) : maxm;
-    }
-
-    for (uint64_t i = 0; i < (1 << _num_bits); i++) {
-      float *centroid = const_cast<float *>(centroids + (i * dim));
-      for (uint64_t j = 0; j < _num_bits; j++) {
-        centroid[j] = means[j] + (((i >> j) & 1) ? 1 : -1) * maxm;
-      }
-
-      for (uint64_t j = _num_bits; j < dim; j++) {
-        centroid[j] = means[j];
-      }
+          /* target_set_size = */ _subq_centroids_count,
+          /* dist_func = */ dist_func);
     }
   }
 
@@ -581,12 +481,12 @@ private:
   // Layout: (_subvector_dim x _num_subquantizers x _subq_centroids_count)
   std::vector<float> _transposed_centroids;
 
-  // std::vector<std::unique_ptr<float[]>> _inter_centroid_tables;
-
   std::vector<float> _symmetric_distance_tables;
 
   // Indicates if the PQ has been trained or not
   bool _is_trained;
+
+  METRIC_TYPE _metric_type;
 
   // Initialization
   enum TrainType {
@@ -601,23 +501,72 @@ private:
   };
 
   TrainType _train_type;
-  std::shared_ptr<DistanceInterface<dist_t>> _distance;
 
-  friend class cereal::access;
-  // Private constructor for serialization
-  // ProductQuantizer() = default;
+  std::variant<SquaredL2Distance, InnerProductDistance> _distance;
+
+  friend class ::cereal::access;
 
   template <typename Archive> void serialize(Archive &archive) {
 
     archive(_code_size, _num_subquantizers, _num_bits, _subvector_dim,
             _subq_centroids_count, _centroids, _symmetric_distance_tables,
-            _is_trained, _train_type);
+            _is_trained, _metric_type, _train_type);
 
     if constexpr (Archive::is_loading::value) {
       // loading PQ
-      _distance = std::make_shared<dist_t>(_subvector_dim);
+      if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
+        _distance = SquaredL2Distance(_subvector_dim);
+      } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
+        _distance = InnerProductDistance(_subvector_dim);
+      } else {
+        throw std::invalid_argument("Invalid metric type");
+      }
     }
   }
 };
+
+template <>
+float ProductQuantizer::distanceImpl<flatnav::DistanceMode::Asymmetric>(
+    const void *x, const void *y) const {
+  assert(_is_trained);
+
+  float *x_ptr = (float *)(x);
+  uint8_t *y_ptr = (uint8_t *)(y);
+
+  std::unique_ptr<float[]> dist_table(
+      new float[_subq_centroids_count * _num_subquantizers]);
+
+  auto dist_func = getDistFuncFromVariant();
+
+  computeDistanceTable(/* vector = */ x_ptr,
+                       /* dist_table = */ dist_table.get(),
+                       /* dist_func = */ dist_func);
+
+  float distance = 0.0;
+  for (uint32_t m = 0; m < _num_subquantizers; m++) {
+    distance += dist_table[(m * _subq_centroids_count) + y_ptr[m]];
+  }
+  return distance;
+}
+
+template <>
+float ProductQuantizer::distanceImpl<flatnav::DistanceMode::Symmetric>(
+    const void *x, const void *y) const {
+  assert(_is_trained);
+
+  uint8_t *code1 = (uint8_t *)(x);
+  uint8_t *code2 = (uint8_t *)(y);
+
+  float distance = 0.0;
+
+  // Get a pointer to the distance table for the first subquantizer
+  const float *dist_table = _symmetric_distance_tables.data();
+
+  for (uint32_t m = 0; m < _num_subquantizers; m++) {
+    distance += dist_table[(code1[m] * _subq_centroids_count) + code2[m]];
+    dist_table += _subq_centroids_count * _subq_centroids_count;
+  }
+  return distance;
+}
 
 } // namespace flatnav::quantization
