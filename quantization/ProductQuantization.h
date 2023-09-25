@@ -102,7 +102,7 @@ public:
   ProductQuantizer(uint32_t dim, uint32_t M, uint32_t nbits,
                    METRIC_TYPE metric_type)
       : _num_subquantizers(M), _num_bits(nbits), _is_trained(false),
-        _metric_type(metric_type), _train_type(TrainType::DEFAULT) {
+        _metric_type(metric_type), _train_type(TrainType::HYPERCUBE) {
 
     if (dim % _num_subquantizers) {
       throw std::invalid_argument("The dataset dimension must be a multiple of "

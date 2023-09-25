@@ -63,7 +63,7 @@ void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
 
   if (quantize) {
     auto quantizer = std::make_shared<ProductQuantizer>(
-        /* dim = */ dim, /* M = */ 5, /* nbits = */ 8,
+        /* dim = */ dim, /* M = */ 4, /* nbits = */ 8,
         /* metric_type = */ metric_type);
 
     auto start = std::chrono::high_resolution_clock::now();

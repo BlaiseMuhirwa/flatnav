@@ -10,6 +10,8 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <cereal/access.hpp>
+#include <cereal/types/vector.hpp>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -19,15 +21,25 @@ namespace flatnav::quantization {
 
 class CentroidsGenerator {
 public:
+  /**
+   * @brief Construct a new Centroids Generator object
+   *
+   * @param dim                       The dimension of the input vectors
+   * @param num_centroids             The number of centroids to generate
+   * @param num_iterations            The number of clustering iterations
+   * @param max_points_per_centroid   The maximum number of points per centroid
+   * @param normalized                Whether to normalize the centroids
+   * @param verbose                   Whether to print verbose output
+   */
   CentroidsGenerator(uint32_t dim, uint32_t num_centroids,
                      uint32_t num_iterations = 62,
                      uint32_t max_points_per_centroid = 256,
-                     bool normalized = true, bool verbose = false)
+                     bool normalized = true, bool verbose = false, int seed = 3333)
       : _dim(dim), _num_centroids(num_centroids),
         _clustering_iterations(num_iterations),
         _max_points_per_centroid(max_points_per_centroid),
         _normalized(normalized), _verbose(verbose),
-        _centroids_initialized(false), _seed(3333),
+        _centroids_initialized(false), _seed(seed),
         _initialization_type("default") {}
 
   void initializeCentroids(const float *data, uint64_t n) {
@@ -272,7 +284,6 @@ private:
  * @param data       The actual dataset
  * @param n          The number of data points in the dataset
  *
- * TODO: Move the initialization to the CentroidsGenerator class
 
  */
 
@@ -333,6 +344,15 @@ private:
   int _seed;
 
   std::string _initialization_type;
+
+
+  friend class cereal::access;
+  template<typename Archive>
+  void serialize(Archive &ar) {
+    ar(_dim, _num_centroids, _centroids, _clustering_iterations,
+       _max_points_per_centroid, _normalized, _verbose,
+       _centroids_initialized, _seed, _initialization_type);
+  }
 };
 
 } // namespace flatnav::quantization
