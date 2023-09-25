@@ -1,17 +1,26 @@
 #pragma once
-#include "DistanceInterface.h"
-#include "util/ExplicitSet.h"
-#include "util/reordering.h"
-#include "util/verifysimd.h"
-#include <algorithm> // for std::min
+#include <algorithm>
 #include <cassert>
+#include <cereal/access.hpp>
+#include <cereal/archives/binary.hpp>
+#include <cereal/cereal.hpp>
+#include <cereal/types/memory.hpp>
 #include <cstring>
+#include <flatnav/DistanceInterface.h>
+#include <flatnav/util/ExplicitSet.h>
+#include <flatnav/util/reordering.h>
+#include <flatnav/util/verifysimd.h>
 #include <fstream>
-#include <limits>  // for std::numeric_limits<T>::max()
-#include <memory>  // for std::unique_ptr
-#include <queue>   // for std::priority_queue
-#include <utility> // for std::pair
+#include <limits>
+#include <memory>
+#include <optional>
+#include <quantization/ProductQuantization.h>
+#include <queue>
+#include <utility>
 #include <vector>
+
+using flatnav::DistanceMode;
+using flatnav::quantization::ProductQuantizer;
 
 namespace flatnav {
 
@@ -21,37 +30,33 @@ template <typename dist_t, typename label_t> class Index {
 public:
   typedef std::pair<float, label_t> dist_label_t;
 
-  /*
-Constructs a Flatnav Index for approximate near neighbor search.
-
-Arguments:
-  dist: A distance metric for the specific index instance. Optiions include
-      l2(euclidean) and inner product.
-  dataset_size: The maximum number of vectors that the index can contain
-  max_edges_per_node: The maximm number of links per node
-
-*/
-  Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
+  /**
+   * @brief Construct a new Index object for approximate near neighbor search
+   *
+   * @param dist                A distance metric for the specific index
+   * distance. Options include l2(euclidean) and inner product.
+   * @param dataset_size        The maximum number of vectors that can be
+   * inserted in the index.
+   * @param max_edges_per_node  The maximum number of links per node.
+   */
+  Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(std::move(dist)),
-        _visited_nodes(dataset_size + 1) {
+        _cur_num_nodes(0), _distance(dist), _visited_nodes(dataset_size + 1) {
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
         _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
 
-    size_t _index_memory_size = _node_size_bytes * _max_node_count;
+    size_t index_memory_size = _node_size_bytes * _max_node_count;
 
-    _index_memory = new char[_index_memory_size];
+    _index_memory = new char[index_memory_size];
     _transformed_query = new char[_data_size_bytes];
   }
 
-  Index(std::ofstream &stream)
-      : _max_node_count(0), _cur_num_nodes(0), _index_memory(NULL),
-        _transformed_query(NULL) {
-    deserialize(/* stream = */ stream);
-  }
+  // Constructor for serialization with cereal. Do not use outside of
+  // this class.
+  Index() = default;
 
   ~Index() {
     delete[] _index_memory;
@@ -81,25 +86,35 @@ Arguments:
     return true;
   }
 
-  std::vector<dist_label_t> search(const void *query, const int num_results,
+  /***
+   * @brief Search the index for the k nearest neighbors of the query.
+   * @param query The query vector.
+   * @param K The number of nearest neighbors to return.
+   * @param ef_search The search beam width.
+   * @param num_initializations The number of random initializations to use.
+   */
+  std::vector<dist_label_t> search(const void *query, const int K,
                                    int ef_search,
                                    int num_initializations = 100) {
 
     // We use a pre-allocated buffer for the transformed query, for speed
     // reasons, but it would also be acceptable to manage this buffer
     // dynamically (e.g. in the multi-threaded setting).
-    _distance->transformData(_transformed_query, query);
-    node_id_t entry_node =
-        initializeSearch(_transformed_query, num_initializations);
-    PriorityQueue neighbors =
-        beamSearch(_transformed_query, entry_node, ef_search);
+    node_id_t entry_node = initializeSearch(query, num_initializations);
+    PriorityQueue neighbors = beamSearch(/* query = */ query,
+                                         /* entry_node = */ entry_node,
+                                         /* buffer_size = */ ef_search);
     std::vector<dist_label_t> results;
-    while (neighbors.size() > num_results) {
+
+    while (neighbors.size() > K) {
       neighbors.pop();
     }
+
+    auto size = neighbors.size();
+    results.reserve(size);
     while (neighbors.size() > 0) {
-      results.emplace_back(neighbors.top().first,
-                           *getNodeLabel(neighbors.top().second));
+      results.push_back(std::make_pair(neighbors.top().first,
+                                       *getNodeLabel(neighbors.top().second)));
       neighbors.pop();
     }
     std::sort(results.begin(), results.end(),
@@ -107,59 +122,6 @@ Arguments:
                 return left.first < right.first;
               });
     return results;
-  }
-
-  void serialize(std::ofstream &stream) {
-    // TODO: Make this safe across machines and compilers.
-    _distance->serialize(stream);
-    stream.write(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
-    stream.write(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
-    stream.write(reinterpret_cast<char *>(&_max_node_count), sizeof(size_t));
-    stream.write(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
-    stream.write(reinterpret_cast<char *>(&_M), sizeof(size_t));
-    // Write the index data partition.
-    size_t _index_memory_size = _node_size_bytes * _max_node_count;
-    stream.write(reinterpret_cast<char *>(_index_memory), _index_memory_size);
-  }
-
-  void deserialize(std::ifstream &stream) {
-    _distance->deserialize(stream);
-    stream.read(reinterpret_cast<char *>(&_data_size_bytes), sizeof(size_t));
-    stream.read(reinterpret_cast<char *>(&_node_size_bytes), sizeof(size_t));
-    stream.read(reinterpret_cast<char *>(&_max_node_count), sizeof(size_t));
-    stream.read(reinterpret_cast<char *>(&_cur_num_nodes), sizeof(size_t));
-    stream.read(reinterpret_cast<char *>(&_M), sizeof(size_t));
-
-    if (_data_size_bytes != _distance->dataSize()) {
-      throw std::invalid_argument(
-          "Error reading index: Data size from the index does not "
-          "match the data size from the distance. Is the dimension "
-          "correct?");
-    }
-    size_t _node_size_bytes_check =
-        _data_size_bytes + sizeof(node_id_t) * _M + sizeof(label_t);
-    if (_node_size_bytes != _node_size_bytes_check) {
-      throw std::invalid_argument(
-          "Error reading index: The node size from the index does not "
-          "match the expected node size based on max_edges, the vector "
-          "size and the label type.");
-    }
-
-    if (_index_memory != NULL) {
-      delete[] _index_memory;
-      _index_memory = NULL;
-    }
-    size_t _index_memory_size = _node_size_bytes * _max_node_count;
-    _index_memory = new char[_index_memory_size];
-    stream.read(reinterpret_cast<char *>(_index_memory), _index_memory_size);
-
-    if (_transformed_query != NULL) {
-      delete[] _transformed_query;
-      _transformed_query = NULL;
-    }
-    _transformed_query = new char[_data_size_bytes];
-
-    _visited_nodes = VisitedSet(_max_node_count + 1);
   }
 
   void reorder_gorder(const int window_size = 5) {
@@ -192,6 +154,76 @@ Arguments:
     relabel(P);
   }
 
+  static std::unique_ptr<Index<dist_t, label_t>>
+  loadIndex(const std::string &filename) {
+    std::ifstream stream(filename, std::ios::binary);
+
+    if (!stream.is_open()) {
+      throw std::runtime_error("Unable to open file for reading: " + filename);
+    }
+
+    cereal::BinaryInputArchive archive(stream);
+    std::unique_ptr<Index<dist_t, label_t>> index =
+        std::make_unique<Index<dist_t, label_t>>();
+
+    std::shared_ptr<DistanceInterface<dist_t>> dist =
+        std::make_shared<dist_t>();
+
+    // 1. Deserialize metadata
+    archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
+            index->_max_node_count, index->_cur_num_nodes, *dist,
+            index->_visited_nodes);
+    index->_distance = dist;
+
+    // 3. Allocate memory using deserialized metadata
+    index->_index_memory =
+        new char[index->_node_size_bytes * index->_max_node_count];
+    index->_transformed_query = new char[index->_data_size_bytes];
+
+    // 4. Deserialize content into allocated memory
+    archive(
+        cereal::binary_data(index->_index_memory,
+                            index->_node_size_bytes * index->_max_node_count));
+    archive(cereal::binary_data(index->_transformed_query,
+                                index->_data_size_bytes));
+
+    return index;
+  }
+
+  void saveIndex(const std::string &filename) {
+    std::ofstream stream(filename, std::ios::binary);
+
+    if (!stream.is_open()) {
+      throw std::runtime_error("Unable to open file for writing: " + filename);
+    }
+
+    cereal::BinaryOutputArchive archive(stream);
+    archive(*this);
+  }
+
+  inline size_t maxEdgesPerNode() const { return _M; }
+  inline size_t dataSizeBytes() const { return _data_size_bytes; }
+
+  inline size_t nodeSizeBytes() const { return _node_size_bytes; }
+
+  inline size_t maxNodeCount() const { return _max_node_count; }
+
+  inline char *indexMemory() const { return _index_memory; }
+  inline size_t currentNumNodes() const { return _cur_num_nodes; }
+
+  void printIndexParams() const {
+    std::cout << "\nIndex Parameters" << std::endl;
+    std::cout << "-----------------------------" << std::endl;
+    std::cout << "max_edges_per_node (M): " << _M << std::endl;
+    std::cout << "data_size_bytes: " << _data_size_bytes << std::endl;
+    std::cout << "node_size_bytes: " << _node_size_bytes << std::endl;
+    std::cout << "max_node_count: " << _max_node_count << std::endl;
+    std::cout << "cur_num_nodes: " << _cur_num_nodes << std::endl;
+    std::cout << "visited_nodes size: " << _visited_nodes.size() << std::endl;
+
+    _distance->printParams();
+  }
+
 private:
   // internal node numbering scheme
   typedef unsigned int node_id_t;
@@ -215,11 +247,25 @@ private:
   size_t _max_node_count; // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
 
-  std::unique_ptr<DistanceInterface<dist_t>> _distance;
+  std::shared_ptr<DistanceInterface<dist_t>> _distance;
 
   // Remembers which nodes we've visited, to avoid re-computing distances.
   // Might be a caching problem in beamSearch - needs to be profiled.
   VisitedSet _visited_nodes;
+
+  // std::unique_ptr<ProductQuantizer<dist_t>> _product_quantizer;
+
+  friend class cereal::access;
+
+  template <typename Archive> void serialize(Archive &archive) {
+    archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
+            _cur_num_nodes, *_distance, _visited_nodes);
+
+    // Serialize the allocated memory for the index & query.
+    archive(
+        cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
+    archive(cereal::binary_data(_transformed_query, _data_size_bytes));
+  }
 
   char *getNodeData(const node_id_t &n) const {
     char *location = _index_memory + (n * _node_size_bytes);
@@ -237,19 +283,19 @@ private:
     return reinterpret_cast<label_t *>(location);
   }
 
+  // TODO: Add optional argument here for quantized data vector.
   bool allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
     if (_cur_num_nodes >= _max_node_count) {
       return false;
     }
     new_node_id = _cur_num_nodes;
 
-    // Transforms and writes data into the index at the correct location.
-    _distance->transformData(/* destination = */ getNodeData(_cur_num_nodes),
+    _distance->transformData(/* destination = */ getNodeData(new_node_id),
                              /* src = */ data);
     *(getNodeLabel(_cur_num_nodes)) = label;
 
     node_id_t *links = getNodeLinks(_cur_num_nodes);
-    for (int i = 0; i < _M; i++) {
+    for (uint32_t i = 0; i < _M; i++) {
       links[i] = _cur_num_nodes;
     }
 
@@ -278,6 +324,16 @@ private:
     return;
   }
 
+  /**
+   * @brief Performs beam search for the nearest neighbors of the query.
+   * @TODO: Add `entry_node_dist` argument to this function since we expect to
+   * have computed that a priori.
+   *
+   * @param query
+   * @param entry_node
+   * @param buffer_size
+   * @return PriorityQueue
+   */
   PriorityQueue beamSearch(const void *query, const node_id_t entry_node,
                            const int buffer_size) {
 
@@ -287,8 +343,9 @@ private:
     PriorityQueue candidates; // C in the HNSW paper
 
     _visited_nodes.clear();
-    float dist =
-        _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node));
+    float dist = _distance->template distance<DistanceMode::Asymmetric>(
+        query, getNodeData(entry_node));
+
     float max_dist = dist;
 
     candidates.emplace(-dist, entry_node);
@@ -307,7 +364,10 @@ private:
         if (!_visited_nodes[d_node_links[i]]) {
           // If we haven't visited the node yet.
           _visited_nodes.insert(d_node_links[i]);
-          dist = _distance->distance(query, getNodeData(d_node_links[i]));
+
+          dist = _distance->template distance<DistanceMode::Asymmetric>(
+              query, getNodeData(d_node_links[i]));
+
           // Include the node in the buffer if buffer isn't full or
           // if the node is closer than a node already in the buffer.
           if (neighbors.size() < buffer_size || dist < max_dist) {
@@ -327,7 +387,8 @@ private:
   }
 
   void selectNeighbors(PriorityQueue &neighbors, const int M) {
-    // selects neighbors from the PriorityQueue, according to the HNSW heuristic
+    // selects neighbors from the PriorityQueue, according to the HNSW
+    // heuristic
     if (neighbors.size() < M) {
       return;
     }
@@ -350,9 +411,11 @@ private:
 
       bool should_keep_candidate = true;
       for (const dist_node_t &second_pair : saved_candidates) {
-        float cur_dist =
-            _distance->distance(/* x = */ getNodeData(second_pair.second),
-                                /* y = */ getNodeData(current_pair.second));
+        float cur_dist = std::numeric_limits<float>::max();
+
+        cur_dist = _distance->template distance<DistanceMode::Symmetric>(
+            getNodeData(second_pair.second), getNodeData(current_pair.second));
+
         if (cur_dist < (-current_pair.first)) {
           should_keep_candidate = false;
           break;
@@ -399,17 +462,19 @@ private:
         // very careful. To ensure we respect the pruning heuristic, we
         // construct a candidate set including the old links AND our new
         // one, then prune this candidate set to get the new neighbors.
-        float max_dist = _distance->distance(getNodeData(new_node_id),
-                                             getNodeData(neighbor_node_id));
+
+        float max_dist = _distance->template distance<DistanceMode::Symmetric>(
+            getNodeData(neighbor_node_id), getNodeData(new_node_id));
+
         PriorityQueue candidates;
         candidates.emplace(max_dist, new_node_id);
         for (int j = 0; j < _M; j++) {
           if (neighbor_node_links[j] != neighbor_node_id) {
-            candidates.emplace(
-                _distance->distance(
-                    /* x = */ getNodeData(neighbor_node_id),
-                    /* y = */ getNodeData(neighbor_node_links[j])),
-                neighbor_node_links[j]);
+            auto label = neighbor_node_links[j];
+            auto distance =
+                _distance->template distance<DistanceMode::Symmetric>(
+                    getNodeData(neighbor_node_id), getNodeData(label));
+            candidates.emplace(distance, label);
           }
         }
         selectNeighbors(candidates, _M);
@@ -434,10 +499,20 @@ private:
     }
   }
 
+  /**
+   * @brief Selects a node to use as the entry point for a new node.
+   * This proceeds in a greedy fashion, by selecting the node with
+   * the smallest distance to the query.
+   *
+   * @param query
+   * @param num_initializations
+   * @return node_id_t
+   */
   inline node_id_t initializeSearch(const void *query,
                                     int num_initializations) {
     // select entry_node from a set of random entry point options
     assert(num_initializations != 0);
+
     int step_size = _cur_num_nodes / num_initializations;
     if (step_size <= 0) {
       step_size = 1;
@@ -446,8 +521,23 @@ private:
     float min_dist = std::numeric_limits<float>::max();
     node_id_t entry_node = 0;
 
+    /**
+     * @brief If we use a product quantizer, this is what will happen:
+     * 1. When comparing the query to a database vector (during insertion or
+     * search in HNSW), you don't directly compute a distance using their
+     * original vectors or even use the PQ code of the query. Instead, for each
+     * segment of the database vector, look up the distance between the query's
+     * segment and the database vector's corresponding centroid using the
+     * pre-computed distance table for that segment. Sum these distances across
+     * all segments to get the total asymmetric distance between the query and
+     * the database vector.
+     *
+     */
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
-      float dist = _distance->distance(query, getNodeData(node));
+
+      float dist = _distance->template distance<DistanceMode::Asymmetric>(
+          query, getNodeData(node));
+
       if (dist < min_dist) {
         min_dist = dist;
         entry_node = node;

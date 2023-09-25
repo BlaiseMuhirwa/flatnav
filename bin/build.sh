@@ -1,7 +1,5 @@
 #!/bin/bash 
 
-set -ex
-
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF 
 BUILD_BENCHMARKS=OFF

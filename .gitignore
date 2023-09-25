@@ -13,6 +13,6 @@ build
 # Python wheel related folders/files
 flatnav_pyton/flatnav.egg-info
 
-# Directories 
-data
-baselines 
+# other files
+data/
+baselines/
