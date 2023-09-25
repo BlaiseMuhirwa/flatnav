@@ -51,17 +51,13 @@ public:
     size_t index_memory_size = _node_size_bytes * _max_node_count;
 
     _index_memory = new char[index_memory_size];
-    _transformed_query = new char[_data_size_bytes];
   }
 
   // Constructor for serialization with cereal. Do not use outside of
   // this class.
   Index() = default;
 
-  ~Index() {
-    delete[] _index_memory;
-    delete[] _transformed_query;
-  }
+  ~Index() { delete[] _index_memory; }
 
   bool add(void *data, label_t &label, int ef_construction,
            int num_initializations = 100) {
@@ -97,9 +93,6 @@ public:
                                    int ef_search,
                                    int num_initializations = 100) {
 
-    // We use a pre-allocated buffer for the transformed query, for speed
-    // reasons, but it would also be acceptable to manage this buffer
-    // dynamically (e.g. in the multi-threaded setting).
     node_id_t entry_node = initializeSearch(query, num_initializations);
     PriorityQueue neighbors = beamSearch(/* query = */ query,
                                          /* entry_node = */ entry_node,
@@ -178,14 +171,11 @@ public:
     // 3. Allocate memory using deserialized metadata
     index->_index_memory =
         new char[index->_node_size_bytes * index->_max_node_count];
-    index->_transformed_query = new char[index->_data_size_bytes];
 
     // 4. Deserialize content into allocated memory
     archive(
         cereal::binary_data(index->_index_memory,
                             index->_node_size_bytes * index->_max_node_count));
-    archive(cereal::binary_data(index->_transformed_query,
-                                index->_data_size_bytes));
 
     return index;
   }
@@ -236,7 +226,6 @@ private:
 
   // Large (several GB), pre-allocated block of memory.
   char *_index_memory;
-  char *_transformed_query;
 
   size_t _M;
   // size of one data point (does not support variable-size data, strings)
@@ -264,7 +253,6 @@ private:
     // Serialize the allocated memory for the index & query.
     archive(
         cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
-    archive(cereal::binary_data(_transformed_query, _data_size_bytes));
   }
 
   char *getNodeData(const node_id_t &n) const {

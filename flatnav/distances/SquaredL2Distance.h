@@ -62,24 +62,6 @@ private:
   }
 };
 
-// template <>
-// float SquaredL2Distance::distanceImpl<flatnav::DistanceMode::Symmetric>(
-//     const void *x, const void *y) const {
-//   // Default implementation of squared-L2 distance, in case we cannot
-//   // support the SIMD specializations for special input _dimension sizes.
-//   float *p_x = (float *)x;
-//   float *p_y = (float *)y;
-//   float squared_distance = 0;
-
-//   for (size_t i = 0; i < _dimension; i++) {
-//     float difference = *p_x - *p_y;
-//     p_x++;
-//     p_y++;
-//     squared_distance += difference * difference;
-//   }
-//   return squared_distance;
-// }
-
 template <>
 float SquaredL2Distance::distanceImpl<flatnav::DistanceMode::Symmetric>(
     const void *x, const void *y) const {
@@ -87,22 +69,15 @@ float SquaredL2Distance::distanceImpl<flatnav::DistanceMode::Symmetric>(
   // support the SIMD specializations for special input _dimension sizes.
   float *p_x = (float *)x;
   float *p_y = (float *)y;
-
-  float x_norm_squared = 0.0;
-  float y_norm_squared = 0.0;
-  float inner_prod = 0.0;
+  float squared_distance = 0;
 
   for (size_t i = 0; i < _dimension; i++) {
-    auto x_val = *p_x;
-    auto y_val = *p_y;
-    x_norm_squared += x_val * x_val;
-    y_norm_squared += y_val * y_val;
-    inner_prod += x_val * y_val;
+    float difference = *p_x - *p_y;
     p_x++;
     p_y++;
+    squared_distance += difference * difference;
   }
-
-  return x_norm_squared + y_norm_squared - (2 * inner_prod);
+  return squared_distance;
 }
 
 template <>
