@@ -104,7 +104,7 @@ public:
     // data points
     if (!_centroids_initialized) {
       _centroids.resize(_num_centroids * _dim);
-      initializeCentroids(/* data = */ vectors, /* n = */ n);
+      initializeCentroids(vectors, n, distance_func);
     }
 
     // Temporary array to store assigned centroids for each vector
@@ -123,7 +123,7 @@ public:
           float *vector = const_cast<float *>(vectors + (vec_index * _dim));
           float *centroid =
               const_cast<float *>(_centroids.data() + (c_index * _dim));
-          distance = distance_func(vector, centroid);
+          auto distance = distance_func(vector, centroid);
 
           if (distance < min_distance) {
             assignment[vec_index] = c_index;
@@ -241,7 +241,7 @@ private:
 
           float *centroid = const_cast<float *>(_centroids.data() + (c * _dim));
           float *vector = const_cast<float *>(data + (i * _dim));
-          distance = distance_func(centroid, vector);
+          auto distance = distance_func(centroid, vector);
 
           if (distance < min_distance) {
             min_distance = distance;

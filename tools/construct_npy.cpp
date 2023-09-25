@@ -30,7 +30,6 @@ void buildIndex(float *data,
                 int M, int dim, int ef_construction,
                 const std::string &save_file) {
 
-  auto distance = std::make_shared<dist_t>(dim);
   auto index = new Index<dist_t, int>(
       /* dist = */ std::move(distance), /* dataset_size = */ N,
       /* max_edges = */ M);

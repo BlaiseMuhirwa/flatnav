@@ -199,6 +199,8 @@ public:
    */
   void train(const float *vectors, uint64_t n) {
 
+    auto distance_func = getDistFuncFromVariant();
+
     CentroidsGenerator centroids_generator(
         /* dim = */ _subvector_dim,
         /* num_centroids = */ _subq_centroids_count);
@@ -206,7 +208,8 @@ public:
     if (_train_type == TrainType::SHARED) {
       centroids_generator.generateCentroids(
           /* vectors = */ vectors, /* vec_weights = */ NULL,
-          /* n = */ n * _num_subquantizers);
+          /* n = */ n * _num_subquantizers,
+          /* distance_func = */ distance_func);
 
       for (uint32_t m = 0; m < _num_subquantizers; m++) {
         setParameters(/* centroids_ = */ centroids_generator.centroids().data(),
@@ -258,12 +261,10 @@ public:
       default:;
       }
 
-      auto dist_func = getDistFuncFromVariant();
-
       // generate the actual centroids
       centroids_generator.generateCentroids(
           /* vectors = */ slice, /* vec_weights = */ NULL, /* n = */ n,
-          /* distance_func = */ dist_func);
+          /* distance_func = */ distance_func);
 
       setParameters(/* centroids_ = */ centroids_generator.centroids().data(),
                     /* m = */ m);
