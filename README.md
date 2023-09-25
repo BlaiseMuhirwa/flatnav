@@ -9,12 +9,40 @@ This repository implements a graph near neighbor index and provides various ways
 The tools are largely self-documenting and will provide help if run without any command line arguments. Note that the reordering tools can generally run without needing access to the dataset, queries or distance metrics (unless profile-guided reordering is used).
 
 1. `$ cd flatnav`
-2. `chmod u+x build.sh`
-2. `$ ./build.sh `
+2. `chmod +x ./bin/build.sh`
+2. `$ ./bin/build.sh `
 
-This will build `flatnav` as a static library and compile executables from the tools directory.
-You will need a C++14 capable compiler, a Git installation and cmake (version >= 3.0) for the
-compilation to run properly.
+This will build `flatnav` as a static library, but it will not build examples, unit tests and benchmarking
+script. To see how to build other executables (ex. examples), run the build executable with the help 
+option to see all valid options. 
+
+```shell
+> ./bin/build.sh -h 
+```
+It should print out a helpful message that looks like this
+```shell
+
+Usage ./build.sh [OPTIONS]
+
+Available Options:
+  -t, --tests:        Build tests
+  -e, --examples:     Build examples
+  -v, --verbose:      Make verbose
+  -b, --benchmark:    Build benchmarks
+  -h, --help:         Print this help message
+
+Example Usage:
+  ./build.sh -t -e -v
+```
+
+### System Requirements
+Currently, we only support MacOS (and partially Ubuntu Linux). Before building Flatnav, you will need the following 
+
+* C++17 capable compiler
+* Git installation and cmake (version >= 3.14)
+* If you are on MacOS, you will need to install Homebrew clang (necessary for OpenMP)
+
+We provide some helpful scripts for installing the above in the [bin](/bin/) directory. 
 
 ### Datasets from ANN-Benchmarks
 
@@ -22,15 +50,19 @@ ANN-Benchmarks provides HDF5 files for a standard benchmark of near-neighbor dat
 
 To generate these NPY files from the HDF5 files provided by ANN-benchmarks, you may use the Python script dump.py, as follows
 
-```python dump.py dataset.hdf5```
+```shell 
+> python dump.py dataset.hdf5
+```
 
-### Datasets from Big ANN Benchmarks
+Alternatively, you can use a helper script to download any ANN-benchmark script by running a command like 
+this:
 
-The Big ANN Benchmarks competitions from NeurIPS 2021 provides a new set of near-neighbor datasets. There is some overlap with ANN-Benchmarks (e.g. SIFT and DEEP), but the format is often different. For example, Big ANN Benchmarks uses 8-bit integers for SIFT features whlie ANN-Benchmarks uses 32-bit floats.
+```shell
+> ./bin/download_anns_datasets.sh glove-25-angular --normalize
+```
 
-To process these datasets, you will need to use the appropriate choice of construct_float32, reorder_float32 and query_float32 or construct_uint8, reorder_uint8 and query_uint8.
-
-Note: The original SIFT and DEEP benchmarks from CNRS/IRISA and FAIR use a slightly different format for each vector, where the dimension is stored alongside each vector instead of once at the beginning. These are not automatically compatible with the Big ANN-Benchmarks formats.
+For datasets that use the angular similarity measure, you will need the `--normalize` option so that the 
+correct distance is computed. 
 
 
 ### Using Custom Datasets

@@ -1,8 +1,11 @@
 #pragma once
 
 #include <algorithm>
+#include <cereal/access.hpp>
+#include <cereal/types/vector.hpp>
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <numeric>
@@ -10,8 +13,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <cereal/access.hpp>
-#include <cereal/types/vector.hpp>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -26,23 +27,27 @@ public:
    *
    * @param dim                       The dimension of the input vectors
    * @param num_centroids             The number of centroids to generate
-   * @param num_iterations            The number of clustering iterations
-   * @param max_points_per_centroid   The maximum number of points per centroid
+   * @param num_iterations            The number of clustering iterations. From
+   *                                  experimentation, clustering iterations >
+   * 60 does not improve the quality of the centroids regardless of the
+   * initialization strategy. As one would expect, `kmeans++` initialization
+   * requires less clustering initialization to converge to a good solution than
+   * `default` initialization.
    * @param normalized                Whether to normalize the centroids
    * @param verbose                   Whether to print verbose output
+   * @param seed                      The seed for the random number generator
    */
   CentroidsGenerator(uint32_t dim, uint32_t num_centroids,
-                     uint32_t num_iterations = 62,
-                     uint32_t max_points_per_centroid = 256,
-                     bool normalized = true, bool verbose = false, int seed = 3333)
+                     uint32_t num_iterations = 62, bool normalized = true,
+                     bool verbose = false, int seed = 3333)
       : _dim(dim), _num_centroids(num_centroids),
-        _clustering_iterations(num_iterations),
-        _max_points_per_centroid(max_points_per_centroid),
-        _normalized(normalized), _verbose(verbose),
-        _centroids_initialized(false), _seed(seed),
+        _clustering_iterations(num_iterations), _normalized(normalized),
+        _verbose(verbose), _centroids_initialized(false), _seed(seed),
         _initialization_type("default") {}
 
-  void initializeCentroids(const float *data, uint64_t n) {
+  void initializeCentroids(
+      const float *data, uint64_t n,
+      std::function<float(const float *, const float *)> &distance_func) {
     auto initialization_type = _initialization_type;
     std::transform(initialization_type.begin(), initialization_type.end(),
                    initialization_type.begin(),
@@ -51,7 +56,7 @@ public:
     if (initialization_type == "default") {
       randomInitialize(data, n);
     } else if (initialization_type == "kmeans++") {
-      kmeansPlusPlusInitialize(data, n);
+      kmeansPlusPlusInitialize(data, n, distance_func);
     } else if (initialization_type == "hypercube") {
       hypercubeInitialize(data, n);
     } else {
@@ -79,11 +84,15 @@ public:
    * - Repeat steps 2 & 3 until we reach _num_iterations
    *
    * @param vectors       the input datapoints
-   * @param vec_weights   weight associated with each datapoint: NULL or size n
+   * @param vec_weights   weight associated with each datapoint: NULL or size n.
+   This is adapted from FAISS, but it is not currently used.
    * @param n             The number of datapoints
+   * @param distance_func The distance function to use (e.g. l2 distance or
+   cosinde/inner product)
    */
-  void generateCentroids(const float *vectors, const float *vec_weights,
-                         uint64_t n) {
+  void generateCentroids(
+      const float *vectors, const float *vec_weights, uint64_t n,
+      std::function<float(const float *, const float *)> &distance_func) {
     if (n < _num_centroids) {
       throw std::runtime_error(
           "Invalid configuration. The number of centroids: " +
@@ -110,14 +119,12 @@ public:
         float min_distance = std::numeric_limits<float>::max();
 
         for (uint32_t c_index = 0; c_index < _num_centroids; c_index++) {
-          float distance = 0.0;
+          // Get distance using the distance function
+          float *vector = const_cast<float *>(vectors + (vec_index * _dim));
+          float *centroid =
+              const_cast<float *>(_centroids.data() + (c_index * _dim));
+          distance = distance_func(vector, centroid);
 
-          for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-            auto temp = vectors[vec_index * _dim + dim_index] -
-                        _centroids[c_index * _dim + dim_index];
-
-            distance += temp * temp;
-          }
           if (distance < min_distance) {
             assignment[vec_index] = c_index;
             min_distance = distance;
@@ -203,7 +210,9 @@ private:
    * @param data  The input data points
    * @param n     The number of data points
    */
-  void kmeansPlusPlusInitialize(const float *data, uint64_t n) {
+  void kmeansPlusPlusInitialize(
+      const float *data, uint64_t n,
+      std::function<float(const float *, const float *)> &distance_func) {
     if (_centroids_initialized) {
       return;
     }
@@ -229,12 +238,11 @@ private:
         double min_distance = std::numeric_limits<double>::max();
 
         for (uint64_t c = 0; c < cent_idx; c++) {
-          double distance = 0.0;
-          for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-            auto diff =
-                _centroids[c * _dim + dim_index] - data[i * _dim + dim_index];
-            distance += diff * diff;
-          }
+
+          float *centroid = const_cast<float *>(_centroids.data() + (c * _dim));
+          float *vector = const_cast<float *>(data + (i * _dim));
+          distance = distance_func(centroid, vector);
+
           if (distance < min_distance) {
             min_distance = distance;
           }
@@ -264,6 +272,8 @@ private:
   }
 
   /**
+ * Adapted from FAISS
+ *
  * @brief This function initializes a set of 2^(_num_bits) centroids spread
  around
  *  the mean of the input data in a hypercube configuration. For each
@@ -333,9 +343,6 @@ private:
   uint32_t _clustering_iterations;
   // normalize centroids if set to true
 
-  // limit the dataset size. If the number of datapoints
-  // exceeds k * _max_points_per_centroid, we use subsampling
-  uint32_t _max_points_per_centroid;
   bool _normalized;
   bool _verbose;
   bool _centroids_initialized;
@@ -345,13 +352,10 @@ private:
 
   std::string _initialization_type;
 
-
   friend class cereal::access;
-  template<typename Archive>
-  void serialize(Archive &ar) {
-    ar(_dim, _num_centroids, _centroids, _clustering_iterations,
-       _max_points_per_centroid, _normalized, _verbose,
-       _centroids_initialized, _seed, _initialization_type);
+  template <typename Archive> void serialize(Archive &ar) {
+    ar(_dim, _num_centroids, _centroids, _clustering_iterations, _normalized,
+       _verbose, _centroids_initialized, _seed, _initialization_type);
   }
 };
 

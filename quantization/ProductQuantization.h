@@ -258,9 +258,12 @@ public:
       default:;
       }
 
+      auto dist_func = getDistFuncFromVariant();
+
       // generate the actual centroids
       centroids_generator.generateCentroids(
-          /* vectors = */ slice, /* vec_weights = */ NULL, /* n = */ n);
+          /* vectors = */ slice, /* vec_weights = */ NULL, /* n = */ n,
+          /* distance_func = */ dist_func);
 
       setParameters(/* centroids_ = */ centroids_generator.centroids().data(),
                     /* m = */ m);
@@ -386,6 +389,12 @@ public:
   inline bool isTrained() const { return _is_trained; }
 
 private:
+  // NOTE: This is a hack to get around the fact that the PQ class needs to know
+  // which distance function to use. So, this function allows us to just extract
+  // the distance function pointer since that's the only thing we care about.
+  // There's gotta be a cleaner way to not have to do this, but this will do for
+  // now.
+
   std::function<float(const float *, const float *)>
   getDistFuncFromVariant() const {
     if (_distance.index() == 0) {
