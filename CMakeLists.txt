@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 project(FlatNav CXX)
 
+# print ${PROJECT_SOURCE_DIR} and ${PROJECT_BINARY_DIR}
+message(STATUS "PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
+message(STATUS "PROJECT_BINARY_DIR: ${PROJECT_BINARY_DIR}")
+message(STATUS "CMake CXX Compiler: ${CMAKE_CXX_COMPILER}")
+
 # Add the parent directory to the include path This allows us to write #include
 # <flatnav/...> instead of #include "../flatnav/..."
 include_directories(${CMAKE_SOURCE_DIR})
@@ -15,7 +20,10 @@ set(CMAKE_CXX_STANDARD 17)
 
 # I added compiler flags for ASan (address sanitizer). It is supposed to be very
 # fast, but if we find it slow, we can remove it for good or use compiler
-# directives to skip analyzing functions __attribute__((no_sanitize_address))
+# directives to skip analyzing functions __attribute__((no_sanitize_address)) #
+# -openmp \ -L/opt/homebrew/opt/libomp/lib \ -I/opt/homebrew/opt/libomp/include
+# \ -lomp \ -fopenmp \ -Xclang \
+
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} \
     -Xclang -std=c++17 \
@@ -31,14 +39,18 @@ set(CMAKE_CXX_FLAGS
     -ffast-math \
     -funroll-loops \
     -ftree-vectorize \
-    -g")
-# -fsanitize=address")
+    -g \
+    -fsanitize=address")
+
+# set(OpenMP_CXX_FLAGS "-fopenmp") set(OpenMP_CXX_LIB_NAMES "omp")
+# link_libraries(omp)
 
 include(ExternalProject)
 include(FeatureSummary)
 include(FetchContent)
 
 find_package(Git REQUIRED)
+# find_package(OpenMP REQUIRED)
 
 option(USE_GIT_PROTOCOL
        "If behind a firewall turn this off to use HTTPS instead." OFF)
@@ -68,6 +80,8 @@ function(functionInstallExternalCMakeProject ep_name)
   install(SCRIPT ${binary_dir}/cmake_install.cmake)
 endfunction()
 
+# TODO(blaise): Remove this old school way of including external libraries via
+# ExternalProject_Add. Use FetchContent instead, which is much cleaner
 ExternalProject_Add(
   ZLIB
   DEPENDS ""
@@ -146,6 +160,57 @@ endif(OpenMP_FOUND)
 # else() message(STATUS "OpenMP Found. Building the Package using the system
 # OpenMP.") endif(NOT OpenMP_FOUND)
 
+option(BUILD_TESTS "Build all tests")
+option(BUIL_EXAMPLES "Build examples")
+option(BUILD_BENCHMARKS "Build ANNS benchmarks")
+message(STATUS "Building tests: ${BUILD_TESTS}")
+message(STATUS "Building examples: ${BUILD_EXAMPLES}")
+message(STATUS "Building benchmarks: ${BUILD_BENCHMARKS}")
+
+if(BUILD_BENCHMARKS)
+  enable_testing()
+
+  message(STATUS "Running a suite of benchmarks using Google Benchmark")
+  set(GOOGLE_BENCHMARK_DIR "${PROJECT_BINARY_DIR}/include/google-benchmark")
+
+  if(NOT EXISTS ${GOOGLE_BENCHMARK_DIR})
+    message(STATUS "Downloading google-benchmark to ${GOOGLE_BENCHMARK_DIR}")
+
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      GIT_TAG main)
+    FetchContent_Declare(
+      googlebenchmark
+      GIT_REPOSITORY https://github.com/google/benchmark.git
+      GIT_TAG main) # need main for benchmark::benchmark
+
+    FetchContent_MakeAvailable(googletest googlebenchmark)
+
+  else()
+    add_subdirectory(${GOOGLE_BENCHMARK_DIR})
+  endif()
+
+  set(YAML_CPP_DIR "${PROJECT_SOURCE_DIR}/external/yaml-cpp")
+
+  # Disable building tests for YAML-CPP
+  set(YAML_CPP_BUILD_TESTS
+      OFF
+      CACHE BOOL "Enable testing" FORCE)
+  # Fetch the YAML submodule if it doesn't exist
+  if(NOT EXISTS ${YAML_CPP_DIR})
+    message(STATUS "Fetching yaml-cpp submodule")
+    FetchContent_Declare(
+      yamlcpp
+      GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+      GIT_TAG yaml-cpp-0.6.3)
+    FetchContent_MakeAvailable(yamlcpp)
+  else()
+    add_subdirectory(${YAML_CPP_DIR})
+  endif()
+
+endif()
+
 # TODO: Using globbing or some other command that does not require writing down
 # every header file
 set(HEADERS
@@ -161,23 +226,16 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/util/verifysimd.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h
-    ${PROJECT_SOURCE_DIR}/quantization/BaseProductQuantization.h
+    ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
     ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 
-add_library(FLAT_NAV_LIB SHARED
-            ${PROJECT_SOURCE_DIR}/tools/index_construction.cpp ${HEADERS})
-# target_include_directories(FLAT_NAV_LIB PRIVATE
-# ${PROJECT_SOURCE_DIR}/external/cereal/include)
+add_library(FLAT_NAV_LIB STATIC ${PROJECT_SOURCE_DIR}/tools/construct_npy.cpp
+                                ${HEADERS})
 add_dependencies(FLAT_NAV_LIB CNPY)
 
 target_link_libraries(FLAT_NAV_LIB PUBLIC ${CNPY_LIB} OpenMP::OpenMP_CXX)
 set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
-
-option(BUILD_TESTS "Builds all tests" OFF)
-option(BUIL_EXAMPLES "Builds examples" OFF)
-message(STATUS "Building tests: ${BUILD_TESTS}")
-message(STATUS "Building examples: ${BUILD_EXAMPLES}")
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples for Flatnav")
@@ -194,8 +252,7 @@ if(BUILD_EXAMPLES)
 endif()
 
 if(BUILD_TESTS)
-  message(
-    STATUS "Building flatnav + quantization unit tests using Google Benchmark")
+  message(STATUS "Building flatnav + quantization unit tests using gtest")
   set(GOOGLE_TEST_DIR "${PROJECT_BINARY_DIR}/_deps/googletest-src")
 
   if(NOT EXISTS ${GOOGLE_TEST_DIR})
@@ -231,10 +288,10 @@ if(BUILD_TESTS)
 
 endif()
 
-get_property(
-  dirs
-  TARGET FLAT_NAV_LIB
-  PROPERTY INCLUDE_DIRECTORIES)
-foreach(dir ${dirs})
-  message(STATUS "dir='${dir}'")
-endforeach()
+if(BUILD_BENCHMARKS)
+  target_link_libraries(FLAT_NAV_LIB benchmark::benchmark)
+  add_executable(run_benchmark ${PROJECT_SOURCE_DIR}/benchmarks/runner.cpp)
+  target_link_libraries(run_benchmark benchmark::benchmark yaml-cpp
+                        FLAT_NAV_LIB ${CNPY_LIB} ${ZLIB_LIB_RELEASE})
+  install(TARGETS run_benchmark DESTINATION BIN)
+endif()
