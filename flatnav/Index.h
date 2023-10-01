@@ -76,9 +76,6 @@ public:
           beamSearch(/* query = */ data, /* entry_node = */ entry_node,
                      /* buffer_size = */ ef_construction);
       selectNeighbors(/* neighbors = */ neighbors);
-      // selectNeighborsHNSW(/* neighbors = */ neighbors, /* query = */ (float*)
-      // data);
-
       connectNeighbors(neighbors, new_node_id);
     }
   }
