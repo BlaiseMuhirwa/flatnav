@@ -34,7 +34,7 @@ namespace flatnav {
 static void copyDistancesIntoBuffer(
     float *distances_buffer, const float *x, const float *y, uint32_t dim,
     uint64_t target_set_size,
-    std::function<float(const float *, const float *)> &dist_func) {
+    const std::function<float(const float *, const float *)> &dist_func) {
 
   for (uint64_t i = 0; i < target_set_size; i++) {
     distances_buffer[i] = dist_func(x, y);
@@ -58,7 +58,7 @@ static void copyDistancesIntoBuffer(
 static uint64_t distanceWithKNeighbors(
     float *distances_buffer, const float *x, const float *y, uint32_t dim,
     uint64_t target_set_size,
-    std::function<float(const float *, const float *)> &dist_func) {
+    const std::function<float(const float *, const float *)> &dist_func) {
 
   if (target_set_size == 0) {
     return 0;

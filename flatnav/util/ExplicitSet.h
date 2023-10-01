@@ -16,28 +16,28 @@ class ExplicitSet {
 private:
   uint32_t _mark;
   uint32_t *_table;
-  uint32_t _tableSize;
+  uint32_t _table_size;
 
   friend class cereal::access;
   template <typename Archive> void serialize(Archive &archive) {
-    archive(_mark, _tableSize);
+    archive(_mark, _table_size);
 
     if (Archive::is_loading::value) {
       // If we are loading, allocate memory for the table and delete
       // previously allocated memory if any.
       delete[] _table;
-      _table = new uint32_t[_tableSize];
+      _table = new uint32_t[_table_size];
     }
 
-    archive(cereal::binary_data(_table, _tableSize * sizeof(uint32_t)));
+    archive(cereal::binary_data(_table, _table_size * sizeof(uint32_t)));
   }
 
 public:
   ExplicitSet() = default;
 
-  ExplicitSet(const uint32_t size) : _mark(0), _table(NULL), _tableSize(size) {
+  ExplicitSet(const uint32_t size) : _mark(0), _table_size(size) {
     // initialize values to 0
-    _table = new uint32_t[_tableSize]();
+    _table = new uint32_t[_table_size]();
   }
 
   inline void prefetch(const uint32_t num) const {
@@ -50,7 +50,7 @@ public:
 
   inline void set(const uint32_t num) { _table[num] = _mark; }
 
-  inline uint32_t size() const { return _tableSize; }
+  inline uint32_t size() const { return _table_size; }
 
   inline void reset(const uint32_t num) { _table[num] = _mark + 1; }
 
@@ -62,20 +62,20 @@ public:
 
   // copy constructor
   ExplicitSet(const ExplicitSet &other) {
-    _tableSize = other._tableSize;
+    _table_size = other._table_size;
     _mark = other._mark;
     delete[] _table;
-    _table = new uint32_t[_tableSize];
-    std::memcpy(other._table, _table, _tableSize * sizeof(uint32_t));
+    _table = new uint32_t[_table_size];
+    std::memcpy(other._table, _table, _table_size * sizeof(uint32_t));
   }
 
   // move constructor
   ExplicitSet(ExplicitSet &&other) noexcept {
-    _tableSize = other._tableSize;
+    _table_size = other._table_size;
     _mark = other._mark;
     _table = other._table;
     other._table = NULL;
-    other._tableSize = 0;
+    other._table_size = 0;
     other._mark = 0;
   }
 
@@ -86,11 +86,11 @@ public:
 
   // move assignment
   ExplicitSet &operator=(ExplicitSet &&other) noexcept {
-    _tableSize = other._tableSize;
+    _table_size = other._table_size;
     _mark = other._mark;
     _table = other._table;
     other._table = NULL;
-    other._tableSize = 0;
+    other._table_size = 0;
     other._mark = 0;
     return *this;
   }

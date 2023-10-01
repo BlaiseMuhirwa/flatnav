@@ -102,7 +102,7 @@ public:
   ProductQuantizer(uint32_t dim, uint32_t M, uint32_t nbits,
                    METRIC_TYPE metric_type)
       : _num_subquantizers(M), _num_bits(nbits), _is_trained(false),
-        _metric_type(metric_type), _train_type(TrainType::HYPERCUBE) {
+        _metric_type(metric_type), _train_type(TrainType::DEFAULT) {
 
     if (dim % _num_subquantizers) {
       throw std::invalid_argument("The dataset dimension must be a multiple of "
@@ -121,6 +121,8 @@ public:
 
     _subq_centroids_count = 1 << _num_bits;
     _centroids.resize(_subq_centroids_count * dim);
+
+    _dist_func = getDistFuncFromVariant();
   }
 
   // Return a pointer to the centroids associated with a given subvector
@@ -131,8 +133,7 @@ public:
 
   void setParameters(const float *centroids_, int m) {
     float *centroids = const_cast<float *>(getCentroids(m, 0));
-    auto bytes_to_copy =
-        _subq_centroids_count * _subvector_dim * sizeof(_centroids[0]);
+    auto bytes_to_copy = _subq_centroids_count * _subvector_dim * sizeof(float);
 
     std::memcpy(centroids, centroids_, bytes_to_copy);
   }
@@ -149,15 +150,13 @@ public:
     PQCodeManager<uint8_t> code_manager(/* code = */ code,
                                         /* nbits = */ 8);
 
-    auto dist_func = getDistFuncFromVariant();
-
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
       const float *subvector = vector + (m * _subvector_dim);
       uint64_t minimizer_index = flatnav::distanceWithKNeighbors(
           /* distances_tmp_buffer = */ distances.data(), /* x = */ subvector,
           /* y = */ getCentroids(m, 0), /* dim = */ _subvector_dim,
           /* target_set_size = */ _subq_centroids_count,
-          /* dist_func = */ dist_func);
+          /* dist_func = */ _dist_func);
 
       code_manager.encode(minimizer_index);
     }
@@ -199,8 +198,6 @@ public:
    */
   void train(const float *vectors, uint64_t n) {
 
-    auto distance_func = getDistFuncFromVariant();
-
     CentroidsGenerator centroids_generator(
         /* dim = */ _subvector_dim,
         /* num_centroids = */ _subq_centroids_count);
@@ -209,10 +206,10 @@ public:
       centroids_generator.generateCentroids(
           /* vectors = */ vectors, /* vec_weights = */ NULL,
           /* n = */ n * _num_subquantizers,
-          /* distance_func = */ distance_func);
+          /* distance_func = */ _dist_func);
 
       for (uint32_t m = 0; m < _num_subquantizers; m++) {
-        setParameters(/* centroids_ = */ centroids_generator.centroids().data(),
+        setParameters(/* centroids_ = */ centroids_generator.centroids(),
                       /* m = */ m);
       }
       return;
@@ -242,19 +239,13 @@ public:
                     _subvector_dim * sizeof(float));
       }
 
-      // Do this when we have initialization for the centroids
-      if (final_train_type != TrainType::DEFAULT) {
-        centroids_generator.centroids().resize(_subq_centroids_count *
-                                               _subvector_dim);
-      }
-
       switch (final_train_type) {
       case TrainType::HYPERCUBE:
         centroids_generator.setInitializationType("hypercube");
         break;
 
       case TrainType::HOT_START:
-        std::memcpy(centroids_generator.centroids().data(), getCentroids(m, 0),
+        std::memcpy((void *)centroids_generator.centroids(), getCentroids(m, 0),
                     _subvector_dim * _subq_centroids_count * sizeof(float));
         break;
 
@@ -264,9 +255,9 @@ public:
       // generate the actual centroids
       centroids_generator.generateCentroids(
           /* vectors = */ slice, /* vec_weights = */ NULL, /* n = */ n,
-          /* distance_func = */ distance_func);
+          /* distance_func = */ _dist_func);
 
-      setParameters(/* centroids_ = */ centroids_generator.centroids().data(),
+      setParameters(/* centroids_ = */ centroids_generator.centroids(),
                     /* m = */ m);
     }
 
@@ -315,9 +306,10 @@ public:
    * @param dist_table output table, size (_num_subquantizers x
    * _subq_centroids_count)
    */
-  void computeDistanceTable(
-      const float *vector, float *dist_table,
-      std::function<float(const float *, const float *)> &dist_func) const {
+  void
+  computeDistanceTable(const float *vector, float *dist_table,
+                       const std::function<float(const float *, const float *)>
+                           &dist_func) const {
 
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
       flatnav::copyDistancesIntoBuffer(
@@ -332,7 +324,6 @@ public:
   void computeDistanceTables(const float *vectors, float *dist_tables,
                              uint64_t n) const {
 
-    auto dist_func = getDistFuncFromVariant();
     // TODO: Use SIMD
     auto dim = _subvector_dim * _num_subquantizers;
 #pragma omp parallel for if (n > 1)
@@ -340,7 +331,7 @@ public:
       computeDistanceTable(vectors + (i * dim),
                            dist_tables +
                                (i * _subq_centroids_count * _num_subquantizers),
-                           dist_func);
+                           _dist_func);
     }
   }
 
@@ -361,8 +352,67 @@ public:
     delete[] code;
   }
 
-  template <DistanceMode mode>
-  float distanceImpl(const void *x, const void *y) const; // forward declaration
+  /**
+   * @brief Computes the distance between a query vector and a database vector.
+   * NOTE: The first vector is expected to the query vector and the second one
+   * a database vector.
+   *
+   * @param x         query vector
+   * @param y         database vector
+   * @return
+   */
+  float asymmetricDistanceImpl(const void *x, const void *y) const {
+    assert(_is_trained);
+
+    float *x_ptr = (float *)(x);
+    uint8_t *y_ptr = (uint8_t *)(y);
+
+    float *dist_table = new float[_subq_centroids_count * _num_subquantizers];
+
+    computeDistanceTable(/* vector = */ x_ptr,
+                         /* dist_table = */ dist_table,
+                         /* dist_func = */ _dist_func);
+
+    float distance = 0.0;
+    for (uint32_t m = 0; m < _num_subquantizers; m++) {
+      distance += dist_table[(m * _subq_centroids_count) + y_ptr[m]];
+    }
+    delete[] dist_table;
+    return distance;
+  }
+
+  /**
+   * @brief Computes the distance between two database vectors by utilizing
+   * the pre-computed distance tables.
+   *
+   * @param x
+   * @param y
+   * @return
+   */
+  float symmetricDistanceImpl(const void *x, const void *y) const {
+    assert(_is_trained);
+
+    uint8_t *code1 = (uint8_t *)(x);
+    uint8_t *code2 = (uint8_t *)(y);
+
+    float distance = 0.0;
+
+    // Get a pointer to the distance table for the first subquantizer
+    const float *dist_table = _symmetric_distance_tables.data();
+
+    for (uint32_t m = 0; m < _num_subquantizers; m++) {
+      distance += dist_table[(code1[m] * _subq_centroids_count) + code2[m]];
+      dist_table += _subq_centroids_count * _subq_centroids_count;
+    }
+    return distance;
+  }
+
+  float distanceImpl(const void *x, const void *y, bool asymmetric) const {
+    if (asymmetric) {
+      return asymmetricDistanceImpl(x, y);
+    }
+    return symmetricDistanceImpl(x, y);
+  }
 
   void printParamsImpl() const {
     std::cout << "\nProduct Quantizer Parameters" << std::endl;
@@ -401,15 +451,13 @@ private:
     if (_distance.index() == 0) {
       return [local_distance = _distance](const float *a,
                                           const float *b) -> float {
-        return std::get<SquaredL2Distance>(local_distance)
-            .distanceImpl<flatnav::DistanceMode::Symmetric>(a, b);
+        return std::get<SquaredL2Distance>(local_distance).distanceImpl(a, b);
       };
     }
-    return
-        [local_distance = _distance](const float *a, const float *b) -> float {
-          return std::get<InnerProductDistance>(local_distance)
-              .distanceImpl<flatnav::DistanceMode::Symmetric>(a, b);
-        };
+    return [local_distance = _distance](const float *a,
+                                        const float *b) -> float {
+      return std::get<InnerProductDistance>(local_distance).distanceImpl(a, b);
+    };
   }
 
   /**
@@ -431,8 +479,6 @@ private:
     _symmetric_distance_tables.resize(
         _num_subquantizers * _subq_centroids_count * _subq_centroids_count);
 
-    auto dist_func = getDistFuncFromVariant();
-
 #pragma omp parallel for
     for (uint64_t mk = 0; mk < _num_subquantizers * _subq_centroids_count;
          mk++) {
@@ -440,26 +486,18 @@ private:
       auto k = mk % _subq_centroids_count;
       const float *centroids =
           _centroids.data() + (m * _subq_centroids_count * _subvector_dim);
-      const float *centroid_i = centroids + (k * _subvector_dim);
+      const float *centroid_k = centroids + (k * _subvector_dim);
       float *dist_table = _symmetric_distance_tables.data() +
                           (m * _subq_centroids_count * _subq_centroids_count);
 
       flatnav::copyDistancesIntoBuffer(
           /* distances_buffer = */ dist_table + (k * _subq_centroids_count),
-          /* x = */ centroid_i, /* y = */ centroids,
+          /* x = */ centroid_k, /* y = */ centroids,
           /* dim = */ _subvector_dim,
           /* target_set_size = */ _subq_centroids_count,
-          /* dist_func = */ dist_func);
+          /* dist_func = */ _dist_func);
     }
   }
-
-  /**
-   * @brief Similar to `initHypercube` except that it pre-processes the input
-   * data by computing Principal Component Analysis (PCA)
-   *
-   */
-  void initHypercubePCA(uint32_t dim, uint32_t num_bits, uint64_t n,
-                        const float *data, const float *centroids);
 
   // Bytes per indexed vector
   uint32_t _code_size;
@@ -514,6 +552,8 @@ private:
 
   std::variant<SquaredL2Distance, InnerProductDistance> _distance;
 
+  std::function<float(const float *, const float *)> _dist_func;
+
   friend class ::cereal::access;
 
   template <typename Archive> void serialize(Archive &archive) {
@@ -531,52 +571,9 @@ private:
       } else {
         throw std::invalid_argument("Invalid metric type");
       }
+      _dist_func = getDistFuncFromVariant();
     }
   }
 };
-
-template <>
-float ProductQuantizer::distanceImpl<flatnav::DistanceMode::Asymmetric>(
-    const void *x, const void *y) const {
-  assert(_is_trained);
-
-  float *x_ptr = (float *)(x);
-  uint8_t *y_ptr = (uint8_t *)(y);
-
-  std::unique_ptr<float[]> dist_table(
-      new float[_subq_centroids_count * _num_subquantizers]);
-
-  auto dist_func = getDistFuncFromVariant();
-
-  computeDistanceTable(/* vector = */ x_ptr,
-                       /* dist_table = */ dist_table.get(),
-                       /* dist_func = */ dist_func);
-
-  float distance = 0.0;
-  for (uint32_t m = 0; m < _num_subquantizers; m++) {
-    distance += dist_table[(m * _subq_centroids_count) + y_ptr[m]];
-  }
-  return distance;
-}
-
-template <>
-float ProductQuantizer::distanceImpl<flatnav::DistanceMode::Symmetric>(
-    const void *x, const void *y) const {
-  assert(_is_trained);
-
-  uint8_t *code1 = (uint8_t *)(x);
-  uint8_t *code2 = (uint8_t *)(y);
-
-  float distance = 0.0;
-
-  // Get a pointer to the distance table for the first subquantizer
-  const float *dist_table = _symmetric_distance_tables.data();
-
-  for (uint32_t m = 0; m < _num_subquantizers; m++) {
-    distance += dist_table[(code1[m] * _subq_centroids_count) + code2[m]];
-    dist_table += _subq_centroids_count * _subq_centroids_count;
-  }
-  return distance;
-}
 
 } // namespace flatnav::quantization

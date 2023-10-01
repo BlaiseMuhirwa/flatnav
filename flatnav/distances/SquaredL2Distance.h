@@ -27,16 +27,29 @@ public:
     _data_size_bytes = dim * sizeof(float);
   }
 
-  template <DistanceMode mode>
-  float distanceImpl(const void *x, const void *y) const; // forward declaration
+  float distanceImpl(const void *x, const void *y,
+                     bool asymmetric = false) const {
+    (void)asymmetric;
+    // Default implementation of squared-L2 distance, in case we cannot
+    // support the SIMD specializations for special input _dimension sizes.
+    float *p_x = (float *)x;
+    float *p_y = (float *)y;
+    float squared_distance = 0;
+
+    for (size_t i = 0; i < _dimension; i++) {
+      float difference = *p_x - *p_y;
+      p_x++;
+      p_y++;
+      squared_distance += difference * difference;
+    }
+    return squared_distance;
+  }
 
 private:
   size_t _dimension;
   size_t _data_size_bytes;
 
   friend class ::cereal::access;
-  // friend void ::cereal::serialize<>(typename Archive &archive,
-  //                                   flatnav::SquaredL2Distance &dist);
 
   template <typename Archive> void serialize(Archive &ar) {
     ar(_dimension);
@@ -61,29 +74,5 @@ private:
     std::cout << "Dimension: " << _dimension << std::endl;
   }
 };
-
-template <>
-float SquaredL2Distance::distanceImpl<flatnav::DistanceMode::Symmetric>(
-    const void *x, const void *y) const {
-  // Default implementation of squared-L2 distance, in case we cannot
-  // support the SIMD specializations for special input _dimension sizes.
-  float *p_x = (float *)x;
-  float *p_y = (float *)y;
-  float squared_distance = 0;
-
-  for (size_t i = 0; i < _dimension; i++) {
-    float difference = *p_x - *p_y;
-    p_x++;
-    p_y++;
-    squared_distance += difference * difference;
-  }
-  return squared_distance;
-}
-
-template <>
-float SquaredL2Distance::distanceImpl<flatnav::DistanceMode::Asymmetric>(
-    const void *x, const void *y) const {
-  return distanceImpl<DistanceMode::Symmetric>(x, y);
-}
 
 } // namespace flatnav

@@ -19,7 +19,6 @@
 #include <utility>
 #include <vector>
 
-using flatnav::DistanceMode;
 using flatnav::quantization::ProductQuantizer;
 
 namespace flatnav {
@@ -59,7 +58,7 @@ public:
 
   ~Index() { delete[] _index_memory; }
 
-  bool add(void *data, label_t &label, int ef_construction,
+  void add(void *data, label_t &label, int ef_construction,
            int num_initializations = 100) {
     // initialization must happen before alloc due to a bug where
     // initializeSearch chooses new_node_id as the initialization
@@ -67,19 +66,21 @@ public:
     // skipped because the "optimal" node seems to have been found.
     node_id_t new_node_id;
     node_id_t entry_node = initializeSearch(data, num_initializations);
+
     // make space for the new node
-    if (!allocateNode(data, label, new_node_id)) {
-      return false;
-    }
+    allocateNode(data, label, new_node_id);
+
     // search graph for neighbors of new node, connect to them
     if (new_node_id > 0) {
-      PriorityQueue neighbors = beamSearch(data, entry_node, ef_construction);
-      selectNeighbors(neighbors, _M);
+      PriorityQueue neighbors =
+          beamSearch(/* query = */ data, /* entry_node = */ entry_node,
+                     /* buffer_size = */ ef_construction);
+      selectNeighbors(/* neighbors = */ neighbors);
+      // selectNeighborsHNSW(/* neighbors = */ neighbors, /* query = */ (float*)
+      // data);
+
       connectNeighbors(neighbors, new_node_id);
-    } else {
-      return false;
     }
-    return true;
   }
 
   /***
@@ -215,12 +216,15 @@ public:
   }
 
 private:
-  // internal node numbering scheme
-  typedef unsigned int node_id_t;
+  // internal node numbering scheme. We might need to change this to uint64_t
+  typedef uint32_t node_id_t;
   typedef std::pair<float, node_id_t> dist_node_t;
 
   typedef ExplicitSet VisitedSet;
 
+  // NOTE: by default this is a max-heap. We could make this a min-heap
+  // by using std::greater, but we want to use the queue as both a max-heap and
+  // min-heap depending on the context.
   typedef std::priority_queue<dist_node_t, std::vector<dist_node_t>>
       PriorityQueue;
 
@@ -272,9 +276,11 @@ private:
   }
 
   // TODO: Add optional argument here for quantized data vector.
-  bool allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
+  void allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
     if (_cur_num_nodes >= _max_node_count) {
-      return false;
+      throw std::runtime_error("Maximum number of nodes reached. Consider "
+                               "increasing the `max_node_count` parameter to "
+                               "create a larger index.");
     }
     new_node_id = _cur_num_nodes;
 
@@ -288,7 +294,6 @@ private:
     }
 
     _cur_num_nodes++;
-    return true;
   }
 
   inline void swapNodes(node_id_t a, node_id_t b, void *temp_data,
@@ -317,9 +322,10 @@ private:
    * @TODO: Add `entry_node_dist` argument to this function since we expect to
    * have computed that a priori.
    *
-   * @param query
-   * @param entry_node
-   * @param buffer_size
+   * @param query               The query vector.
+   * @param entry_node          The node to start the search from.
+   * @param buffer_size         This is equivalent to `ef_search` in the HNSW
+   *
    * @return PriorityQueue
    */
   PriorityQueue beamSearch(const void *query, const node_id_t entry_node,
@@ -331,8 +337,9 @@ private:
     PriorityQueue candidates; // C in the HNSW paper
 
     _visited_nodes.clear();
-    float dist = _distance->template distance<DistanceMode::Asymmetric>(
-        query, getNodeData(entry_node));
+    float dist =
+        _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node),
+                            /* asymmetric = */ true);
 
     float max_dist = dist;
 
@@ -353,8 +360,9 @@ private:
           // If we haven't visited the node yet.
           _visited_nodes.insert(d_node_links[i]);
 
-          dist = _distance->template distance<DistanceMode::Asymmetric>(
-              query, getNodeData(d_node_links[i]));
+          dist = _distance->distance(/* x = */ query,
+                                     /* y = */ getNodeData(d_node_links[i]),
+                                     /* asymmetric = */ true);
 
           // Include the node in the buffer if buffer isn't full or
           // if the node is closer than a node already in the buffer.
@@ -374,35 +382,37 @@ private:
     return neighbors;
   }
 
-  void selectNeighbors(PriorityQueue &neighbors, const int M) {
+  void selectNeighbors(PriorityQueue &neighbors) {
     // selects neighbors from the PriorityQueue, according to the HNSW
     // heuristic
-    if (neighbors.size() < M) {
+    if (neighbors.size() < _M) {
       return;
     }
 
     PriorityQueue candidates;
     std::vector<dist_node_t> saved_candidates;
-    saved_candidates.reserve(M);
+    saved_candidates.reserve(_M);
 
     while (neighbors.size() > 0) {
       candidates.emplace(-neighbors.top().first, neighbors.top().second);
       neighbors.pop();
     }
 
+    float cur_dist = 0.0;
     while (candidates.size() > 0) {
-      if (saved_candidates.size() >= M) {
+      if (saved_candidates.size() >= _M) {
         break;
       }
+      // Extract the closest element from candidates.
       dist_node_t current_pair = candidates.top();
       candidates.pop();
 
       bool should_keep_candidate = true;
       for (const dist_node_t &second_pair : saved_candidates) {
-        float cur_dist = std::numeric_limits<float>::max();
 
-        cur_dist = _distance->template distance<DistanceMode::Symmetric>(
-            getNodeData(second_pair.second), getNodeData(current_pair.second));
+        cur_dist =
+            _distance->distance(/* x = */ getNodeData(second_pair.second),
+                                /* y = */ getNodeData(current_pair.second));
 
         if (cur_dist < (-current_pair.first)) {
           should_keep_candidate = false;
@@ -451,8 +461,9 @@ private:
         // construct a candidate set including the old links AND our new
         // one, then prune this candidate set to get the new neighbors.
 
-        float max_dist = _distance->template distance<DistanceMode::Symmetric>(
-            getNodeData(neighbor_node_id), getNodeData(new_node_id));
+        float max_dist =
+            _distance->distance(/* x = */ getNodeData(neighbor_node_id),
+                                /* y = */ getNodeData(new_node_id));
 
         PriorityQueue candidates;
         candidates.emplace(max_dist, new_node_id);
@@ -460,12 +471,12 @@ private:
           if (neighbor_node_links[j] != neighbor_node_id) {
             auto label = neighbor_node_links[j];
             auto distance =
-                _distance->template distance<DistanceMode::Symmetric>(
-                    getNodeData(neighbor_node_id), getNodeData(label));
+                _distance->distance(/* x = */ getNodeData(neighbor_node_id),
+                                    /* y = */ getNodeData(label));
             candidates.emplace(distance, label);
           }
         }
-        selectNeighbors(candidates, _M);
+        selectNeighbors(candidates);
         // connect the pruned set of candidates, including self-loops:
         int j = 0;
         while (candidates.size() > 0) { // candidates
@@ -523,8 +534,9 @@ private:
      */
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
 
-      float dist = _distance->template distance<DistanceMode::Asymmetric>(
-          query, getNodeData(node));
+      float dist =
+          _distance->distance(/* x = */ query, /* y = */ getNodeData(node),
+                              /* asymmetric = */ true);
 
       if (dist < min_dist) {
         min_dist = dist;
