@@ -65,7 +65,6 @@ public:
         _mean_vector[dim_index] += vectors[vec_index * _dimension + dim_index];
       }
     }
-    std::cout << "[info] LPQ: computing the mean vector" << std::endl;
     for (uint32_t dim_index = 0; dim_index < _dimension; dim_index++) {
       _mean_vector[dim_index] /= num_vectors;
     }
