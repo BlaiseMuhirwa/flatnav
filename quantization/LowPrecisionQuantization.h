@@ -58,8 +58,6 @@ public:
     }
     _mean_vector.resize(_dimension);
 
-    omp_set_num_threads(1);
-
 #pragma omp parallel for default(none) shared(vectors, num_vectors)
     for (uint64_t vec_index = 0; vec_index < num_vectors; vec_index++) {
       for (uint32_t dim_index = 0; dim_index < _dimension; dim_index++) {
