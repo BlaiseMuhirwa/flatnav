@@ -1,11 +1,17 @@
 #pragma once
 
 #include <cereal/access.hpp>
+#include <cmath>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <memory>
 #include <utility>
 #include <variant>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 using flatnav::DistanceInterface;
 using flatnav::InnerProductDistance;
@@ -52,6 +58,8 @@ public:
     }
     _mean_vector.resize(_dimension);
 
+    omp_set_num_threads(1);
+
 #pragma omp parallel for default(none) shared(vectors, num_vectors)
     for (uint64_t vec_index = 0; vec_index < num_vectors; vec_index++) {
       for (uint32_t dim_index = 0; dim_index < _dimension; dim_index++) {
@@ -59,7 +67,7 @@ public:
         _mean_vector[dim_index] += vectors[vec_index * _dimension + dim_index];
       }
     }
-
+    std::cout << "[info] LPQ: computing the mean vector" << std::endl;
     for (uint32_t dim_index = 0; dim_index < _dimension; dim_index++) {
       _mean_vector[dim_index] /= num_vectors;
     }
@@ -128,7 +136,7 @@ private:
    * @param quantized_vector
    */
   template <typename T>
-  void quantizeVector(const float *vector, T *quantized_vector) {
+  void quantizeVector(const float *vector, T *quantized_vector) const {
     assert(_is_trained);
     assert(sizeof(T) == _num_bits / 8);
 
@@ -140,31 +148,44 @@ private:
       auto first_term = (vector[dim_index] - min) / delta;
       first_term += 0.5;
       quantized_vector[dim_index] =
-          static_cast<T>(delta * std::round(first_term) + min);
+          static_cast<T>(delta * std::floor(first_term) + min);
     }
   }
 
   template <typename data_t>
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {
-    (void)asymmetric;
     bool metric_euclidean = _metric_type == METRIC_TYPE::EUCLIDEAN;
 
     if (_num_bits == 16) {
-      int16_t *x_ptr = (int16_t *)x;
-      int16_t *y_ptr = (int16_t *)y;
+      void *x_ptr = (void *)x;
 
-      return metric_euclidean
-                 ? std::get<0>(_distance).distanceImpl<int16_t>(x_ptr, y_ptr)
-                 : std::get<1>(_distance).distanceImpl<int16_t>(x_ptr, y_ptr);
+      if (asymmetric) {
+        std::unique_ptr<int16_t[]> quantized_x =
+            std::make_unique<int16_t[]>(_dimension);
+        quantizeVector<int16_t>((float *)x, quantized_x.get());
+        x_ptr = (void *)quantized_x.get();
+      }
+      float distance =
+          metric_euclidean
+              ? std::get<0>(_distance).distanceImpl<int16_t>(x_ptr, y)
+              : std::get<1>(_distance).distanceImpl<int16_t>(x_ptr, y);
+      return distance;
 
     } else if (_num_bits == 8) {
-      int8_t *x_ptr = (int8_t *)x;
-      int8_t *y_ptr = (int8_t *)y;
+      void *x_ptr = (void *)x;
+      if (asymmetric) {
+        std::unique_ptr<int8_t[]> quantized_x =
+            std::make_unique<int8_t[]>(_dimension);
+        quantizeVector<int8_t>((float *)x, quantized_x.get());
+        x_ptr = (void *)quantized_x.get();
+      }
 
-      return metric_euclidean
-                 ? std::get<0>(_distance).distanceImpl<int8_t>(x_ptr, y_ptr)
-                 : std::get<1>(_distance).distanceImpl<int8_t>(x_ptr, y_ptr);
+      float distance =
+          metric_euclidean
+              ? std::get<0>(_distance).distanceImpl<int8_t>(x_ptr, y)
+              : std::get<1>(_distance).distanceImpl<int8_t>(x_ptr, y);
+      return distance;
     }
 
     throw std::runtime_error("LowPrecisionQuantizer: unsupported bit width");
