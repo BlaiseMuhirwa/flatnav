@@ -5,6 +5,7 @@
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <fstream>
 #include <iostream>
+#include <quantization/LowPrecisionQuantization.h>
 #include <quantization/ProductQuantization.h>
 #include <random>
 #include <utility>
@@ -18,6 +19,7 @@
 using flatnav::Index;
 using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
+using flatnav::quantization::LowPrecisionQuantizer;
 using flatnav::quantization::ProductQuantizer;
 
 template <typename dist_t>
@@ -89,7 +91,8 @@ int main(int argc, char **argv) {
     std::clog << "\t <k>: number of neighbors " << std::endl;
     std::clog << "\t <Reorder ID>: 0 for no reordering, 1 for reordering"
               << std::endl;
-    std::clog << "\t <Quantized>: 0 for no quantization, 1 for quantization"
+    std::clog << "\t <Quantized>: 0 for no quantization, 1 for product "
+                 "quantization, 2 for low precision quantization"
               << std::endl;
     return -1;
   }
@@ -107,7 +110,7 @@ int main(int argc, char **argv) {
   }
   int k = std::stoi(argv[6]);
   int reorder_ID = std::stoi(argv[7]);
-  bool quantized = std::stoi(argv[8]) ? true : false;
+  int quantized = std::stoi(argv[8]);
 
   bool reorder = reorder_ID ? true : false;
 
@@ -134,13 +137,27 @@ int main(int argc, char **argv) {
   int *gtruth = truthfile.data<int>();
 
   if (quantized) {
-    run<ProductQuantizer>(/* queries = */ queries, /* gtruth = */
-                          gtruth,
-                          /* index_filename = */ indexfilename,
-                          /* ef_searches = */ ef_searches, /* K = */ k,
-                          /* num_queries = */ num_queries,
-                          /* num_gtruth = */ n_gt, /* dim = */ dim,
-                          /* reorder = */ reorder);
+
+    if (quantized == 1) {
+      run<ProductQuantizer>(/* queries = */ queries, /* gtruth = */
+                            gtruth,
+                            /* index_filename = */ indexfilename,
+                            /* ef_searches = */ ef_searches, /* K = */ k,
+                            /* num_queries = */ num_queries,
+                            /* num_gtruth = */ n_gt, /* dim = */ dim,
+                            /* reorder = */ reorder);
+    } else if (quantized == 2) {
+      run<LowPrecisionQuantizer>(/* queries = */ queries, /* gtruth = */
+                                 gtruth,
+                                 /* index_filename = */ indexfilename,
+                                 /* ef_searches = */ ef_searches, /* K = */ k,
+                                 /* num_queries = */ num_queries,
+                                 /* num_gtruth = */ n_gt, /* dim = */ dim,
+                                 /* reorder = */ reorder);
+    } else {
+      throw std::invalid_argument(
+          "Invalid quantization ID. Valid IDs are 0, 1 and 2.");
+    }
   } else if (space_ID == 0) {
     run<SquaredL2Distance>(/* queries = */ queries, /* gtruth = */ gtruth,
                            /* index_filename = */ indexfilename,

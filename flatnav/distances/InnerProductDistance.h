@@ -22,18 +22,18 @@ class InnerProductDistance : public DistanceInterface<InnerProductDistance> {
 public:
   InnerProductDistance() = default;
 
-  explicit InnerProductDistance(size_t dim) {
-    _dimension = dim;
-    _data_size_bytes = dim * sizeof(float);
-  }
+  explicit InnerProductDistance(size_t dim)
+      : _dimension(dim), _data_size_bytes(dim * sizeof(float)) {}
 
+  template <typename data_t>
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {
     (void)asymmetric;
     // Default implementation of inner product distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
-    float *p_x = (float *)x;
-    float *p_y = (float *)y;
+    data_t *p_x = (data_t *)x;
+    data_t *p_y = (data_t *)y;
+
     float result = 0;
     for (size_t i = 0; i < _dimension; i++) {
       result += p_x[i] * p_y[i];

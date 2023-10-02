@@ -22,8 +22,10 @@ public:
   // and a query vector. For regular distances (l2, inner product), there is
   // no difference between the two. However, for quantization techniques, such
   // as product quantization, the two distance modes are different.
+
   float distance(const void *x, const void *y, bool asymmetric = false) {
-    return static_cast<T *>(this)->distanceImpl(x, y, asymmetric);
+    return static_cast<T *>(this)->template distanceImpl<float>(x, y,
+                                                                asymmetric);
   }
 
   // Returns the dimension of the input data.

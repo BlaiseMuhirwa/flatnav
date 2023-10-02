@@ -22,22 +22,21 @@ class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
 
 public:
   SquaredL2Distance() = default;
-  explicit SquaredL2Distance(size_t dim) {
-    _dimension = dim;
-    _data_size_bytes = dim * sizeof(float);
-  }
+  explicit SquaredL2Distance(size_t dim)
+      : _dimension(dim), _data_size_bytes(dim * sizeof(float)) {}
 
+  template <typename data_t>
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {
     (void)asymmetric;
     // Default implementation of squared-L2 distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
-    float *p_x = (float *)x;
-    float *p_y = (float *)y;
+    data_t *p_x = (data_t *)x;
+    data_t *p_y = (data_t *)y;
     float squared_distance = 0;
 
     for (size_t i = 0; i < _dimension; i++) {
-      float difference = *p_x - *p_y;
+      auto difference = *p_x - *p_y;
       p_x++;
       p_y++;
       squared_distance += difference * difference;

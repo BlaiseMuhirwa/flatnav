@@ -89,6 +89,17 @@ public:
   // Constructor for serializaiton
   ProductQuantizer() = default;
 
+  // Deleted copy constructor and copy assignment operator
+  ProductQuantizer(const ProductQuantizer &) = delete;
+  ProductQuantizer &operator=(const ProductQuantizer &) = delete;
+
+  // Since we've deleted the copy constructor, we need to define a move
+  // constructor. The compiler doesn't auto-generate it if you define(delete) a
+  // copy constructor
+
+  ProductQuantizer(ProductQuantizer &&other) = default;
+  ProductQuantizer &operator=(ProductQuantizer &&other) = default;
+
   /** PQ Constructor.
    *
    * @param dim      dimensionality of the input vectors
@@ -407,6 +418,7 @@ public:
     return distance;
   }
 
+  template <typename data_t>
   float distanceImpl(const void *x, const void *y, bool asymmetric) const {
     if (asymmetric) {
       return asymmetricDistanceImpl(x, y);
@@ -451,13 +463,15 @@ private:
     if (_distance.index() == 0) {
       return [local_distance = _distance](const float *a,
                                           const float *b) -> float {
-        return std::get<SquaredL2Distance>(local_distance).distanceImpl(a, b);
+        return std::get<SquaredL2Distance>(local_distance)
+            .distanceImpl<float>(a, b);
       };
     }
-    return [local_distance = _distance](const float *a,
-                                        const float *b) -> float {
-      return std::get<InnerProductDistance>(local_distance).distanceImpl(a, b);
-    };
+    return
+        [local_distance = _distance](const float *a, const float *b) -> float {
+          return std::get<InnerProductDistance>(local_distance)
+              .distanceImpl<float>(a, b);
+        };
   }
 
   /**

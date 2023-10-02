@@ -11,6 +11,7 @@
 #include <memory>
 #include <omp.h>
 #include <optional>
+#include <quantization/LowPrecisionQuantization.h>
 #include <quantization/ProductQuantization.h>
 #include <random>
 #include <stdexcept>
@@ -22,6 +23,7 @@ using flatnav::DistanceInterface;
 using flatnav::Index;
 using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
+using flatnav::quantization::LowPrecisionQuantizer;
 using flatnav::quantization::ProductQuantizer;
 
 template <typename dist_t>
@@ -58,25 +60,40 @@ void buildIndex(float *data,
 }
 
 void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
-         int ef_construction, const std::string &save_file,
-         bool quantize = false) {
+         int ef_construction, const std::string &save_file, int quantize) {
 
   if (quantize) {
-    // Parameters M and nbits should be adjusted accordingly.
-    auto quantizer = std::make_shared<ProductQuantizer>(
-        /* dim = */ dim, /* M = */ 8, /* nbits = */ 8,
-        /* metric_type = */ metric_type);
 
-    auto start = std::chrono::high_resolution_clock::now();
-    quantizer->train(/* vectors = */ data, /* num_vectors = */ N);
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    std::clog << "Quantization time: " << (float)duration.count()
-              << " milliseconds" << std::endl;
+    if (quantize == 1) {
+      // Parameters M and nbits should be adjusted accordingly.
+      auto quantizer = std::make_shared<ProductQuantizer>(
+          /* dim = */ dim, /* M = */ 8, /* nbits = */ 8,
+          /* metric_type = */ metric_type);
 
-    buildIndex<ProductQuantizer>(data, std::move(quantizer), N, M, dim,
-                                 ef_construction, save_file);
+      auto start = std::chrono::high_resolution_clock::now();
+      quantizer->train(/* vectors = */ data, /* num_vectors = */ N);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+      std::clog << "(PQ) Quantization time: " << (float)duration.count()
+                << " milliseconds" << std::endl;
+
+      buildIndex<ProductQuantizer>(data, std::move(quantizer), N, M, dim,
+                                   ef_construction, save_file);
+    } else if (quantize == 2) {
+      auto quantizer = std::make_shared<LowPrecisionQuantizer>(
+          /* num_bits = */ 8, /* dim = */ dim,
+          /* metric_type = */ metric_type);
+      auto start = std::chrono::high_resolution_clock::now();
+      quantizer->train(/* vectors = */ data, /* num_vectors = */ N);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+      std::clog << "(LPQ) Quantization time: " << (float)duration.count()
+                << " milliseconds" << std::endl;
+      buildIndex<LowPrecisionQuantizer>(data, std::move(quantizer), N, M, dim,
+                                        ef_construction, save_file);
+    }
 
   } else {
     if (metric_type == flatnav::METRIC_TYPE::EUCLIDEAN) {
@@ -98,7 +115,8 @@ int main(int argc, char **argv) {
     std::clog << "construct <quantize> <metric> <data> <M> <ef_construction> "
                  "<outfile>"
               << std::endl;
-    std::clog << "\t <quantize> int, 0 for no quantization, 1 for quantization"
+    std::clog << "\t <quantize> int, 0 for no quantization, 1 for product "
+                 "quantization, 2 for low precision quantization"
               << std::endl;
     std::clog << "\t <metric> int, 0 for L2, 1 for inner product (angular)"
               << std::endl;
@@ -110,7 +128,7 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  bool quantize = std::stoi(argv[1]) ? true : false;
+  int quantize = std::stoi(argv[1]);
   int metric_id = std::stoi(argv[2]);
   cnpy::NpyArray datafile = cnpy::npy_load(argv[3]);
   int M = std::stoi(argv[4]);

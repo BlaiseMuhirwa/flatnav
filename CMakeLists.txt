@@ -225,6 +225,7 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h
     ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
+    ${PROJECT_SOURCE_DIR}/quantization/LowPrecisionQuantization.h
     ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 
