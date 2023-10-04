@@ -16,3 +16,4 @@ flatnav_pyton/flatnav.egg-info
 # other files
 data/
 baselines/
+external/openmp
