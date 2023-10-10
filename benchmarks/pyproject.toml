@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "benchmarks"
+version = "0.1.0"
+description = "Benchmark Flatnav against ANNS datasets"
+authors = ["Your Name <you@example.com>"]
+license = "Apache 2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+faiss-cpu = "1.7.4"
+h5py = "3.9.0"
+nanopq = "0.2.0"
+
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

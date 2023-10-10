@@ -9,6 +9,7 @@ build
 
 # Virtual environments 
 .env 
+.vscode 
 
 # Python wheel related folders/files
 flatnav_pyton/flatnav.egg-info
