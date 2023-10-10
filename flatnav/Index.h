@@ -59,6 +59,25 @@ public:
 
   ~Index() { delete[] _index_memory; }
 
+  /**
+   * @brief Returns the outdegree representation of the graph
+   * 
+   */
+  std::vector<std::vector<uint32_t>> graph() {
+    std::vector<std::vector<uint32_t>> outdegree_table(_cur_num_nodes);
+
+    for (node_id_t node = 0; node < _cur_num_nodes; node++) {
+      node_id_t *links = getNodeLinks(node);
+      for (uint32_t i = 0; i < _M; i++) {
+        if (links[i] != node) {
+          outdegree_table[node].push_back(links[i]);
+        }
+      }
+    }
+
+    return outdegree_table;
+  }
+
   bool add(void *data, label_t &label, int ef_construction,
            int num_initializations = 100) {
     // initialization must happen before alloc due to a bug where
@@ -216,7 +235,7 @@ public:
 
 private:
   // internal node numbering scheme
-  typedef unsigned int node_id_t;
+  typedef uint32_t node_id_t;
   typedef std::pair<float, node_id_t> dist_node_t;
 
   typedef ExplicitSet VisitedSet;

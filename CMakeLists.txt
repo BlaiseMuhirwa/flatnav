@@ -80,6 +80,20 @@ function(functionInstallExternalCMakeProject ep_name)
   install(SCRIPT ${binary_dir}/cmake_install.cmake)
 endfunction()
 
+# Fetch content from a git repository
+function(fetchContent name url tag dir)
+  if(NOT EXISTS ${dir})
+    message(STATUS "Downloading ${name} to ${dir}")
+    FetchContent_Declare(
+      ${name}
+      GIT_REPOSITORY ${url}
+      GIT_TAG ${tag})
+    FetchContent_MakeAvailable(${name})
+  else()
+    add_subdirectory(${dir})
+  endif()
+endfunction()
+
 # TODO(blaise): Remove this old school way of including external libraries via
 # ExternalProject_Add. Use FetchContent instead, which is much cleaner
 ExternalProject_Add(
@@ -172,42 +186,21 @@ if(BUILD_BENCHMARKS)
 
   message(STATUS "Running a suite of benchmarks using Google Benchmark")
   set(GOOGLE_BENCHMARK_DIR "${PROJECT_BINARY_DIR}/include/google-benchmark")
-
-  if(NOT EXISTS ${GOOGLE_BENCHMARK_DIR})
-    message(STATUS "Downloading google-benchmark to ${GOOGLE_BENCHMARK_DIR}")
-
-    FetchContent_Declare(
-      googletest
-      GIT_REPOSITORY https://github.com/google/googletest.git
-      GIT_TAG main)
-    FetchContent_Declare(
-      googlebenchmark
-      GIT_REPOSITORY https://github.com/google/benchmark.git
-      GIT_TAG main) # need main for benchmark::benchmark
-
-    FetchContent_MakeAvailable(googletest googlebenchmark)
-
-  else()
-    add_subdirectory(${GOOGLE_BENCHMARK_DIR})
-  endif()
-
+  set(GOOGLE_TEST_DIR "${PROJECT_BINARY_DIR}/include/googletest")
   set(YAML_CPP_DIR "${PROJECT_SOURCE_DIR}/external/yaml-cpp")
 
   # Disable building tests for YAML-CPP
   set(YAML_CPP_BUILD_TESTS
       OFF
       CACHE BOOL "Enable testing" FORCE)
-  # Fetch the YAML submodule if it doesn't exist
-  if(NOT EXISTS ${YAML_CPP_DIR})
-    message(STATUS "Fetching yaml-cpp submodule")
-    FetchContent_Declare(
-      yamlcpp
-      GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-      GIT_TAG yaml-cpp-0.6.3)
-    FetchContent_MakeAvailable(yamlcpp)
-  else()
-    add_subdirectory(${YAML_CPP_DIR})
-  endif()
+
+  fetchcontent("googlebenchmark" "https://github.com/google/googletest.git"
+               "main" ${GOOGLE_BENCHMARK_DIR})
+  fetchcontent("googletest" "https://github.com/google/googletest.git" "main"
+               ${GOOGLE_TEST_DIR})
+
+  fetchcontent("yamlcpp" "https://github.com/jbeder/yaml-cpp.git"
+               "yaml-cpp-0.6.3" ${YAML_CPP_DIR})
 
 endif()
 
@@ -239,15 +232,36 @@ set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples for Flatnav")
-  foreach(CONSTRUCT_EXEC construct_npy query query_npy
-                         cereal_tests)
-    add_executable(${CONSTRUCT_EXEC}
-                   ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
-    add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)
-    target_link_libraries(${CONSTRUCT_EXEC} FLAT_NAV_LIB ${CNPY_LIB}
-                          ${ZLIB_LIB_RELEASE})
-    install(TARGETS ${CONSTRUCT_EXEC} DESTINATION bin)
-  endforeach(CONSTRUCT_EXEC)
+
+  set(GSPARSE_DIR "${PROJECT_BINARY_DIR}/include/gsparse")
+  set(EIGEN_DIR "${PROJECT_BINARY_DIR}/include/eigen")
+
+  fetchcontent("eigen" "https://gitlab.com/libeigen/eigen.git" "origin/master"
+               ${EIGEN_DIR})
+  # Eigen is required by gSparse and gSparse expects Eigen3 as the name
+  add_library(Eigen3::Eigen ALIAS eigen)
+  target_link_libraries(FLAT_NAV_LIB PUBLIC eigen)
+  set(BUILD_DEMO
+      OFF
+      CACHE BOOL "Enable testing" FORCE)
+  set(BUILD_TESTS
+      OFF
+      CACHE BOOL "Enable testing" FORCE)
+  set(BUILD_BENCH
+      OFF
+      CACHE BOOL "Enable testing" FORCE)
+  fetchcontent("gsparse" "https://github.com/As-12/gSparse.git" "master"
+               ${GSPARSE_DIR})
+
+  # foreach(CONSTRUCT_EXEC construct_npy query query_npy cereal_tests dump_graph
+  #                        spectral_sparsifier)
+  #   add_executable(${CONSTRUCT_EXEC}
+  #                  ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
+  #   add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)
+  #   target_link_libraries(${CONSTRUCT_EXEC} FLAT_NAV_LIB ${CNPY_LIB}
+  #                         ${ZLIB_LIB_RELEASE} ${EIGEN_DIR} ${GSPARSE_DIR})
+  #   install(TARGETS ${CONSTRUCT_EXEC} DESTINATION bin)
+  # endforeach(CONSTRUCT_EXEC)
 
 endif()
 
@@ -255,28 +269,8 @@ if(BUILD_TESTS)
   message(STATUS "Building flatnav + quantization unit tests using gtest")
   set(GOOGLE_TEST_DIR "${PROJECT_BINARY_DIR}/_deps/googletest-src")
 
-  if(NOT EXISTS ${GOOGLE_TEST_DIR})
-    message(
-      STATUS
-        "Downloading googletest to ${PROJECT_BINARY_DIR}/_deps/googletest-src")
-  endif()
-  # This does not download googletest again if its already available in the
-  # CMakeCache file
-  FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG main)
-
-  FetchContent_MakeAvailable(googletest)
-
-  FetchContent_GetProperties(googletest)
-  if(NOT googletest_POPULATED)
-    message(STATUS "GoogleTest not populated")
-    FetchContent_Populate(googletest)
-    add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
-  else()
-    message(STATUS "GoogleTest already populated")
-  endif()
+  fetchcontent("googletest" "https://github.com/google/googletest.git" "main"
+               ${GOOGLE_TEST_DIR})
 
   message(STATUS "googletest_BINARY_DIR: ${googletest_BINARY_DIR}")
   message(STATUS "googletest_SOURCE_DIR: ${googletest_SOURCE_DIR}")

@@ -1,3 +1,0 @@
-Loading 128-dimensional dataset with N = 1000000
-before index initialization 
-Quantizing data

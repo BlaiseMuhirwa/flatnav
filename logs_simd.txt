@@ -1,0 +1,4 @@
+Loading 784-dimensional dataset with N = 60000
+......
+Build time: 26500 milliseconds
+Saving index to: mnist_784.index
