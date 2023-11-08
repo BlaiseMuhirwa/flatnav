@@ -25,7 +25,7 @@ ENVIRONMENT_INFO = {
 DATASETS = {
     "mnist-784-euclidean": (
         "mnist-784-euclidean.train.npy",
-        "mnist-784-euclideean.test.npy",
+        "mnist-784-euclidean.test.npy",
         "mnist-784-euclidean.gtruth.npy",
     ),
     "glove-25-angular": (
@@ -56,12 +56,10 @@ def _log_environment_info():
         mlflow.log_param(key, val)
 
 
-def setup_mlflow_auth(username, password):
-    os.environ["MLFLOW_TRACKING_USERNAME"] = username
-    os.environ["MLFLOW_TRACKING_PASSWORD"] = password
-
-
-def set_tracking_uri(uri):
+def set_tracking_uri():
+    uri = os.environ.get("MLFLOW_TRACKING_URI", None)
+    if not uri:
+        raise RuntimeError("MLFlow tracking URI not set.")
     mlflow.set_tracking_uri(uri=uri)
 
 
@@ -109,22 +107,27 @@ def load_benchmark_dataset(dataset_name: str | None) -> Tuple[np.ndarray]:
         )
 
     train_file, queries_file, gtruth_file = DATASETS[dataset_name]
+    base_dir = os.path.join(os.getcwd(), "..", "data", dataset_name)
 
-    return np.load(train_file), np.load(queries_file), np.load(gtruth_file)
+    return (
+        np.load(os.path.join(base_dir, train_file)),
+        np.load(os.path.join(base_dir, queries_file)),
+        np.load(os.path.join(base_dir, gtruth_file)),
+    )
 
 
 def compute_recall(index, queries: np.ndarray, ground_truth: np.ndarray, k=100):
     """
     Compute recall for given queries, ground truth, and a Faiss index.
 
-    Parameters:
-    - index: The Faiss index to search.
-    - queries: The query vectors.
-    - ground_truth: The ground truth indices for each query.
-    - k: Number of neighbors to search.
+    Args:
+        - index: The Faiss index to search.
+        - queries: The query vectors.
+        - ground_truth: The ground truth indices for each query.
+        - k: Number of neighbors to search.
 
     Returns:
-    - Mean recall over all queries.
+        Mean recall over all queries.
     """
     _, top_k_indices = index.search(queries, k)
 
@@ -140,26 +143,39 @@ def compute_recall(index, queries: np.ndarray, ground_truth: np.ndarray, k=100):
         mean_recall += query_recall / k
 
     recall = mean_recall / len(queries)
-    logging.info(f"Recall@{k}: {recall}")
     return recall
 
 
-def train_hnsw_index(data, serialize=True):
+def train_hnsw_index(
+    data,
+    pq_m,
+    num_node_links,
+    ef_construction: Optional[int] = 128,
+    ef_search: Optional[int] = 128,
+    serialize=False,
+):
+    """
+    Train a HNSW index topped with product quantization
+    Args:
+        - pq_m: Number of subquantizers for PQ. This should exactly divide the
+            dataset dimensions.
+        - num_node_links: Maximum number of links to keep for each node in the graph
+        - serialize: Serialize so we can get a sense of how large the index binary is.
+
+    Returns:
+        Index
+
+    Helpful link on correct usage: https://github.com/facebookresearch/faiss/issues/1621
+    """
     # configure the index
-    d = data.shape[1]  # data dimension
-    m = 8  # number of subquantizers
-    nbits = 8  # bits per subvector index
+    dim = data.shape[1]  # data dimension
 
-    # Create the HNSW quantizer
-    quantizer = faiss.IndexHNSWFlat(d, 16)  # 16 is a typical value for HNSW M parameter
-    quantizer.hnsw.efConstruction = 128  # Typical values are between 20-64
-    quantizer.hnsw.efSearch = 128  # Typical values are between 20-64
+    # Create the HNSW index
+    index = faiss.IndexHNSWPQ(dim, pq_m, num_node_links)
+    index.hnsw.efConstruction = ef_construction
+    index.hnsw.efSearchh = ef_search
 
-    # Create the IVFPQ index
-    index = faiss.IndexIVFPQ(quantizer, d, 100, m, nbits)
-
-    # Train the index
-    print("Training index...")
+    logging.info("Training index...")
     index.train(data)
 
     # Add vectors to the index
@@ -170,7 +186,7 @@ def train_hnsw_index(data, serialize=True):
         buffer = faiss.serialize_index(index)
         index_size = len(buffer)
 
-        print(f"Index size: {index_size} bytes")
+        logging.info(f"Index size: {index_size} bytes")
 
     return index
 
@@ -181,22 +197,42 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset", required=True, help="ANNS benchmark dataset to run on."
     )
-    parser.add_arugment("--log_metrics", required=False, help="Log metrics to MLFlow.")
+    parser.add_argument("--log_metrics", required=False, help="Log metrics to MLFlow.")
 
     args = parser.parse_args()
     train_data, queries, ground_truth = load_benchmark_dataset(
         dataset_name=args.dataset
     )
 
-    index = train_hnsw_index(data=train_data)
-    recall = compute_recall(index=index, queries=queries, ground_truth=ground_truth)
+    ef_constructions = [64, 128, 256]
+    ef_searches = [32, 64, 128]
+    num_node_links = [8, 16, 32, 64]
 
-    if args.log_metrics:
-        log_mlflow_run(
-            dataset=args.dataset,
-            run_name="faiss-benchmark",
-            algorithm="faiss.IndexHNSW",
-            num_training_queries=train_data.shape[0],
-            num_test_queries=queries.shape[0],
-            recall=recall,
-        )
+    for m in num_node_links:
+        for ef_construction in ef_constructions:
+            for ef_search in ef_searches:
+                index = train_hnsw_index(
+                    data=train_data,
+                    pq_m=8,
+                    num_node_links=m,
+                    ef_construction=ef_construction,
+                    ef_search=ef_search,
+                )
+                recall = compute_recall(
+                    index=index, queries=queries, ground_truth=ground_truth
+                )
+
+                logging.info(
+                    f"Recall@100: {recall}, node_links={m}, ef_cons={ef_construction}, ef_search={ef_search}"
+                )
+
+                if args.log_metrics:
+                    set_tracking_uri()
+                    log_mlflow_run(
+                        dataset=args.dataset,
+                        run_name="faiss-benchmark",
+                        algorithm="faiss.IndexHNSW",
+                        num_training_queries=train_data.shape[0],
+                        num_test_queries=queries.shape[0],
+                        recall=recall,
+                    )
