@@ -20,7 +20,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 # I added compiler flags for ASan (address sanitizer). It is supposed to be very
 # fast, but if we find it slow, we can remove it for good or use compiler
-# directives to skip analyzing functions __attribute__((no_sanitize_address)) 
+# directives to skip analyzing functions __attribute__((no_sanitize_address))
 
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} \
