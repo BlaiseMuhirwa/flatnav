@@ -154,42 +154,6 @@ def train_hnsw_index(
 
     return index
 
-
-def run_experiment(
-    train_dataset: np.ndarray,
-    queries: np.ndarray,
-    ground_truth: np.ndarray,
-    num_node_links: int,
-    ef_construction: int,
-    ef_search: int,
-    log_metrics: bool = False,
-):
-    index = train_hnsw_index(
-        data=train_dataset,
-        pq_m=8,
-        num_node_links=num_node_links,
-        ef_construction=ef_construction,
-        ef_search=ef_search,
-    )
-    recall = compute_recall(index=index, queries=queries, ground_truth=ground_truth)
-
-    logging.info(
-        f"Recall@100: {recall}, node_links={num_node_links}, ef_cons={ef_construction}, ef_search={ef_search}"
-    )
-
-    if log_metrics:
-        # set_tracking_uri()
-        log_all_metrics(
-            dataset=dataset,
-            run_name="faiss-benchmark",
-            algorithm="faiss.IndexHNSW",
-            num_training_queries=train_data.shape[0],
-            num_test_queries=queries.shape[0],
-            recall=recall,
-            use_dvc=True,
-        )
-
-
 def main(
     train_dataset: np.ndarray,
     queries: np.ndarray,
@@ -256,15 +220,3 @@ if __name__ == "__main__":
             num_node_links=num_node_links,
         )
 
-        # for ef_construction in ef_constructions:
-        #     for ef_search in ef_searches:
-        #         for m in num_node_links:
-        #             run_experiment(
-        #                 train_dataset=train_data,
-        #                 queries=queries,
-        #                 ground_truth=ground_truth,
-        #                 num_node_links=m,
-        #                 ef_construction=ef_construction,
-        #                 ef_search=ef_search,
-        #                 log_metrics=args.log_metrics,
-        #             )
