@@ -1,5 +1,9 @@
 #!/bin/bash 
 
+PYTHON="poetry run python"
+
+# Make sure we are in this directory before runnin
+
 
 # Create a list of ANNS benchmark datasets to download.
 ANN_BENCHMARK_DATASETS=("mnist-784-euclidean" 
@@ -22,6 +26,37 @@ function print_help() {
     echo "  ./download_anns_datasets.sh mnist-784-euclidean"
     echo "  ./download_anns_datasets.sh glove-25-angular --normalize"
     exit 1
+}
+
+function check_poetry_install() {
+    # check if poetry is already in PATH
+    if ! command -v poetry &> /dev/null; then 
+        echo "Poetry not found. Installing it now..."
+
+        curl -sSL https://install.python-poetry.org | python3 -
+
+        # Check the shell and append to poetry to PATH 
+        SHELL_NAME=$(basename "$SHELL")
+        # For newer poetry versions, this might be different. 
+        # On ubuntu x86-64, for instance, I found this to be instead
+        # $HOME/.local/share/pypoetry/venv/bin 
+        POETRY_PATH="$HOME/.poetry/bin"
+
+        if [[ "$SHELL_NAME" == "zsh" ]]; then 
+            echo "Detected zsh shell."
+            echo "export PATH=\"$POETRY_PATH:\$PATH\"" >> $HOME/.zshrc
+            source $HOME/.zshrc
+
+        elif [[ "$SHELL_NAME" == "bash" ]]; then 
+            echo "Detected bash shell."
+            echo "export PATH=\"$POETRY_PATH:\$PATH\"" >> $HOME/.bashrc
+            source $HOME/.bashrc 
+
+        else 
+            echo "Unsupported shell for poetry installation. $SHELL_NAME"
+            exit 1
+        fi 
+    fi
 }
 
 
@@ -57,9 +92,9 @@ function download_dataset() {
     # the --normalize flag to dump.py.
 
     if [ ${normalize} -eq 1 ]; then
-        python dump.py data/${dataset}/${dataset}.hdf5 --normalize
+        $PYTHON dump.py data/${dataset}/${dataset}.hdf5 --normalize
     else
-        python dump.py data/${dataset}/${dataset}.hdf5
+        $PYTHON dump.py data/${dataset}/${dataset}.hdf5
     fi
 }
 
@@ -69,6 +104,9 @@ if [[ $1 == "-h" || $1 == "--help" ]]; then
     print_help
 fi
 
+
+# Ensure we have poetry before running `download_dataset`
+check_poetry_install
 
 
 # Check if a user ran the script like this: ./download_anns_datasets.sh <dataset> --normalize 

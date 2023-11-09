@@ -27,8 +27,19 @@ public:
     _data_size_bytes = dim * sizeof(float);
   }
 
-  template <DistanceMode mode>
-  float distanceImpl(const void *x, const void *y) const; // forward declaration
+  float distanceImpl(const void *x, const void *y,
+                     bool asymmetric = false) const {
+    (void)asymmetric;
+    // Default implementation of inner product distance, in case we cannot
+    // support the SIMD specializations for special input _dimension sizes.
+    float *p_x = (float *)x;
+    float *p_y = (float *)y;
+    float result = 0;
+    for (size_t i = 0; i < _dimension; i++) {
+      result += p_x[i] * p_y[i];
+    }
+    return 1.0 - result;
+  }
 
 private:
   size_t _dimension;
@@ -58,25 +69,5 @@ private:
     std::cout << "Dimension: " << _dimension << std::endl;
   }
 };
-
-template <>
-float InnerProductDistance::distanceImpl<DistanceMode::Symmetric>(
-    const void *x, const void *y) const {
-  // Default implementation of inner product distance, in case we cannot
-  // support the SIMD specializations for special input _dimension sizes.
-  float *p_x = (float *)x;
-  float *p_y = (float *)y;
-  float result = 0;
-  for (size_t i = 0; i < _dimension; i++) {
-    result += p_x[i] * p_y[i];
-  }
-  return 1.0 - result;
-}
-
-template <>
-float InnerProductDistance::distanceImpl<DistanceMode::Asymmetric>(
-    const void *x, const void *y) const {
-  return distanceImpl<DistanceMode::Symmetric>(x, y);
-}
 
 } // namespace flatnav

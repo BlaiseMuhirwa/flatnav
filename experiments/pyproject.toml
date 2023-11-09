@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "experiments"
+version = "0.1.0"
+description = "Track benchmark experiments."
+authors = ["BlaiseMuhirwa <blaisemuhirwa3@gmail.com>"]
+license = "Apache 2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+dvclive = "^3.2.0"
+dvc = "^3.28.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

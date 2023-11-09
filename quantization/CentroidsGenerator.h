@@ -47,11 +47,15 @@ public:
 
   void initializeCentroids(
       const float *data, uint64_t n,
-      std::function<float(const float *, const float *)> &distance_func) {
+      const std::function<float(const float *, const float *)> &distance_func) {
     auto initialization_type = _initialization_type;
     std::transform(initialization_type.begin(), initialization_type.end(),
                    initialization_type.begin(),
                    [](unsigned char c) { return std::tolower(c); });
+
+    if (_centroids.size() != _num_centroids * _dim) {
+      _centroids.resize(_num_centroids * _dim);
+    }
 
     if (initialization_type == "default") {
       randomInitialize(data, n);
@@ -92,7 +96,7 @@ public:
    */
   void generateCentroids(
       const float *vectors, const float *vec_weights, uint64_t n,
-      std::function<float(const float *, const float *)> &distance_func) {
+      const std::function<float(const float *, const float *)> &distance_func) {
     if (n < _num_centroids) {
       throw std::runtime_error(
           "Invalid configuration. The number of centroids: " +
@@ -100,12 +104,7 @@ public:
           " is bigger than the number of data points: " + std::to_string(n));
     }
 
-    // Initialize the centroids by randomly sampling k centroids among the n
-    // data points
-    if (!_centroids_initialized) {
-      _centroids.resize(_num_centroids * _dim);
-      initializeCentroids(vectors, n, distance_func);
-    }
+    initializeCentroids(vectors, n, distance_func);
 
     // Temporary array to store assigned centroids for each vector
     std::vector<uint32_t> assignment(n);
@@ -133,7 +132,7 @@ public:
       }
 
       // Step 2: Update each centroid to be the mean of the assigned points
-      std::vector<float> sums(_num_centroids * _dim, 0.0);
+      std::vector<double> sums(_num_centroids * _dim, 0.0);
       std::vector<uint64_t> counts(_num_centroids, 0);
 
 #pragma omp parallel for
@@ -152,15 +151,13 @@ public:
           _centroids[c_index * _dim + dim_index] =
               counts[c_index]
                   ? sums[c_index * _dim + dim_index] / counts[c_index]
-                  : 0;
+                  : _centroids[c_index * _dim + dim_index];
         }
       }
     }
   }
 
-  // NOTE: This is non-const because we need to resize the dimension of the
-  // centroids from outside the class in some cases.
-  inline std::vector<float> &centroids() { return _centroids; }
+  inline const float *centroids() const { return _centroids.data(); }
 
   inline void setInitializationType(const std::string &initialization_type) {
     _initialization_type = initialization_type;
@@ -174,13 +171,10 @@ private:
    * @param n     The number of data points
    */
   void randomInitialize(const float *data, uint64_t n) {
-    if (_centroids_initialized) {
-      return;
-    }
     std::vector<uint64_t> indices(n);
 
     std::iota(indices.begin(), indices.end(), 0);
-    std::mt19937 generator(_seed);
+    std::mt19937 generator(_seed + 1);
     std::vector<uint64_t> sample_indices(_num_centroids);
     std::sample(indices.begin(), indices.end(), sample_indices.begin(),
                 _num_centroids, generator);
@@ -212,10 +206,7 @@ private:
    */
   void kmeansPlusPlusInitialize(
       const float *data, uint64_t n,
-      std::function<float(const float *, const float *)> &distance_func) {
-    if (_centroids_initialized) {
-      return;
-    }
+      const std::function<float(const float *, const float *)> &distance_func) {
     std::mt19937 generator(_seed);
     std::uniform_int_distribution<uint64_t> distribution(0, n - 1);
 
@@ -298,9 +289,6 @@ private:
  */
 
   void hypercubeInitialize(const float *data, uint64_t n) {
-    if (_centroids_initialized) {
-      return;
-    }
 
     std::vector<float> means(_dim);
     for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
@@ -319,13 +307,13 @@ private:
     float *centroids = _centroids.data();
     auto num_bits = log2(_num_centroids);
 
-    for (uint64_t i = 0; i < _num_centroids; i++) {
+    for (uint32_t i = 0; i < _num_centroids; i++) {
       float *centroid = const_cast<float *>(centroids + (i * _dim));
-      for (uint64_t j = 0; j < num_bits; j++) {
+      for (uint32_t j = 0; j < num_bits; j++) {
         centroid[j] = means[j] + (((i >> j) & 1) ? 1 : -1) * maxm;
       }
 
-      for (uint64_t j = num_bits; j < _dim; j++) {
+      for (uint32_t j = num_bits; j < _dim; j++) {
         centroid[j] = means[j];
       }
     }
