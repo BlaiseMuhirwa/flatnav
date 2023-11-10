@@ -5,6 +5,7 @@ import numpy as np
 from dvclive import Live
 import faiss
 import os
+import time
 import logging
 import platform, socket, psutil
 import argparse
@@ -51,6 +52,51 @@ DATASETS = {
 }
 
 
+def parse_arguments() -> argparse.Namespace:
+    """
+    Parses arguments from the command line.
+    """
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument(
+        "--datasets", required=True, nargs="+", help="ANNS benchmark dataset to run on."
+    )
+
+    parser.add_argument(
+        "--pq_m",
+        required=True,
+        nargs="+",
+        type=int,
+        help="Number of subquantizers for PQ. This should exactly divide the dataset dimensions.",
+    )
+
+    parser.add_argument(
+        "--ef_cons",
+        required=True,
+        nargs="+",
+        type=int,
+        help="ef_construction. HNSW hyperparameter.",
+    )
+
+    parser.add_argument(
+        "--ef_search",
+        required=True,
+        nargs="+",
+        type=int,
+        help="ef_search. HNSW hyperparameter.",
+    )
+
+    parser.add_argument(
+        "--num_node_links",
+        required=True,
+        nargs="+",
+        type=int,
+        help="Maximum number of edges per node in the graph. HNSW hyperparameter.",
+    )
+
+    args = parser.parse_args()
+    return args
+
+
 def load_benchmark_dataset(dataset_name: Optional[None]) -> Tuple[np.ndarray]:
     """
     This assumes that we have a /data/<dataset_name> already present.
@@ -79,9 +125,11 @@ def load_benchmark_dataset(dataset_name: Optional[None]) -> Tuple[np.ndarray]:
     )
 
 
-def compute_recall(index, queries: np.ndarray, ground_truth: np.ndarray, k=100):
+def compute_metrics(
+    index, queries: np.ndarray, ground_truth: np.ndarray, k=100
+) -> Tuple[float, float]:
     """
-    Compute recall for given queries, ground truth, and a Faiss index.
+    Compute recall and QPS for given queries, ground truth, and a Faiss index.
 
     Args:
         - index: The Faiss index to search.
@@ -91,8 +139,14 @@ def compute_recall(index, queries: np.ndarray, ground_truth: np.ndarray, k=100):
 
     Returns:
         Mean recall over all queries.
+        QPS (queries per second)
     """
+    start = time.time()
     _, top_k_indices = index.search(queries, k)
+    end = time.time()
+
+    querying_time = end - start
+    qps = len(queries) / querying_time
 
     # Convert each ground truth list to a set for faster lookup
     ground_truth_sets = [set(gt) for gt in ground_truth]
@@ -106,7 +160,7 @@ def compute_recall(index, queries: np.ndarray, ground_truth: np.ndarray, k=100):
         mean_recall += query_recall / k
 
     recall = mean_recall / len(queries)
-    return recall
+    return recall, qps
 
 
 def train_hnsw_index(
@@ -158,7 +212,7 @@ def main(
     train_dataset: np.ndarray,
     queries: np.ndarray,
     gtruth: np.ndarray,
-    pq_m: int,
+    pq_m_params: List[int],
     ef_cons_params: List[int],
     ef_search_params: List[int],
     num_node_links: List[int],
@@ -166,58 +220,43 @@ def main(
 ):
     # Ensure that the directory exists for dvclive
     os.makedirs(dvc_live_path, exist_ok=True)
-    
+
     with Live(dvc_live_path) as live:
         for param_key, param_val in ENVIRONMENT_INFO.items():
             live.log_param(param_key, param_val)
 
-        for node_links in num_node_links:
-            for ef_cons in ef_cons_params:
-                for ef_search in ef_search_params:
-                    live.log_param("node_links", node_links)
-                    live.log_param("ef_construction", ef_cons)
-                    live.log_param("ef_search", ef_search)
+        for pq_m in pq_m_params:
+            for node_links in num_node_links:
+                for ef_cons in ef_cons_params:
+                    for ef_search in ef_search_params:
+                        live.log_param("node_links", node_links)
+                        live.log_param("ef_construction", ef_cons)
+                        live.log_param("ef_search", ef_search)
+                        live.log_param("pq_m", pq_m)
 
-                    index = train_hnsw_index(
-                        data=train_dataset,
-                        pq_m=pq_m,
-                        num_node_links=node_links,
-                        ef_construction=ef_cons,
-                        ef_search=ef_search,
-                    )
-                    recall = compute_recall(
-                        index=index, queries=queries, ground_truth=gtruth
-                    )
-                    live.log_metric("Recall@100", recall)
-                    logging.info(
-                        f"Recall@100: {recall}, node_links={node_links}, ef_cons={ef_cons}, ef_search={ef_search}"
-                    )
+                        index = train_hnsw_index(
+                            data=train_dataset,
+                            pq_m=pq_m,
+                            num_node_links=node_links,
+                            ef_construction=ef_cons,
+                            ef_search=ef_search,
+                        )
+                        recall, qps = compute_metrics(
+                            index=index, queries=queries, ground_truth=gtruth
+                        )
+                        live.log_metric("Recall@100", recall)
+                        live.log_metric("QPS", qps)
+                        logging.info(
+                            f"Recall@100: {recall}, qps={qps}, pq_m={pq_m}, node_links={node_links},"
+                            f" ef_cons={ef_cons}, ef_search={ef_search}"
+                        )
 
-                    live.next_step()
+                        live.next_step()
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    parser = argparse.ArgumentParser(description="")
-    parser.add_argument(
-        "--datasets", required=True, nargs="+", help="ANNS benchmark dataset to run on."
-    )
-    parser.add_argument(
-        "--log_metrics", required=False, default=False, help="Log metrics to MLFlow."
-    )
-    parser.add_argument(
-        "--pq_m",
-        required=True,
-        default=8,
-        type=int,
-        help="Number of subquantizers for PQ. This should exactly divide the dataset dimensions.",
-    )
-
-    args = parser.parse_args()
-
-    ef_constructions = [32, 64, 128]
-    ef_searches = [32, 64, 128]
-    num_node_links = [8, 16, 32, 64]
+    args = parse_arguments()
 
     for dataset in args.datasets:
         train_data, queries, ground_truth = load_benchmark_dataset(dataset_name=dataset)
@@ -228,9 +267,9 @@ if __name__ == "__main__":
             train_dataset=train_data,
             queries=queries,
             gtruth=ground_truth,
-            pq_m=pq_m,
-            ef_cons_params=ef_constructions,
-            ef_search_params=ef_searches,
-            num_node_links=num_node_links,
+            pq_m_params=args.pq_m,
+            ef_cons_params=args.ef_cons,
+            ef_search_params=args.ef_search,
+            num_node_links=args.num_node_links,
             dvc_live_path=dvc_live_path,
         )
