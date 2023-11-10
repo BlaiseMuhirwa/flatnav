@@ -204,9 +204,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    ef_constructions = [64]
-    ef_searches = [64, 128]
-    num_node_links = [32]
+    ef_constructions = [32, 64, 128]
+    ef_searches = [32, 64, 128]
+    num_node_links = [8, 16, 32, 64]
 
     for dataset in args.datasets:
         train_data, queries, ground_truth = load_benchmark_dataset(dataset_name=dataset)

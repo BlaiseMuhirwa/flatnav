@@ -1,4 +1,4 @@
-load_before_experiment: 1.9091796875
+load_before_experiment: 1.57763671875
 platform: macOS-13.3-arm64-arm-64bit
 platform_version: 'Darwin Kernel Version 22.4.0: Mon Mar  6 21:01:02 PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T8112'
 platform_release: 22.4.0
@@ -7,6 +7,6 @@ processor: arm
 hostname: Blaises-MacBook-Pro.local
 ram_gb: 24
 num_cores: 8
-node_links: 32
-ef_construction: 64
+node_links: 64
+ef_construction: 128
 ef_search: 128
