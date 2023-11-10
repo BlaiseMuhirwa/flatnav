@@ -1,7 +1,11 @@
 params:
 - dvclive/params.yaml
+- mnist-784-euclidean/dvclive/params.yaml
 metrics:
 - dvclive/metrics.json
+- mnist-784-euclidean/dvclive/metrics.json
 plots:
 - dvclive/plots/metrics:
+    x: step
+- mnist-784-euclidean/dvclive/plots/metrics:
     x: step

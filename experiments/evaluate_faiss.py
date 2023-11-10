@@ -17,7 +17,6 @@ ENVIRONMENT_INFO = {
     "platform_release": platform.release(),
     "architecture": platform.machine(),
     "processor": platform.processor(),
-    "hostname": socket.gethostname(),
     "ram_gb": round(psutil.virtual_memory().total / (1024.0**3)),
     "num_cores": psutil.cpu_count(logical=True),
 }
@@ -154,16 +153,21 @@ def train_hnsw_index(
 
     return index
 
+
 def main(
     train_dataset: np.ndarray,
     queries: np.ndarray,
     gtruth: np.ndarray,
+    pq_m: int,
     ef_cons_params: List[int],
     ef_search_params: List[int],
     num_node_links: List[int],
-    pq_m: Optional[int] = 8,
+    dvc_live_path: str,
 ):
-    with Live() as live:
+    # Ensure that the directory exists for dvclive
+    os.makedirs(dvc_live_path, exist_ok=True)
+    
+    with Live(dvc_live_path) as live:
         for param_key, param_val in ENVIRONMENT_INFO.items():
             live.log_param(param_key, param_val)
 
@@ -201,6 +205,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log_metrics", required=False, default=False, help="Log metrics to MLFlow."
     )
+    parser.add_argument(
+        "--pq_m",
+        required=True,
+        default=8,
+        type=int,
+        help="Number of subquantizers for PQ. This should exactly divide the dataset dimensions.",
+    )
 
     args = parser.parse_args()
 
@@ -211,12 +222,15 @@ if __name__ == "__main__":
     for dataset in args.datasets:
         train_data, queries, ground_truth = load_benchmark_dataset(dataset_name=dataset)
 
+        pq_m = args.pq_m
+        dvc_live_path = f"{dataset}/dvclive"
         main(
             train_dataset=train_data,
             queries=queries,
             gtruth=ground_truth,
+            pq_m=pq_m,
             ef_cons_params=ef_constructions,
             ef_search_params=ef_searches,
             num_node_links=num_node_links,
+            dvc_live_path=dvc_live_path,
         )
-
