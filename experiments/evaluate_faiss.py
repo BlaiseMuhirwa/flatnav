@@ -138,6 +138,7 @@ def train_hnsw_index(
     index = faiss.IndexHNSWPQ(dim, pq_m, num_node_links)
     index.hnsw.efConstruction = ef_construction
     index.hnsw.efSearchh = ef_search
+    
 
     logging.info("Training index...")
     index.train(data)
@@ -161,7 +162,7 @@ def main(
     ef_cons_params: List[int],
     ef_search_params: List[int],
     num_node_links: List[int],
-    pq_m: Optional[int] = 8,
+    pq_m: Optional[int] = 16,
 ):
     with Live() as live:
         for param_key, param_val in ENVIRONMENT_INFO.items():
