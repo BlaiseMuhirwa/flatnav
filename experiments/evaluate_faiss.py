@@ -49,6 +49,11 @@ DATASETS = {
         "sift-128-euclidean.test.npy",
         "sift-128-euclidean.gtruth.npy",
     ),
+    "gist-960-euclidean": (
+        "gist-960-euclidean.train.npy",
+        "gist-960-euclidean.test.npy",
+        "gist-960-euclidean.gtruth.npy",
+    )
 }
 
 

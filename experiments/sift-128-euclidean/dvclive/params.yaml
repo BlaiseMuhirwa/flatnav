@@ -1,0 +1,12 @@
+load_before_experiment: 1.93408203125
+platform: macOS-13.3-arm64-arm-64bit
+platform_version: 'Darwin Kernel Version 22.4.0: Mon Mar  6 21:01:02 PST 2023; root:xnu-8796.101.5~3/RELEASE_ARM64_T8112'
+platform_release: 22.4.0
+architecture: arm64
+processor: arm
+ram_gb: 24
+num_cores: 8
+node_links: 8
+ef_construction: 32
+ef_search: 128
+pq_m: 32

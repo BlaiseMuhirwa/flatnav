@@ -19,7 +19,7 @@ sift: install-dependencies
 		--ef_cons 32 64 128 \
 		--ef_search 32 64 128 256 512 \
 		--num_node_links 8 16 32 64 128 \
-		--pq_m 8 16 32
+		--pq_m 8 16 32 64
 
 # Target to run gist benchmark
 gist: install-dependencies
