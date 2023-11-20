@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <memory>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <string>
@@ -23,6 +24,12 @@ private:
   Index<dist_t, label_t> *_index;
 
 public:
+  typedef std::pair<py::array_t<float>, py::array_t<label_t>>
+      DistancesLabelsPair;
+
+  explicit PythonIndex(std::unique_ptr<Index<dist_t, label_t>> index)
+      : _dim(index->dataDimension()), label_id(0), _index(index.get()) {}
+
   PythonIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dim,
               int dataset_size, int max_edges_per_node)
       : _dim(dim), label_id(0),
@@ -31,9 +38,15 @@ public:
             /* dataset_size = */ dataset_size,
             /* max_edges_per_node = */ max_edges_per_node)) {}
 
-  Index<dist_t, label_t> *getIndex() const { return _index; }
+  Index<dist_t, label_t> *getIndex() { return _index; }
 
   ~PythonIndex() { delete _index; }
+
+  static std::unique_ptr<PythonIndex<dist_t, label_t>>
+  loadIndex(const std::string &filename) {
+    auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename);
+    return std::make_unique<PythonIndex<dist_t, label_t>>(std::move(index));
+  }
 
   void
   add(const py::array_t<float, py::array::c_style | py::array::forcecast> &data,
@@ -67,43 +80,56 @@ public:
     }
 
     for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
-      label_t label_id = *labels.data(vec_index);
+      label_t label_id = *node_labels.data(vec_index);
       this->_index->add(/* data = */ (void *)data.data(vec_index),
                         /* label = */ label_id,
                         /* ef_construction = */ ef_construction);
     }
   }
 
-  py::array_t<label_t>
+  DistancesLabelsPair
   search(const py::array_t<float, py::array::c_style | py::array::forcecast>
              queries,
          int K, int ef_search) {
-    auto num_queries = queries.shape(0);
-    auto queries_dim = queries.shape(1);
+    size_t num_queries = queries.shape(0);
+    size_t queries_dim = queries.shape(1);
 
     if (queries.ndim() != 2 || queries_dim != _dim) {
       throw std::invalid_argument("Queries have incorrect dimensions.");
     }
 
     label_t *results = new label_t[num_queries * K];
-    // float *distances = new float[num_queries * K];
+    float *distances = new float[num_queries * K];
 
-    for (size_t query_index; query_index < num_queries; query_index++) {
+    for (size_t query_index = 0; query_index < num_queries; query_index++) {
       std::vector<std::pair<float, label_t>> top_k = this->_index->search(
           /* query = */ (const void *)queries.data(query_index), /* K = */ K,
           /* ef_search = */ ef_search);
 
       for (size_t i = 0; i < top_k.size(); i++) {
-        // distances[query_index * K + i] = top_k[results].first;
-        results[query_index * K + i] = top_k[results].second;
+        distances[query_index * K + i] = top_k[i].first;
+        results[query_index * K + i] = top_k[i].second;
       }
     }
 
-    py::capsule free_when_done(results, [](void *ptr) { delete ptr; });
+    // Allows to transfer ownership to Python
+    py::capsule free_results_when_done(
+        results, [](void *ptr) { delete (label_t *)ptr; });
+    py::capsule free_distances_when_done(
+        distances, [](void *ptr) { delete (float *)ptr; });
 
-    return py::array_t<label_t>({num_queries, (size_t)K},
-                                {K * sizeof(label_t), sizeof(label_t)}, results,
-                                free_when_done);
+    py::array_t<label_t> labels =
+        py::array_t<label_t>({num_queries, (size_t)K}, // shape of the array
+                             {K * sizeof(label_t), sizeof(label_t)}, // strides
+                             results,               // data pointer
+                             free_results_when_done // capsule
+        );
+
+    py::array_t<float> dists = py::array_t<float>(
+        {num_queries, (size_t)K}, {K * sizeof(float), sizeof(float)}, distances,
+        free_distances_when_done);
+
+    return {dists, labels};
   }
 };
 
@@ -111,22 +137,58 @@ using L2FlatNavIndex = PythonIndex<SquaredL2Distance, int>;
 using InnerProductFlatNavIndex = PythonIndex<InnerProductDistance, int>;
 
 template <typename IndexType>
-void bindIndexMethods(py::class_<IndexType> &index_class){
-    index_class
-        .def("add", &IndexType::add, py::arg("data"),
-             py::arg("ef_construction"), py::arg("labels") = py::none(),
-             "Add vectors(data) to the index with the given `ef_construction` "
-             "parameter and optional labels. `ef_construction` determines how "
-             "many "
-             "vertices are visited while inserting every vector in the "
-             "underlying graph structure.")
-        .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
-             py::arg("ef_search"),
-             "Return top `K` closest data points for every query in the "
-             "provided `queries`. The `ef_search` parameter determines how "
-             "many neighbors are visited while finding the closest neighbors "
-             "for every query.");
-
+void bindIndexMethods(py::class_<IndexType> &index_class) {
+  index_class
+      .def(
+          "save",
+          [](IndexType &index_type, const std::string &filename) {
+            auto index = index_type.getIndex();
+            index->saveIndex(/* filename = */ filename);
+          },
+          py::arg("filename"),
+          "Save a FlatNav index at the given file location.")
+      .def_static("load", &IndexType::loadIndex, py::arg("filename"),
+                  "Load a FlatNav index from a given file location")
+      .def("add", &IndexType::add, py::arg("data"), py::arg("ef_construction"),
+           py::arg("labels") = py::none(),
+           "Add vectors(data) to the index with the given `ef_construction` "
+           "parameter and optional labels. `ef_construction` determines how "
+           "many "
+           "vertices are visited while inserting every vector in the "
+           "underlying graph structure.")
+      .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
+           py::arg("ef_search"),
+           "Return top `K` closest data points for every query in the "
+           "provided `queries`. The results are returned as a Tuple of "
+           "distances and label ID's. The `ef_search` parameter determines how "
+           "many neighbors are visited while finding the closest neighbors "
+           "for every query.")
+      .def(
+          "reorder",
+          [](IndexType &index_type, const std::string &algorithm) {
+            auto index = index_type.getIndex();
+            auto alg = algorithm;
+            std::transform(alg.begin(), alg.end(), alg.begin(),
+                           [](unsigned char c) { return std::tolower(c); });
+            if (alg == "gorder") {
+              index->reorderGOrder();
+            } else if (alg == "rcm") {
+              index->reorderRCM();
+            } else {
+              throw std::invalid_argument(
+                  "`" + algorithm +
+                  "` is not a supported graph re-ordering algorithm.");
+            }
+          },
+          py::arg("algorithm"),
+          "Perform graph re-ordering based on the given re-ordering strategy.")
+      .def_property_read_only(
+          "max_edges_per_node",
+          [](IndexType &index_type) {
+            return index_type.getIndex()->maxEdgesPerNode();
+          },
+          "Maximum number of edges(links) per node in the underlying NSW graph "
+          "data structure.");
 }
 
 py::object createIndex(const std::string &distance_type, int dim,
@@ -152,7 +214,7 @@ py::object createIndex(const std::string &distance_type, int dim,
 void defineIndexSubmodule(py::module_ &index_submodule) {
   index_submodule.def("index_factory", &createIndex, py::arg("distance_type"),
                       py::arg("dim"), py::arg("dataset_size"),
-                      py::arg("max_edge_per_node"),
+                      py::arg("max_edges_per_node"),
                       "Creates a FlatNav index given the corresponding "
                       "parameters. The `distance_type` argument determines the "
                       "kind of index created (either L2Index or IPIndex)");

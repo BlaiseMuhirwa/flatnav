@@ -119,7 +119,7 @@ gOrder(std::vector<std::vector<node_id_t>> &outdegree_table, const int w) {
 
 template <typename node_id_t>
 std::vector<node_id_t>
-rcm_order(std::vector<std::vector<node_id_t>> &outdegree_table) {
+rcmOrder(std::vector<std::vector<node_id_t>> &outdegree_table) {
 
   int cur_num_nodes = outdegree_table.size();
   std::vector<std::pair<node_id_t, int>> sorted_nodes;

@@ -141,7 +141,7 @@ public:
         }
       }
     }
-    std::vector<node_id_t> P = rcm_order<node_id_t>(outdegree_table);
+    std::vector<node_id_t> P = rcmOrder<node_id_t>(outdegree_table);
     relabel(P);
   }
 
@@ -198,6 +198,7 @@ public:
 
   inline char *indexMemory() const { return _index_memory; }
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
+  inline size_t dataDimension() const { return _distance->dimension(); }
 
   void printIndexParams() const {
     std::cout << "\nIndex Parameters" << std::endl;

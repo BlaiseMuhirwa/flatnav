@@ -286,7 +286,6 @@
           /* nbits = */ 8);
 
       for (uint32_t m = 0; m < _num_subquantizers; m++) {
-        uint64_t code_ = code_manager.decode();
         std::memcpy(vector + (m * _subvector_dim), getCentroids(m, 0),
                     sizeof(float) * _subvector_dim);
       }

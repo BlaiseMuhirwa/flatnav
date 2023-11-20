@@ -6,14 +6,14 @@ set -ex
 POETRY_ENV=$(poetry env info --path)
 
 # Generate wheel file
-$POETRY_ENV/bin/python setup.py bdist_wheel 
+$POETRY_ENV/bin/python setup.py bdist_wheel
 
 # Assuming the build only produces one wheel file in the dist directory
 WHEEL_FILE=$(ls dist/*.whl)
 
 
 # Install the wheel using pip 
-$POETRY_ENV/bin/pip install $WHEEL_FILE
+$POETRY_ENV/bin/pip install $WHEEL_FILE --force-reinstall
 
 echo "Installation of wheel completed"
 
