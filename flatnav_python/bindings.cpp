@@ -4,6 +4,8 @@
 #include <pybind11/pybind11.h>
 #include <string>
 #include <utility>
+#include <iostream>
+#include <ostream>
 #include <vector>
 
 #include <flatnav/DistanceInterface.h>
@@ -19,8 +21,10 @@ using flatnav::SquaredL2Distance;
 namespace py = pybind11;
 
 template <typename dist_t, typename label_t> class PythonIndex {
+  const uint32_t NUM_LOG_STEPS = 1000;
 private:
   int _dim, label_id;
+  bool _verbose;
   Index<dist_t, label_t> *_index;
 
 public:
@@ -28,11 +32,12 @@ public:
       DistancesLabelsPair;
 
   explicit PythonIndex(std::unique_ptr<Index<dist_t, label_t>> index)
-      : _dim(index->dataDimension()), label_id(0), _index(index.get()) {}
+      : _dim(index->dataDimension()), label_id(0), _verbose(false),
+        _index(index.get()) {}
 
   PythonIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dim,
-              int dataset_size, int max_edges_per_node)
-      : _dim(dim), label_id(0),
+              int dataset_size, int max_edges_per_node, bool verbose = false)
+      : _dim(dim), label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
@@ -62,13 +67,19 @@ public:
       throw std::invalid_argument("Data has incorrect dimensions.");
     }
 
+    std::clog << "[num-vectors] = " << num_vectors << std::flush;
+    std::clog << "[data_dim] = " << data_dim << std::flush;
     if (labels.is_none()) {
       for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
         this->_index->add(/* data = */ (void *)data.data(vec_index),
                           /* label = */ label_id,
                           /* ef_construction = */ ef_construction);
+        if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
+          std::clog << "." << std::flush;
+        }
         label_id++;
       }
+      std::clog << std::endl;
       return;
     }
 
@@ -84,7 +95,12 @@ public:
       this->_index->add(/* data = */ (void *)data.data(vec_index),
                         /* label = */ label_id,
                         /* ef_construction = */ ef_construction);
+
+      if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
+        std::clog << "." << std::flush;
+      }
     }
+    std::clog << std::endl;
   }
 
   DistancesLabelsPair
@@ -182,7 +198,7 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
           },
           py::arg("algorithm"),
           "Perform graph re-ordering based on the given re-ordering strategy.")
-      .def_property_read_only(
+      .def_property_readonly(
           "max_edges_per_node",
           [](IndexType &index_type) {
             return index_type.getIndex()->maxEdgesPerNode();
@@ -192,7 +208,8 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
 }
 
 py::object createIndex(const std::string &distance_type, int dim,
-                       int dataset_size, int max_edges_per_node) {
+                       int dataset_size, int max_edges_per_node,
+                       bool verbose = false) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });
@@ -200,11 +217,11 @@ py::object createIndex(const std::string &distance_type, int dim,
   if (dist_type == "l2") {
     auto distance = std::make_shared<SquaredL2Distance>(/* dim = */ dim);
     return py::cast(new L2FlatNavIndex(std::move(distance), dim, dataset_size,
-                                       max_edges_per_node));
+                                       max_edges_per_node, verbose));
   } else if (dist_type == "angular") {
     auto distance = std::make_shared<InnerProductDistance>(/* dim = */ dim);
     return py::cast(new InnerProductFlatNavIndex(
-        std::move(distance), dim, dataset_size, max_edges_per_node));
+        std::move(distance), dim, dataset_size, max_edges_per_node, verbose));
   }
   throw std::invalid_argument("Invalid distance type: `" + dist_type +
                               "` during index construction. Valid options "
@@ -214,7 +231,7 @@ py::object createIndex(const std::string &distance_type, int dim,
 void defineIndexSubmodule(py::module_ &index_submodule) {
   index_submodule.def("index_factory", &createIndex, py::arg("distance_type"),
                       py::arg("dim"), py::arg("dataset_size"),
-                      py::arg("max_edges_per_node"),
+                      py::arg("max_edges_per_node"), py::arg("verbose") = false,
                       "Creates a FlatNav index given the corresponding "
                       "parameters. The `distance_type` argument determines the "
                       "kind of index created (either L2Index or IPIndex)");

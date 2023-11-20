@@ -29,7 +29,7 @@ ext_modules = [
             os.path.join(CURRENT_DIR, "..", "external", "cereal", "include"),
         ],
         # Ignoring the `Wno-sign-compare` which warns you when you compare int with something like
-        # uint64_t. 
+        # uint64_t.
         extra_compile_args=["-Wno-sign-compare", "-fopenmp"],
     )
 ]
