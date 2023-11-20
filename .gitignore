@@ -12,7 +12,10 @@ build
 .env 
 
 # Python wheel related folders/files
-flatnav_pyton/flatnav.egg-info
+flatnav_python/flatnav.egg-info/
+flatnav_python/poetry.lock
+flatnav_python/dist
+
 
 # other files
 data/

@@ -6,12 +6,18 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
-#include "../flatnav/Index.h"
-#include "../flatnav/distances/InnerProductDistance.h"
-#include "../flatnav/distances/SquaredL2Distance.h"
-#include "../flatnav/distances/SquaredL2DistanceSpecializations.h"
+#include <flatnav/quantization/ProductQuantizer.h>
+
+#include <flatnav/DistanceInterface.h>
+#include <flatnav/Index.h>
+#include <flatnav/distances/SquaredL2Distance.h>
 
 using namespace flatnav;
+using flatnav::Index;
+using flatnav::InnerProductDistance;
+using flatnav::SquaredL2Distance;
+using flatnav::quantization::ProductQuantizer;
+
 namespace py = pybind11;
 
 template <typename dist_t, typename label_t> class PyIndex {
@@ -156,7 +162,31 @@ PYBIND11_MODULE(flatnav, m) {
            py::arg("ef_search"))
       .def("reorder", &L2FloatPyIndex::reorder, py::arg("alg"))
       .def("save", &L2FloatPyIndex::save, py::arg("filename"));
+}
 
-  // m.def("ComputeRecall", &ComputeRecall<int>, py::arg("results"),
-  //       py::arg("gtruths"));
+#include <iostream>
+#include <pybind11/pybind11.h>
+
+namespace py = pybind11;
+
+class Index {
+public:
+  int _m;
+  explicit Index(int num) : _m(num) {}
+
+  int add(int j) { return _m + j; }
+};
+
+void defineIndexSubmodule(py::module_ &index_submodule) {
+  py::class_<Index>(index_submodule, "Index")
+      .def(py::init<int>(), py::arg("num"),
+           "Initializes a naive quantizer (int8) object.")
+      .def("add", &Index::add, py::arg("j"),
+           "Quantizes input vectors based by clipping the bit width.");
+}
+
+PYBIND11_MODULE(flatnav, module_) {
+
+  auto index_submodule = module_.def_submodule("index");
+  defineIndexSubmodule(index_submodule);
 }

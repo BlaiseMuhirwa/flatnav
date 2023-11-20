@@ -1,33 +1,39 @@
-import sys
-import os 
+# import toml
+import os
 
 # Available at setup time due to pyproject.toml
-from pybind11 import get_cmake_dir
 from pybind11.setup_helpers import Pybind11Extension, build_ext
 from setuptools import setup
 
+# def parse_version_from_pyproject() -> str:
+#     with open("pyproject.toml") as f:
+#         pyproject = toml.load(f)
+#         return pyproject["tool"]["poetry"]["version"]
+
+#     raise RuntimeError("Unable to find version string.")
+
 __version__ = "0.0.1"
 
-# The main interface is through Pybind11Extension.
-# * You can add cxx_std=11/14/17, and then build_ext can be removed.
-# * You can set include_pybind11=false to add the include directory yourself,
-#   say from a submodule.
-#
-# Note:
-#   Sort input source files if you glob sources to ensure bit-for-bit
-#   reproducible builds (https://github.com/pybind/python_example/pull/53)
+CURRENT_DIR = os.getcwd()
+SOURCE_PATH = os.path.join(CURRENT_DIR, "bindings.cpp")
 
-binding_file = os.getcwd() + "/python_bindings.cpp"
 
 ext_modules = [
     Pybind11Extension(
         "flatnav",
-        [binding_file],
-        # Example: passing in the version to the compiled code
+        [SOURCE_PATH],
         define_macros=[("VERSION_INFO", __version__)],
-        cxx_std=11,
-    ),
+        cxx_std=17,
+        include_dirs=[
+            os.path.join(CURRENT_DIR, ".."),
+            os.path.join(CURRENT_DIR, "..", "external", "cereal", "include"),
+        ],
+        # Ignoring the `Wno-sign-compare` which warns you when you compare int with something like
+        # uint64_t. 
+        extra_compile_args=["-Wno-sign-compare", "-fopenmp"],
+    )
 ]
+
 
 setup(
     name="flatnav",
@@ -41,7 +47,7 @@ setup(
     # extras_require={"test": "pytest"},
     # Currently, build_ext only provides an optional "highest supported C++
     # level" feature, but in the future it may provide more features.
-    # cmdclass={"build_ext": build_ext},
+    cmdclass={"build_ext": build_ext},
     zip_safe=False,
     python_requires=">=3.7",
 )

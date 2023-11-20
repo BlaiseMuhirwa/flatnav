@@ -25,7 +25,7 @@ namespace flatnav {
 
 template <typename node_id_t>
 std::vector<node_id_t>
-g_order(std::vector<std::vector<node_id_t>> &outdegree_table, const int w) {
+gOrder(std::vector<std::vector<node_id_t>> &outdegree_table, const int w) {
   /* Simple explanation of the Gorder Algorithm:
   insert all v into Q each with priority 0
   select a start node into P

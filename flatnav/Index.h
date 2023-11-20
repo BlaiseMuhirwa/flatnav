@@ -115,7 +115,7 @@ public:
     return results;
   }
 
-  void reorder_gorder(const int window_size = 5) {
+  void reorderGOrder(const int window_size = 5) {
     std::vector<std::vector<node_id_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
       node_id_t *links = getNodeLinks(node);
@@ -125,12 +125,12 @@ public:
         }
       }
     }
-    std::vector<node_id_t> P = g_order<node_id_t>(outdegree_table, window_size);
+    std::vector<node_id_t> P = gOrder<node_id_t>(outdegree_table, window_size);
 
     relabel(P);
   }
 
-  void reorder_rcm() {
+  void reorderRCM() {
     // TODO: Remove code duplication for outdegree_table.
     std::vector<std::vector<node_id_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
@@ -442,7 +442,7 @@ private:
       // now do the back-connections (a little tricky)
       node_id_t *neighbor_node_links = getNodeLinks(neighbor_node_id);
       bool is_inserted = false;
-      for (int j = 0; j < _M; j++) {
+      for (size_t j = 0; j < _M; j++) {
         if (neighbor_node_links[j] == neighbor_node_id) {
           // If there is a self-loop, replace the self-loop with
           // the desired link.
@@ -464,7 +464,7 @@ private:
 
         PriorityQueue candidates;
         candidates.emplace(max_dist, new_node_id);
-        for (int j = 0; j < _M; j++) {
+        for (size_t j = 0; j < _M; j++) {
           if (neighbor_node_links[j] != neighbor_node_id) {
             auto label = neighbor_node_links[j];
             auto distance =
@@ -475,7 +475,7 @@ private:
         }
         selectNeighbors(candidates);
         // connect the pruned set of candidates, including self-loops:
-        int j = 0;
+        size_t j = 0;
         while (candidates.size() > 0) { // candidates
           neighbor_node_links[j] = candidates.top().second;
           candidates.pop();
