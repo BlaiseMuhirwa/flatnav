@@ -1,6 +1,6 @@
 
 
-## Building the Python Wheel file 
+## Building the FlatNav Python Library 
 
 
 First, if you are on a Linux machine (e.g. Ubuntu), ensure that you have the header files and static libraries
@@ -10,8 +10,10 @@ for python dev. To install them on Ubuntu, run
 > sudo apt-get install python3-dev
 ```
 
-To build the wheel file, run 
+To build the wheel file and pip-install it, run
 
 ```shell
-> poetry run python setup.py bdist_wheel 
+> cd flatnav_python
+> poetry install --no-dev
+> ./install_flatnav.sh 
 ```
