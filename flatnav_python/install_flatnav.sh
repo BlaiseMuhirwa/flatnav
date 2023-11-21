@@ -2,6 +2,8 @@
 
 set -ex 
 
+poetry install --no-root
+
 # Activate the poetry environment 
 POETRY_ENV=$(poetry env info --path)
 
