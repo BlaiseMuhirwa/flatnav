@@ -5,13 +5,13 @@ if [ -f mnist_784.index ]; then
     rm mnist_784.index
 fi
 
-if [ -f sift_128.index ]; then
-    rm sift_128.index
-fi
+# if [ -f sift_128.index ]; then
+#     rm sift_128.index
+# fi
 
-if [ -f glove_25.index ]; then
-    rm glove_25.index
-fi
+# if [ -f glove_25.index ]; then
+#     rm glove_25.index
+# fi
 
 # if [ -f gist_960.index ]; then
 #     rm gist_960.index
@@ -22,10 +22,10 @@ fi
 # fi
 
 # Build the index for MNIST 
-# build/construct_npy 1 0 data/mnist-784-euclidean/mnist-784-euclidean.train.npy 16 128 mnist_784.index
+build/construct_npy 0 0 data/mnist-784-euclidean/mnist-784-euclidean.train.npy 16 128 mnist_784.index
 
 # # Query MNIST
-# build/query_npy 0 mnist_784.index data/mnist-784-euclidean/mnist-784-euclidean.test.npy data/mnist-784-euclidean/mnist-784-euclidean.gtruth.npy 256 100 0 1
+build/query_npy 0 mnist_784.index data/mnist-784-euclidean/mnist-784-euclidean.test.npy data/mnist-784-euclidean/mnist-784-euclidean.gtruth.npy 256 100 0 0
 
 # # Query MNIST with reordering
 # build/query_npy 0 mnist_784.index data/mnist/mnist-784-euclidean.test.npy data/mnist/mnist-784-euclidean.gtruth.npy 256,512 100 1
@@ -37,10 +37,10 @@ fi
 # build/query_npy 0 sift_128.index data/sift/sift-128-euclidean.test.npy data/sift/sift-128-euclidean.gtruth.npy 256,512 100 0
 
 # Build the index for GloVe
-build/construct_npy 1 1 data/glove/glove-25-angular.train.npy 16 128 glove_25.index
+# build/construct_npy 1 1 data/glove/glove-25-angular.train.npy 16 128 glove_25.index
 
 # Query GloVe without reordering 
-build/query_npy 1 glove_25.index data/glove/glove-25-angular.test.npy data/glove/glove-25-angular.gtruth.npy 128,256 100 0 1
+# build/query_npy 1 glove_25.index data/glove/glove-25-angular.test.npy data/glove/glove-25-angular.gtruth.npy 128,256 100 0 1
 
 # # Query GloVe with reordering
 # build/query_npy 1 glove_25.index data/glove/glove-25-angular.test.npy data/glove/glove-25-angular.gtruth.npy 256,512 100 1

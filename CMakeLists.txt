@@ -218,7 +218,6 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/inner_products_from_hnswlib.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2DistanceSpecializations.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/SQDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ExplicitSet.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/reordering.h
@@ -238,7 +237,7 @@ set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples for Flatnav")
-  foreach(CONSTRUCT_EXEC construct_npy query query_npy cereal_tests)
+  foreach(CONSTRUCT_EXEC construct_npy query_npy cereal_tests)
     add_executable(${CONSTRUCT_EXEC}
                    ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
     add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)
