@@ -14,7 +14,11 @@
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <memory>
+
+#ifdef _OPENMP
 #include <omp.h>
+#endif 
+
 #include <quantization/CentroidsGenerator.h>
 #include <quantization/Utils.h>
 #include <queue>

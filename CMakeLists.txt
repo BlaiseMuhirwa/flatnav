@@ -25,7 +25,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} \
     -std=c++17 \
-    -Wall \
     -Ofast \
     -DHAVE_CXX0X \
     -DNDEBUG \
@@ -38,10 +37,9 @@ set(CMAKE_CXX_FLAGS
 
 option(CMAKE_BUILD_TYPE "Build type" Release)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  # In Debug mode, we will also add the -g flag to enable debugging and the
-  # address sanitizer.
+  # Add debug compile flags
   message(STATUS "Building in Debug mode")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fsanitize=address")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fsanitize=address")
 endif()
 
 include(ExternalProject)

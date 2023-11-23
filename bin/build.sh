@@ -55,6 +55,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
     echo "Using LLVM clang"
     export CC=/opt/homebrew/opt/llvm/bin/clang
     export CXX=/opt/homebrew/opt/llvm/bin/clang++
+    export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
+    export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
 elif [[ "$(uname)" == "Linux" ]]; then
     echo "Using system clang"
 else
