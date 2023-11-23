@@ -1,33 +1,49 @@
-import sys
-import os 
-
-# Available at setup time due to pyproject.toml
-from pybind11 import get_cmake_dir
+import os
 from pybind11.setup_helpers import Pybind11Extension, build_ext
 from setuptools import setup
+import sys
 
 __version__ = "0.0.1"
 
-# The main interface is through Pybind11Extension.
-# * You can add cxx_std=11/14/17, and then build_ext can be removed.
-# * You can set include_pybind11=false to add the include directory yourself,
-#   say from a submodule.
-#
-# Note:
-#   Sort input source files if you glob sources to ensure bit-for-bit
-#   reproducible builds (https://github.com/pybind/python_example/pull/53)
+CURRENT_DIR = os.getcwd()
+SOURCE_PATH = os.path.join(CURRENT_DIR, "python_bindings.cpp")
 
-binding_file = os.getcwd() + "/python_bindings.cpp"
+
+INCLUDE_DIRS = [
+    os.path.join(CURRENT_DIR, ".."),
+    os.path.join(CURRENT_DIR, "..", "external", "cereal", "include"),
+]
+EXTRA_LINK_ARGS = []
+
+if sys.platform == "darwin":
+    omp_flag = "-Xclang -fopenmp"
+    INCLUDE_DIRS.extend(["/opt/homebrew/opt/libomp/include"])
+    EXTRA_LINK_ARGS.extend(["-lomp", "-L/opt/homebrew/opt/libomp/lib"])
+elif sys.platform() == "linux":
+    omp_flag = "-fopenmp"
+    EXTRA_LINK_ARGS.extend(["-fopenmp"])
+
 
 ext_modules = [
     Pybind11Extension(
         "flatnav",
-        [binding_file],
-        # Example: passing in the version to the compiled code
+        [SOURCE_PATH],
         define_macros=[("VERSION_INFO", __version__)],
-        cxx_std=11,
-    ),
+        cxx_std=17,
+        include_dirs=INCLUDE_DIRS,
+        extra_compile_args=[
+            omp_flag,  # Enable OpenMP
+            "-Ofast",  # Use the fastest optimization
+            "-fpic",  # Position-independent code
+            "-w",  # Suppress all warnings (note: this overrides -Wall)
+            "-ffast-math",  # Enable fast math optimizations
+            "-funroll-loops",  # Unroll loops
+            "-ftree-vectorize",  # Vectorize where possible
+        ],
+        extra_link_args=EXTRA_LINK_ARGS,  # Link OpenMP when linking the extension
+    )
 ]
+
 
 setup(
     name="flatnav",
@@ -38,10 +54,7 @@ setup(
     description="Graph kNN with reordering.",
     long_description="",
     ext_modules=ext_modules,
-    # extras_require={"test": "pytest"},
-    # Currently, build_ext only provides an optional "highest supported C++
-    # level" feature, but in the future it may provide more features.
-    # cmdclass={"build_ext": build_ext},
+    cmdclass={"build_ext": build_ext},
     zip_safe=False,
     python_requires=">=3.7",
 )

@@ -21,34 +21,32 @@ set(CMAKE_CXX_STANDARD 17)
 # I added compiler flags for ASan (address sanitizer). It is supposed to be very
 # fast, but if we find it slow, we can remove it for good or use compiler
 # directives to skip analyzing functions __attribute__((no_sanitize_address))
-
+# https://clang.llvm.org/docs/AddressSanitizer.html Compiler flags
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} \
-    -Xclang -std=c++17 \
-    -Wall -Ofast \
+    -std=c++17 \
+    -Ofast \
     -DHAVE_CXX0X \
     -DNDEBUG \
-    -openmp \
-    -L/opt/homebrew/opt/libomp/lib \
-    -I/opt/homebrew/opt/libomp/include \
-    -lomp \
+    -fopenmp \
     -fpic \
     -w \
     -ffast-math \
     -funroll-loops \
-    -ftree-vectorize \
-    -g \
-    -fsanitize=address")
+    -ftree-vectorize")
 
-# set(OpenMP_CXX_FLAGS "-fopenmp") set(OpenMP_CXX_LIB_NAMES "omp")
-# link_libraries(omp)
+option(CMAKE_BUILD_TYPE "Build type" Release)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  # Add debug compile flags
+  message(STATUS "Building in Debug mode")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fsanitize=address")
+endif()
 
 include(ExternalProject)
 include(FeatureSummary)
 include(FetchContent)
 
 find_package(Git REQUIRED)
-# find_package(OpenMP REQUIRED)
 
 option(USE_GIT_PROTOCOL
        "If behind a firewall turn this off to use HTTPS instead." OFF)
@@ -127,12 +125,13 @@ include_directories(${PROJECT_BINARY_DIR}/ep/include)
 
 set(CNPY_LIB ${PROJECT_BINARY_DIR}/ep/lib/libcnpy.a)
 
-find_package(OpenMP)
+find_package(OpenMP REQUIRED)
 if(OpenMP_FOUND)
   message(STATUS "OpenMP Found. Building the Package using the system OpenMP.")
 else()
   message(
-    "OpenMP Not Found. Building the Package using LLVM's OpenMP. This is slower than the system OpenMP."
+    FATAL_ERROR
+      "OpenMP Not Found. Building the Package using LLVM's OpenMP. This is slower than the system OpenMP."
   )
 endif(OpenMP_FOUND)
 
@@ -217,7 +216,6 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/inner_products_from_hnswlib.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2DistanceSpecializations.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/SQDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ExplicitSet.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/reordering.h
@@ -237,8 +235,7 @@ set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples for Flatnav")
-  foreach(CONSTRUCT_EXEC construct_npy query query_npy
-                         cereal_tests)
+  foreach(CONSTRUCT_EXEC construct_npy query_npy cereal_tests)
     add_executable(${CONSTRUCT_EXEC}
                    ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
     add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)

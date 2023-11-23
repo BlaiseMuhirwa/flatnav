@@ -34,7 +34,7 @@ void run(float *queries, int *gtruth, const std::string &index_filename,
   if (reorder) {
     std::clog << "[INFO] Gorder Reordering: " << std::endl;
     auto start_r = std::chrono::high_resolution_clock::now();
-    index->reorder_gorder();
+    index->reorderGOrder();
     auto stop_r = std::chrono::high_resolution_clock::now();
     auto duration_r =
         std::chrono::duration_cast<std::chrono::milliseconds>(stop_r - start_r);
