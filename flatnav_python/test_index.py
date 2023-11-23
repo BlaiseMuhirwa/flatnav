@@ -147,7 +147,7 @@ def test_flatnav_ip_index_random_dataset():
     dataset_to_index = generate_random_data(dataset_length=30_000, dim=225)
     queries = generate_random_data(dataset_length=5_000, dim=225)
     ground_truth = np.random.randint(low=0, high=50, size=(5_000, 100))
-    
+
     index = create_index(
         distance_type="angular",
         dim=dataset_to_index.shape[1],
@@ -166,8 +166,8 @@ def test_flatnav_ip_index_random_dataset():
         queries=queries,
         ground_truth=ground_truth,
     )
-    
-    
+
+
 def test_flatnav_index_with_reordering():
     training_set, queries, ground_truth, _ = get_ann_benchmark_dataset(
         dataset_name="mnist-784-euclidean"
@@ -193,7 +193,7 @@ def test_flatnav_index_with_reordering():
         assert_recall_threshold=True,
         recall_threshold=0.97,
         use_reordering=True,
-        reordering_algorithm="gorder"
+        reordering_algorithm="gorder",
     )
 
 
