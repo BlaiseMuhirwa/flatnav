@@ -419,18 +419,18 @@ public:
   }
 
   void printParamsImpl() const {
-    std::cout << "\nProduct Quantizer Parameters" << std::endl;
-    std::cout << "-----------------------------" << std::endl;
+    std::cout << "\nProduct Quantizer Parameters" << std::flush;
+    std::cout << "-----------------------------" << std::flush;
     std::cout << "Number of subquantizers (M): " << _num_subquantizers
-              << std::endl;
-    std::cout << "Number of bits per index: " << _num_bits << std::endl;
-    std::cout << "Subvector dimension: " << _subvector_dim << std::endl;
+              << std::flush;
+    std::cout << "Number of bits per index: " << _num_bits << std::flush;
+    std::cout << "Subvector dimension: " << _subvector_dim << std::flush;
     std::cout << "Subquantizer centroids count: " << _subq_centroids_count
-              << std::endl;
-    std::cout << "Code size: " << _code_size << std::endl;
-    std::cout << "Is trained: " << _is_trained << std::endl;
-    std::cout << "Train type: " << _train_type << std::endl;
-    std::cout << "\n" << std::endl;
+              << std::flush;
+    std::cout << "Code size: " << _code_size << std::flush;
+    std::cout << "Is trained: " << _is_trained << std::flush;
+    std::cout << "Train type: " << _train_type << std::flush;
+    std::cout << "\n" << std::flush;
   }
 
   inline uint32_t getNumSubquantizers() const { return _num_subquantizers; }

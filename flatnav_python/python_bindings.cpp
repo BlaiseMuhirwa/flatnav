@@ -34,7 +34,12 @@ public:
 
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), label_id(0), _verbose(false),
-        _index(index.get()) {}
+        _index(index.get()) {
+
+    if (_verbose) {
+      _index->printIndexParams();
+    }
+  }
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dim,
           int dataset_size, int max_edges_per_node, bool verbose = false)
@@ -42,7 +47,12 @@ public:
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
-            /* max_edges_per_node = */ max_edges_per_node)) {}
+            /* max_edges_per_node = */ max_edges_per_node)) {
+
+    if (_verbose) {
+      _index->printIndexParams();
+    }
+  }
 
   Index<dist_t, label_t> *getIndex() { return _index; }
 

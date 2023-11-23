@@ -69,9 +69,9 @@ private:
   }
 
   void printParamsImpl() {
-    std::cout << "\nSquaredL2Distance Parameters" << std::endl;
-    std::cout << "-----------------------------" << std::endl;
-    std::cout << "Dimension: " << _dimension << std::endl;
+    std::cout << "\nSquaredL2Distance Parameters" << std::flush;
+    std::cout << "-----------------------------" << std::flush;
+    std::cout << "Dimension: " << _dimension << std::flush;
   }
 };
 

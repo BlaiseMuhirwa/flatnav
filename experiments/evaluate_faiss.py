@@ -154,6 +154,7 @@ def train_hnsw_index(
 
     return index
 
+
 def main(
     train_dataset: np.ndarray,
     queries: np.ndarray,
@@ -219,4 +220,3 @@ if __name__ == "__main__":
             ef_search_params=ef_searches,
             num_node_links=num_node_links,
         )
-
