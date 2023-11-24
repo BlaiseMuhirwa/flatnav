@@ -44,7 +44,7 @@ def load_benchmark_dataset(
     )
     gtruth_dataset = np.fromfile(
         gtruth_path,
-        dtype=np.float32 if gtruth_path.endswith("fbin") else np.uint8,
+        dtype=np.uint8,
     )
 
     return train_dataset, queries_dataset, gtruth_dataset
