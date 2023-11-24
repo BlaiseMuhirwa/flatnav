@@ -218,7 +218,7 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
 
 py::object createIndex(const std::string &distance_type, int dim,
                        int dataset_size, int max_edges_per_node,
-                       bool verbose = true) {
+                       bool verbose = false) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });

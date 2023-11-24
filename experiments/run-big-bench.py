@@ -36,9 +36,14 @@ def load_benchmark_dataset(
             if not os.path.exists(path):
                 raise ValueError(f"Invalid file path: {path}")
 
-    def load_ground_truth(path: str) -> Tuple[np.ndarray, int, int]:
+    def load_ground_truth(path: str) -> Tuple[np.ndarray, np.ndarray, int, int]:
         """
-        Load only the IDs of the top-k's and not the distances.
+        Load the IDs and the distances of the top-k's and not the distances.
+        Returns:
+            - Array of top k IDs
+            - Array of top k distances
+            - Number of queries
+            - K value
         """
         with open(path, "rb") as f:
             num_queries = np.fromfile(f, dtype=np.uint32, count=1)[0]
@@ -46,16 +51,22 @@ def load_benchmark_dataset(
 
         # Memory-map the IDs only
         ground_truth_ids = np.memmap(
-            gtruth_path,
+            path,
             dtype=np.uint32,
             mode="r",
-            shape=(num_queries * K,),
+            shape=(num_queries, K),
             offset=8,
         )
 
-        # Reshape the loaded IDs to (num_queries, K)
-        ground_truth_ids = ground_truth_ids.reshape((num_queries, K))
-        return ground_truth_ids, num_queries, K
+        ground_truth_dists = np.memmap(
+            path,
+            dtype=np.float32,
+            mode="r",
+            shape=(num_queries, K),
+            offset=8 + (num_queries * K * np.dtype(np.uint32).itemsize),
+        )
+
+        return ground_truth_ids, ground_truth_dists, num_queries, K
 
     verify_paths_exist([train_dataset_path, queries_path, gtruth_path])
 
@@ -67,14 +78,13 @@ def load_benchmark_dataset(
         num_points = np.fromfile(f, dtype=np.uint32, count=1)[0]
         num_dimensions = np.fromfile(f, dtype=np.uint32, count=1)[0]
 
-
     if chunk_size:
         bytes_to_load = chunk_size * num_dimensions * np.dtype(train_dtype).itemsize
         train_dataset = np.memmap(
             train_dataset_path,
             dtype=train_dtype,
-            mode="r+",
-            shape=(total_size,),
+            mode="r",
+            shape=(total_size - 2,),
             offset=8,
         )
         train_dataset = train_dataset[: bytes_to_load // np.dtype(train_dtype).itemsize]
@@ -83,7 +93,7 @@ def load_benchmark_dataset(
         train_dataset = np.fromfile(train_dataset_path, dtype=train_dtype, offset=8)
         train_dataset = train_dataset.reshape((num_points, num_dimensions))
 
-    gtruth_dataset, num_queries, _ = load_ground_truth(gtruth_path)
+    gtruth_dataset, _, num_queries, _ = load_ground_truth(gtruth_path)
     queries_dataset = np.fromfile(
         queries_path,
         dtype=np.float32 if queries_path.endswith("fbin") else np.uint8,
@@ -119,7 +129,7 @@ def compute_metrics(
     end = time.time()
 
     querying_time = end - start
-    qps = 1 / querying_time
+    qps = len(queries) / querying_time
 
     # Convert each ground truth list to a set for faster lookup
     ground_truth_sets = [set(gt) for gt in ground_truth]
@@ -198,7 +208,7 @@ def main(
                     f"Recall@100: {recall}, QPS={qps}, node_links={node_links},"
                     f" ef_cons={ef_cons}, ef_search={ef_search}"
                 )
-                
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Benchmark Flatnav on Big ANN datasets."
@@ -225,7 +235,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--log_metrics", required=False, default=False, help="Log metrics to DVC."
     )
-    
+
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -241,9 +251,7 @@ if __name__ == "__main__":
         train_dataset_path=args.dataset,
         queries_path=args.queries,
         gtruth_path=args.gtruth,
-        chunk_size=10_000_000,
     )
-
     main(
         train_dataset=train_data,
         queries=queries,

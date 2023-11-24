@@ -2,7 +2,7 @@
 
 # Run the yandex-deep benchmark and log everything to a logs.txt file 
 yandex-deep-bench: 
-	poetry run python -u run-big-bench.py \
+	poetry run python run-big-bench.py \
 		--dataset /media/scratch/yandex-deep/learn.350.fbin \
 		--queries /media/scratch/yandex-deep/queries.fbin \
 		--gtruth /media/scratch/yandex-deep/ground_truth.10K.bin \
