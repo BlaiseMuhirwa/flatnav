@@ -37,7 +37,7 @@ public:
         _index(index.get()) {
 
     if (_verbose) {
-      _index->printIndexParams();
+      _index->getIndexSummary();
     }
   }
 
@@ -50,7 +50,7 @@ public:
             /* max_edges_per_node = */ max_edges_per_node)) {
 
     if (_verbose) {
-      _index->printIndexParams();
+    _index->getIndexSummary();
     }
   }
 
@@ -218,7 +218,7 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
 
 py::object createIndex(const std::string &distance_type, int dim,
                        int dataset_size, int max_edges_per_node,
-                       bool verbose = false) {
+                       bool verbose = true) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });

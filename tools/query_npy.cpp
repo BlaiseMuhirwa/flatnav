@@ -29,7 +29,7 @@ void run(float *queries, int *gtruth, const std::string &index_filename,
       Index<dist_t, int>::loadIndex(index_filename);
 
   std::cout << "[INFO] Index loaded" << std::endl;
-  index->printIndexParams();
+  index->getIndexSummary();
 
   if (reorder) {
     std::clog << "[INFO] Gorder Reordering: " << std::endl;

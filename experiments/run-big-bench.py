@@ -26,26 +26,70 @@ ENVIRONMENT_INFO = {
 
 
 def load_benchmark_dataset(
-    train_dataset_path: str, queries_path: str, gtruth_path: str
+    train_dataset_path: str,
+    queries_path: str,
+    gtruth_path: str,
+    chunk_size: Optional[int] = None,
 ) -> Tuple[np.ndarray]:
     def verify_paths_exist(paths: List[str]) -> None:
         for path in paths:
             if not os.path.exists(path):
                 raise ValueError(f"Invalid file path: {path}")
 
+    def load_ground_truth(path: str) -> Tuple[np.ndarray, int, int]:
+        """
+        Load only the IDs of the top-k's and not the distances.
+        """
+        with open(path, "rb") as f:
+            num_queries = np.fromfile(f, dtype=np.uint32, count=1)[0]
+            K = np.fromfile(f, dtype=np.uint32, count=1)[0]
+
+        # Memory-map the IDs only
+        ground_truth_ids = np.memmap(
+            gtruth_path,
+            dtype=np.uint32,
+            mode="r",
+            shape=(num_queries * K,),
+            offset=8,
+        )
+
+        # Reshape the loaded IDs to (num_queries, K)
+        ground_truth_ids = ground_truth_ids.reshape((num_queries, K))
+        return ground_truth_ids, num_queries, K
+
     verify_paths_exist([train_dataset_path, queries_path, gtruth_path])
 
-    train_dataset = np.fromfile(
-        train_dataset_path,
-        dtype=np.float32 if train_dataset_path.endswith("fbin") else np.uint8,
-    )
+    train_dtype = np.float32 if train_dataset_path.endswith("fbin") else np.uint8
+    total_size = os.path.getsize(train_dataset_path) // np.dtype(train_dtype).itemsize
+
+    # Read header information (num_points and num_dimensions)
+    with open(train_dataset_path, "rb") as f:
+        num_points = np.fromfile(f, dtype=np.uint32, count=1)[0]
+        num_dimensions = np.fromfile(f, dtype=np.uint32, count=1)[0]
+
+
+    if chunk_size:
+        bytes_to_load = chunk_size * num_dimensions * np.dtype(train_dtype).itemsize
+        train_dataset = np.memmap(
+            train_dataset_path,
+            dtype=train_dtype,
+            mode="r+",
+            shape=(total_size,),
+            offset=8,
+        )
+        train_dataset = train_dataset[: bytes_to_load // np.dtype(train_dtype).itemsize]
+        train_dataset = train_dataset.reshape((chunk_size, num_dimensions))
+    else:
+        train_dataset = np.fromfile(train_dataset_path, dtype=train_dtype, offset=8)
+        train_dataset = train_dataset.reshape((num_points, num_dimensions))
+
+    gtruth_dataset, num_queries, _ = load_ground_truth(gtruth_path)
     queries_dataset = np.fromfile(
-        queries_path, dtype=np.float32 if queries_path.endswith("fbin") else np.uint8
+        queries_path,
+        dtype=np.float32 if queries_path.endswith("fbin") else np.uint8,
+        offset=8,
     )
-    gtruth_dataset = np.fromfile(
-        gtruth_path,
-        dtype=np.uint8,
-    )
+    queries_dataset = queries_dataset.reshape((num_queries, num_dimensions))
 
     return train_dataset, queries_dataset, gtruth_dataset
 
@@ -61,7 +105,7 @@ def compute_metrics(
     Compute recall and QPS for given queries, ground truth, and a FlaNav index.
 
     Args:
-        - index: The Faiss index to search.
+        - index: A FlatNav index to search.
         - queries: The query vectors.
         - ground_truth: The ground truth indices for each query.
         - k: Number of neighbors to search.
@@ -154,10 +198,8 @@ def main(
                     f"Recall@100: {recall}, QPS={qps}, node_links={node_links},"
                     f" ef_cons={ef_cons}, ef_search={ef_search}"
                 )
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+                
+def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Benchmark Flatnav on Big ANN datasets."
     )
@@ -183,17 +225,23 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log_metrics", required=False, default=False, help="Log metrics to DVC."
     )
+    
+    return parser.parse_args()
 
-    args = parser.parse_args()
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
 
-    ef_construction_params = [32, 64, 128]
-    ef_search_params = [32, 64, 128, 256]
-    num_node_links = [8, 16, 32, 64]
+    args = parse_arguments()
+
+    ef_construction_params = [64, 128]
+    ef_search_params = [64, 128, 256]
+    num_node_links = [16, 32]
 
     train_data, queries, ground_truth = load_benchmark_dataset(
         train_dataset_path=args.dataset,
         queries_path=args.queries,
         gtruth_path=args.gtruth,
+        chunk_size=10_000_000,
     )
 
     main(
