@@ -51,19 +51,7 @@ find_package(Git REQUIRED)
 option(USE_GIT_PROTOCOL
        "If behind a firewall turn this off to use HTTPS instead." OFF)
 
-option(AVX "Compile scan functions requiring AVX intrinsics" ON)
-option(AVX2 "Compile scan functions requiring AVX2 intrinsics" ON)
-
 # All options summary
-add_feature_info(AVX AVX "Complile scan functions requiring AVX intrinsics")
-add_feature_info(
-  AVX2 AVX2
-  "Compile scan functions requiring AVX2 intrinsics (enables AVX automatically)"
-)
-if(AVX2)
-  set(AVX ON)
-endif()
-
 feature_summary(WHAT ALL)
 
 # Configure options
@@ -160,9 +148,15 @@ endif(OpenMP_FOUND)
 option(BUILD_TESTS "Build all tests")
 option(BUIL_EXAMPLES "Build examples")
 option(BUILD_BENCHMARKS "Build ANNS benchmarks")
+option(NO_MANUAL_VECTORIZATION "Disable manual vectorization (SIMD)")
 message(STATUS "Building tests: ${BUILD_TESTS}")
 message(STATUS "Building examples: ${BUILD_EXAMPLES}")
 message(STATUS "Building benchmarks: ${BUILD_BENCHMARKS}")
+
+if(NO_MANUAL_VECTORIZATION)
+  message(STATUS "Disabling manual vectorization (SIMD)")
+  add_definitions(-DNO_MANUAL_VECTORIZATION)
+endif()
 
 if(BUILD_BENCHMARKS)
   enable_testing()

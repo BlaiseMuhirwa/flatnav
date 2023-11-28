@@ -6,6 +6,7 @@
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/SIMDIntrinsics.h>
+#include <functional>
 #include <iostream>
 
 // This is the base distance function implementation for the L2 distance on
@@ -23,33 +24,11 @@ public:
   SquaredL2Distance() = default;
   explicit SquaredL2Distance(size_t dim)
       : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
-        _distance_computer(&SquaredL2Distance::defaultDistanceImpl) {
-
-#if defined(USE_AVX512) || defined(USE_AVX) || defined(USE_SSE)
-    _distance_computer = &flatnav::util::distanceImplSquaredL2SIMD16ExtSSE;
-#if defined(USE_AVX512)
-    if (flatnav::util::platform_supports_avx512()) {
-      _distance_computer = &flatnav::util::distanceImplSquaredL2SIMD16ExtAVX512;
-    } else if (platform_supports_avx()) {
-      _distance_computer = &flatnav::util::distanceImplSquaredL2SIMD16ExtAVX;
-    }
-#elif defined(USE_AVX)
-    if (flatnav::util::platform_supports_avx()) {
-      _distance_computer = &flatnav::util::distanceImplSquaredL2SIMD16ExtAVX;
-    }
-#endif
-
-    if (!(_dimension % 16 == 0) && _dimension % 4 == 0) {
-      _distance_computer = &flatnav::util::distanceImplSquaredL2SIMD4Ext;
-    } else if (_dimension > 16) {
-      _distance_computer =
-          &flatnav::util::distanceImplSquaredL2SIMD16ExtResiduals;
-    } else if (_dimension > 4) {
-      _distance_computer =
-          &flatnav::util::distanceImplSquaredL2SIMD4ExtResiduals;
-    }
-
-#endif
+        _distance_computer(std::bind(&SquaredL2Distance::defaultDistanceImpl,
+                                     this, std::placeholders::_1,
+                                     std::placeholders::_2,
+                                     std::placeholders::_3)) {
+    setDistanceFunction();
   }
 
   float distanceImpl(const void *x, const void *y,
@@ -61,7 +40,9 @@ public:
 private:
   size_t _dimension;
   size_t _data_size_bytes;
-  float (*_distance_computer)(const void *, const void *, size_t &) const;
+  // float (*_distance_computer)(const void *, const void *, size_t &) const;
+  std::function<float(const void *, const void *, const size_t &)>
+      _distance_computer;
 
   friend class ::cereal::access;
 
@@ -71,6 +52,11 @@ private:
     // If loading, we need to set the data size bytes
     if (Archive::is_loading::value) {
       _data_size_bytes = _dimension * sizeof(float);
+      _distance_computer = std::bind(
+          &SquaredL2Distance::defaultDistanceImpl, this, std::placeholders::_1,
+          std::placeholders::_2, std::placeholders::_3);
+
+      setDistanceFunction();
     }
   }
 
@@ -88,8 +74,37 @@ private:
     std::cout << "Dimension: " << _dimension << std::endl;
   }
 
+  void setDistanceFunction() {
+#ifndef NO_MANUAL_VECTORIZATION
+#if defined(USE_AVX512) || defined(USE_AVX) || defined(USE_SSE)
+    _distance_computer = distanceImplSquaredL2SIMD16ExtSSE;
+#if defined(USE_AVX512)
+    if (platform_supports_avx512()) {
+      _distance_computer = distanceImplSquaredL2SIMD16ExtAVX512;
+    } else if (platform_supports_avx()) {
+      _distance_computer = distanceImplSquaredL2SIMD16ExtAVX;
+    }
+#elif defined(USE_AVX)
+    if (platform_supports_avx()) {
+      _distance_computer = distanceImplSquaredL2SIMD16ExtAVX;
+    }
+#endif
+    if (!_dimension % 16 == 0) {
+      if (_dimension % 4 == 0) {
+        _distance_computer = distanceImplSquaredL2SIMD4Ext;
+      } else if (_dimension > 16) {
+        _distance_computer = distanceImplSquaredL2SIMD16ExtResiduals;
+      } else if (_dimension > 4) {
+        _distance_computer = distanceImplSquaredL2SIMD4ExtResiduals;
+      }
+    }
+
+#endif
+#endif // NO_MANUAL_VECTORIZATION
+  }
+
   float defaultDistanceImpl(const void *x, const void *y,
-                            size_t &dimension) const {
+                            const size_t &dimension) const {
     // Default implementation of squared-L2 distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
     float *p_x = (float *)x;

@@ -95,11 +95,11 @@ uint64_t xgetbv(unsigned int index) {
   __asm__ __volatile__("xgetbv" : "=a"(eax), "=d"(edx) : "c"(index));
   return ((uint64_t)edx << 32) | eax;
 }
-#endif
+#endif // _MSC_VER
 
 #if defined(USE_AVX512)
 #include <immintrin.h>
-#endif
+#endif // USE_AVX512
 
 #if defined(__GNUC__)
 // GCC-specific macros that tells the compiler to align variables on a
@@ -109,12 +109,10 @@ uint64_t xgetbv(unsigned int index) {
 #else
 #define PORTABLE_ALIGN32 __declspec(align(32))
 #define PORTABLE_ALIGN64 __declspec(align(64))
-#endif
+#endif // __GNUC__
 
 // Adapted from https://github.com/Mysticial/FeatureDetector
 #define _XCR_XFEATURE_ENABLED_MASK 0
-
-namespace flatnav::util {
 
 /**
  * Checks if the system's CPU and OS support AVX (Advanced Vector Extensions).
@@ -215,7 +213,7 @@ bool platform_supports_avx512() {
 #if defined(USE_AVX512)
 
 static float distanceImplSquaredL2SIMD16ExtAVX512(const void *x, const void *y,
-                                                  size_t &dimension) {
+                                                  const size_t &dimension) {
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
 
@@ -245,7 +243,7 @@ static float distanceImplSquaredL2SIMD16ExtAVX512(const void *x, const void *y,
 
 #if defined(USE_AVX)
 static float distanceImplSquaredL2SIMD16ExtAVX(const void *x, const void *y,
-                                               size_t &dimension) {
+                                               const size_t &dimension) {
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
 
@@ -281,7 +279,7 @@ static float distanceImplSquaredL2SIMD16ExtAVX(const void *x, const void *y,
 
 #if defined(USE_SSE)
 static float distanceImplSquaredL2SIMD16ExtSSE(const void *x, const void *y,
-                                               size_t &dimension) {
+                                               const size_t &dimension) {
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
 
@@ -328,7 +326,7 @@ static float distanceImplSquaredL2SIMD16ExtSSE(const void *x, const void *y,
 }
 
 static float distanceImplSquaredL2SIMD4Ext(const void *x, const void *y,
-                                           size_t &dimension) {
+                                           const size_t &dimension) {
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
 
@@ -355,10 +353,10 @@ static float distanceImplSquaredL2SIMD4Ext(const void *x, const void *y,
 
 static float distanceImplSquaredL2SIMD4ExtResiduals(const void *x,
                                                     const void *y,
-                                                    size_t &dimension) {
+                                                    const size_t &dimension) {
   // The purpose of this is to ensure that dimension is always a multiple of 4.
   size_t dimension4 = dimension >> 2 << 2;
-  float res = flatnav::util::distanceImplSquaredL2SIMD4Ext(x, y, &dimension4);
+  float res = distanceImplSquaredL2SIMD4Ext(x, y, dimension4);
   size_t residual = dimension - dimension4;
 
   float *p_x = (float *)(x) + dimension4;
@@ -379,11 +377,10 @@ static float distanceImplSquaredL2SIMD4ExtResiduals(const void *x,
 
 static float distanceImplSquaredL2SIMD16ExtResiduals(const void *x,
                                                      const void *y,
-                                                     size_t &dimension) {
+                                                     const size_t &dimension) {
   // The purpose of this is to ensure that dimension is always a multiple of 16.
   size_t dimension16 = dimension >> 4 << 4;
-  float res =
-      flatnav::util::distanceImplSquaredL2SIMD16ExtSSE(x, y, &dimension16);
+  float res = distanceImplSquaredL2SIMD16ExtSSE(x, y, dimension16);
   size_t residual = dimension - dimension16;
 
   float *p_x = (float *)(x) + dimension16;
@@ -399,4 +396,4 @@ static float distanceImplSquaredL2SIMD16ExtResiduals(const void *x,
 }
 #endif
 
-} // namespace flatnav::util
+// namespace flatnav::util
