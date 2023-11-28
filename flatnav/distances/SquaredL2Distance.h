@@ -5,6 +5,7 @@
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
+#include <flatnav/util/VerifySIMD.h>
 #include <iostream>
 
 // This is the base distance function implementation for the L2 distance on
