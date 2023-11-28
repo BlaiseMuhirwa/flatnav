@@ -40,7 +40,6 @@ public:
 private:
   size_t _dimension;
   size_t _data_size_bytes;
-  // float (*_distance_computer)(const void *, const void *, size_t &) const;
   std::function<float(const void *, const void *, const size_t &)>
       _distance_computer;
 
