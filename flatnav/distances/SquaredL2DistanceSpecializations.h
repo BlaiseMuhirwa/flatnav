@@ -1,7 +1,7 @@
 #pragma once
 
 #include <flatnav/distances/SquaredL2Distance.h>
-#include <flatnav/util/verifysimd.h>
+#include <flatnav/util/SIMDIntrinsics.h>
 
 #include <cstddef> // for size_t
 

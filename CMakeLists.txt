@@ -218,8 +218,8 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2DistanceSpecializations.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ExplicitSet.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/reordering.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/verifysimd.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/SIMDIntrinsics.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h
     ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h

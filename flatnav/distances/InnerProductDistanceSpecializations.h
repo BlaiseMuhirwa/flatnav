@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../util/verifysimd.h"
-#include "InnerProductDistance.h"
+#include <flatnav/distances/InnerProductDistance.h>
+#include <flatnav/util/SIMDIntrinsics.h>
 
 #include <cstddef> // for size_t
 

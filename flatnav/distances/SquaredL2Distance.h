@@ -5,14 +5,12 @@
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
-#include <flatnav/util/VerifySIMD.h>
+#include <flatnav/util/SIMDIntrinsics.h>
 #include <iostream>
 
 // This is the base distance function implementation for the L2 distance on
 // floating-point inputs. We provide specializations that use SIMD when
-// supported by the compiler and compatible with the input _dimension. These
-// specializations inherit from SquaredL2Distance and overload only the
-// distance_impl method.
+// supported by the compiler and compatible with the input _dimension.
 
 namespace flatnav {
 
@@ -23,32 +21,47 @@ class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
 
 public:
   SquaredL2Distance() = default;
-  explicit SquaredL2Distance(size_t dim) {
-    _dimension = dim;
-    _data_size_bytes = dim * sizeof(float);
+  explicit SquaredL2Distance(size_t dim)
+      : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
+        _distance_computer(&SquaredL2Distance::defaultDistanceImpl) {
+
+#if defined(USE_AVX512) || defined(USE_AVX) || defined(USE_SSE)
+    _distance_computer = &flatnav::util::distanceImplSquaredL2SIMD16ExtSSE;
+#if defined(USE_AVX512)
+    if (flatnav::util::platform_supports_avx512()) {
+      _distance_computer = &flatnav::util::distanceImplSquaredL2SIMD16ExtAVX512;
+    } else if (platform_supports_avx()) {
+      _distance_computer = &flatnav::util::distanceImplSquaredL2SIMD16ExtAVX;
+    }
+#elif defined(USE_AVX)
+    if (flatnav::util::platform_supports_avx()) {
+      _distance_computer = &flatnav::util::distanceImplSquaredL2SIMD16ExtAVX;
+    }
+#endif
+
+    if (!(_dimension % 16 == 0) && _dimension % 4 == 0) {
+      _distance_computer = &flatnav::util::distanceImplSquaredL2SIMD4Ext;
+    } else if (_dimension > 16) {
+      _distance_computer =
+          &flatnav::util::distanceImplSquaredL2SIMD16ExtResiduals;
+    } else if (_dimension > 4) {
+      _distance_computer =
+          &flatnav::util::distanceImplSquaredL2SIMD4ExtResiduals;
+    }
+
+#endif
   }
 
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {
     (void)asymmetric;
-    // Default implementation of squared-L2 distance, in case we cannot
-    // support the SIMD specializations for special input _dimension sizes.
-    float *p_x = (float *)x;
-    float *p_y = (float *)y;
-    float squared_distance = 0;
-
-    for (size_t i = 0; i < _dimension; i++) {
-      float difference = *p_x - *p_y;
-      p_x++;
-      p_y++;
-      squared_distance += difference * difference;
-    }
-    return squared_distance;
+    return _distance_computer(x, y, _dimension);
   }
 
 private:
   size_t _dimension;
   size_t _data_size_bytes;
+  float (*_distance_computer)(const void *, const void *, size_t &) const;
 
   friend class ::cereal::access;
 
@@ -73,6 +86,23 @@ private:
     std::cout << "\nSquaredL2Distance Parameters" << std::endl;
     std::cout << "-----------------------------" << std::endl;
     std::cout << "Dimension: " << _dimension << std::endl;
+  }
+
+  float defaultDistanceImpl(const void *x, const void *y,
+                            size_t &dimension) const {
+    // Default implementation of squared-L2 distance, in case we cannot
+    // support the SIMD specializations for special input _dimension sizes.
+    float *p_x = (float *)x;
+    float *p_y = (float *)y;
+    float squared_distance = 0;
+
+    for (size_t i = 0; i < dimension; i++) {
+      float difference = *p_x - *p_y;
+      p_x++;
+      p_y++;
+      squared_distance += difference * difference;
+    }
+    return squared_distance;
   }
 };
 

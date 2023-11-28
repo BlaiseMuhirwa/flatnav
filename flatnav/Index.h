@@ -1,4 +1,5 @@
 #pragma once
+
 #include <algorithm>
 #include <cassert>
 #include <cereal/access.hpp>
@@ -8,8 +9,8 @@
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/ExplicitSet.h>
-#include <flatnav/util/reordering.h>
-#include <flatnav/util/verifysimd.h>
+#include <flatnav/util/Reordering.h>
+#include <flatnav/util/SIMDIntrinsics.h>
 #include <fstream>
 #include <limits>
 #include <memory>
