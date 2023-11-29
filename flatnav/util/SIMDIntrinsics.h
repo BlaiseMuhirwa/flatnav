@@ -231,11 +231,11 @@ static float distanceImplInnerProductSIMD16ExtAVX512(const void *x,
   }
 
   _mm512_store_ps(temp_res, sum);
-  float sum = temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3] +
-              temp_res[4] + temp_res[5] + temp_res[6] + temp_res[7] +
-              temp_res[8] + temp_res[9] + temp_res[10] + temp_res[11] +
-              temp_res[12] + temp_res[13] + temp_res[14] + temp_res[15];
-  return 1.0f - sum;
+  float total = temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3] +
+                temp_res[4] + temp_res[5] + temp_res[6] + temp_res[7] +
+                temp_res[8] + temp_res[9] + temp_res[10] + temp_res[11] +
+                temp_res[12] + temp_res[13] + temp_res[14] + temp_res[15];
+  return 1.0f - total;
 }
 
 static float distanceImplSquaredL2SIMD16ExtAVX512(const void *x, const void *y,
@@ -313,7 +313,6 @@ static float distanceImplInnerProductSIMD4ExtAVX(const void *x, const void *y,
   return 1.0f - sum;
 }
 
-
 static float distanceImplInnerProductSIMD16ExtAVX(const void *x, const void *y,
                                                   const size_t &dimension) {
   float *p_x = (float *)(x);
@@ -379,8 +378,6 @@ static float distanceImplSquaredL2SIMD16ExtAVX(const void *x, const void *y,
 }
 #endif
 
-
-
 #if defined(USE_SSE)
 
 static float distanceImplInnerProductSIMD16ExtSSE(const void *x, const void *y,
@@ -421,19 +418,20 @@ static float distanceImplInnerProductSIMD16ExtSSE(const void *x, const void *y,
   }
 
   _mm_store_ps(temp_res, sum);
-  float sum = temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3];
-  return 1.0f - sum;
+  float total = temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3];
+  return 1.0f - total;
 }
 
-static float distanceImplInnerProductSIMD4ExtSSE(const void *x, const void *y, const size_t& dimension) {
+static float distanceImplInnerProductSIMD4ExtSSE(const void *x, const void *y,
+                                                 const size_t &dimension) {
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
   float PORTABLE_ALIGN32 temp_res[8];
   size_t dimension_1_4 = dimension >> 2;
   size_t dimension_1_16 = dimension >> 4;
 
-  const float* p_end_x1 = p_x + (dimension_1_16 << 4);
-  const float* p_end_x2 = p_x + (dimension_1_4 << 2);
+  const float *p_end_x1 = p_x + (dimension_1_16 << 4);
+  const float *p_end_x2 = p_x + (dimension_1_4 << 2);
 
   __m128 sum_prod = _mm_set1_ps(0.0f);
   __m128 v1, v2;
@@ -476,8 +474,6 @@ static float distanceImplInnerProductSIMD4ExtSSE(const void *x, const void *y, c
   float sum = temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3];
   return 1.0f - sum;
 }
-
-
 
 static float distanceImplSquaredL2SIMD16ExtSSE(const void *x, const void *y,
                                                const size_t &dimension) {
@@ -576,7 +572,9 @@ static float distanceImplSquaredL2SIMD4ExtResiduals(const void *x,
 
 #if defined(USE_SSE) || defined(USE_AVX) || defined(USE_AVX512)
 
-static float distanceImplInnerProductSIMD16ExtResiduals(const void *x, const void *y, const size_t& dimension) {
+static float
+distanceImplInnerProductSIMD16ExtResiduals(const void *x, const void *y,
+                                           const size_t &dimension) {
   size_t dimension16 = dimension >> 4 << 4;
   float res = distanceImplInnerProductSIMD16ExtSSE(x, y, dimension16);
   size_t residual = dimension - dimension16;
@@ -592,7 +590,9 @@ static float distanceImplInnerProductSIMD16ExtResiduals(const void *x, const voi
   return 1.0f - (res + sum_res);
 }
 
-static float distanceImplInnerProductSIMD4ExtResiduals(const void *x, const void *y, const size_t& dimension) {
+static float
+distanceImplInnerProductSIMD4ExtResiduals(const void *x, const void *y,
+                                          const size_t &dimension) {
   size_t dimension4 = dimension >> 2 << 2;
   float res = distanceImplInnerProductSIMD4ExtSSE(x, y, dimension4);
   size_t residual = dimension - dimension4;

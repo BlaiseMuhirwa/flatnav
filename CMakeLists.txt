@@ -206,10 +206,7 @@ endif()
 # every header file
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistanceSpecializations.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/inner_products_from_hnswlib.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2DistanceSpecializations.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ExplicitSet.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h

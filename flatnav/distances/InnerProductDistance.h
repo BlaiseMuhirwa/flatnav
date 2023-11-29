@@ -10,6 +10,8 @@
 #include <iostream>
 #include <limits>
 
+namespace flatnav {
+
 // This is the base distance function implementation for inner product distances
 // on floating-point inputs.
 
@@ -22,12 +24,12 @@ class InnerProductDistance : public DistanceInterface<InnerProductDistance> {
 public:
   InnerProductDistance() = default;
 
-  explicit InnerProductDistance(size_t dim) _dimension(dim),
-      _data_size_bytes(dim * sizeof(float)),
-      _distance_computer(std::bind(&SquaredL2Distance::defaultDistanceImpl,
-                                   this, std::placeholders::_1,
-                                   std::placeholders::_2,
-                                   std::placeholders::_3)) {
+  explicit InnerProductDistance(size_t dim)
+      : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
+        _distance_computer(std::bind(&InnerProductDistance::defaultDistanceImpl,
+                                     this, std::placeholders::_1,
+                                     std::placeholders::_2,
+                                     std::placeholders::_3)) {
     setDistanceFunction();
   }
 
@@ -52,7 +54,7 @@ private:
     if (Archive::is_loading::value) {
       _data_size_bytes = _dimension * sizeof(float);
       _distance_computer = std::bind(
-          &SquaredL2Distance::defaultDistanceImpl, this, std::placeholders::_1,
+          &InnerProductDistance::defaultDistanceImpl, this, std::placeholders::_1,
           std::placeholders::_2, std::placeholders::_3);
 
       setDistanceFunction();
@@ -79,26 +81,26 @@ private:
     _distance_computer = distanceImplInnerProductSIMD16ExtSSE;
 #if defined(USE_AVX512)
     if (platform_supports_avx512()) {
-      _distance_computer = distanceImplSquaredL2SIMD16ExtAVX512;
+      _distance_computer = distanceImplInnerProductSIMD16ExtAVX512;
     } else if (platform_supports_avx()) {
-      _distance_computer = distanceImplSquaredL2SIMD16ExtAVX;
+      _distance_computer = distanceImplInnerProductSIMD16ExtAVX;
     }
 #elif defined(USE_AVX)
     if (platform_supports_avx()) {
-      _distance_computer = distanceImplSquaredL2SIMD16ExtAVX;
+      _distance_computer = distanceImplInnerProductSIMD16ExtAVX;
     }
 #endif
     if (!_dimension % 16 == 0) {
       if (_dimension % 4 == 0) {
-        _distance_computer = distanceImplSquaredL2SIMD4Ext;
+        _distance_computer = distanceImplInnerProductSIMD4ExtSSE;
       } else if (_dimension > 16) {
-        _distance_computer = distanceImplSquaredL2SIMD16ExtResiduals;
+        _distance_computer = distanceImplInnerProductSIMD16ExtResiduals;
       } else if (_dimension > 4) {
-        _distance_computer = distanceImplSquaredL2SIMD4ExtResiduals;
+        _distance_computer = distanceImplInnerProductSIMD4ExtResiduals;
       }
     }
 
-#endif
+#endif // USE_AVX512 || USE_AVX || USE_SSE
 #endif // NO_MANUAL_VECTORIZATION
   }
 
