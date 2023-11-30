@@ -33,6 +33,8 @@ set(CMAKE_CXX_FLAGS
     -w \
     -ffast-math \
     -funroll-loops \
+    -mavx \
+    -mavx512f \
     -ftree-vectorize")
 
 option(CMAKE_BUILD_TYPE "Build type" Release)

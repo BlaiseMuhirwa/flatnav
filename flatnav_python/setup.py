@@ -19,7 +19,7 @@ if sys.platform == "darwin":
     omp_flag = "-Xclang -fopenmp"
     INCLUDE_DIRS.extend(["/opt/homebrew/opt/libomp/include"])
     EXTRA_LINK_ARGS.extend(["-lomp", "-L/opt/homebrew/opt/libomp/lib"])
-elif sys.platform() == "linux":
+elif sys.platform == "linux":
     omp_flag = "-fopenmp"
     EXTRA_LINK_ARGS.extend(["-fopenmp"])
 
@@ -39,6 +39,8 @@ ext_modules = [
             "-ffast-math",  # Enable fast math optimizations
             "-funroll-loops",  # Unroll loops
             "-ftree-vectorize",  # Vectorize where possible
+            "-mavx",  # Enable AVX instructions
+            "-mavx512f",  # Enable AVX-512 instructions
         ],
         extra_link_args=EXTRA_LINK_ARGS,  # Link OpenMP when linking the extension
     )
