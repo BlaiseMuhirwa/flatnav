@@ -33,7 +33,8 @@ set(CMAKE_CXX_FLAGS
     -w \
     -ffast-math \
     -funroll-loops \
-    -ftree-vectorize")
+    -mavx \
+    -mavx512f")
 
 option(CMAKE_BUILD_TYPE "Build type" Release)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -51,19 +52,7 @@ find_package(Git REQUIRED)
 option(USE_GIT_PROTOCOL
        "If behind a firewall turn this off to use HTTPS instead." OFF)
 
-option(AVX "Compile scan functions requiring AVX intrinsics" ON)
-option(AVX2 "Compile scan functions requiring AVX2 intrinsics" ON)
-
 # All options summary
-add_feature_info(AVX AVX "Complile scan functions requiring AVX intrinsics")
-add_feature_info(
-  AVX2 AVX2
-  "Compile scan functions requiring AVX2 intrinsics (enables AVX automatically)"
-)
-if(AVX2)
-  set(AVX ON)
-endif()
-
 feature_summary(WHAT ALL)
 
 # Configure options
@@ -160,9 +149,17 @@ endif(OpenMP_FOUND)
 option(BUILD_TESTS "Build all tests")
 option(BUIL_EXAMPLES "Build examples")
 option(BUILD_BENCHMARKS "Build ANNS benchmarks")
+option(NO_MANUAL_VECTORIZATION "Disable manual vectorization (SIMD)")
 message(STATUS "Building tests: ${BUILD_TESTS}")
 message(STATUS "Building examples: ${BUILD_EXAMPLES}")
 message(STATUS "Building benchmarks: ${BUILD_BENCHMARKS}")
+
+# Enable auto-vectorization if we are not using SIMD.
+if(NO_MANUAL_VECTORIZATION)
+  message(STATUS "Disabling manual vectorization (SIMD)")
+  add_definitions(-DNO_MANUAL_VECTORIZATION)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftree-vectorize")
+endif()
 
 if(BUILD_BENCHMARKS)
   enable_testing()
@@ -212,14 +209,11 @@ endif()
 # every header file
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistanceSpecializations.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/inner_products_from_hnswlib.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2DistanceSpecializations.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ExplicitSet.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/reordering.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/verifysimd.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/SIMDDistanceSpecializations.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h
     ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
