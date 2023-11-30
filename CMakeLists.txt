@@ -34,8 +34,7 @@ set(CMAKE_CXX_FLAGS
     -ffast-math \
     -funroll-loops \
     -mavx \
-    -mavx512f \
-    -ftree-vectorize")
+    -mavx512f")
 
 option(CMAKE_BUILD_TYPE "Build type" Release)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -155,9 +154,11 @@ message(STATUS "Building tests: ${BUILD_TESTS}")
 message(STATUS "Building examples: ${BUILD_EXAMPLES}")
 message(STATUS "Building benchmarks: ${BUILD_BENCHMARKS}")
 
+# Enable auto-vectorization if we are not using SIMD.
 if(NO_MANUAL_VECTORIZATION)
   message(STATUS "Disabling manual vectorization (SIMD)")
   add_definitions(-DNO_MANUAL_VECTORIZATION)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftree-vectorize")
 endif()
 
 if(BUILD_BENCHMARKS)

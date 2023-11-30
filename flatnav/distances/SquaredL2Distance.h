@@ -88,7 +88,7 @@ private:
       _distance_computer = distanceImplSquaredL2SIMD16ExtAVX;
     }
 #endif
-    if (!_dimension % 16 == 0) {
+    if (!(_dimension % 16 == 0)) {
       if (_dimension % 4 == 0) {
         _distance_computer = distanceImplSquaredL2SIMD4Ext;
       } else if (_dimension > 16) {

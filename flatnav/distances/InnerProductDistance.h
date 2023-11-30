@@ -90,7 +90,7 @@ private:
       _distance_computer = distanceImplInnerProductSIMD16ExtAVX;
     }
 #endif
-    if (!_dimension % 16 == 0) {
+    if (!(_dimension % 16 == 0)) {
       if (_dimension % 4 == 0) {
         _distance_computer = distanceImplInnerProductSIMD4ExtSSE;
       } else if (_dimension > 16) {

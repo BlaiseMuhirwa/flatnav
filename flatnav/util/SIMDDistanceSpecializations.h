@@ -629,3 +629,11 @@ static float distanceImplSquaredL2SIMD16ExtResiduals(const void *x,
 #endif
 
 // namespace flatnav::util
+
+// with manual vectorization: [INFO] Mean Recall: 0.999931, Duration:2.7517
+// milliseconds without manual vectorization: [INFO] Mean Recall: 0.999931,
+// Duration:2.55 milliseconds
+
+// without the -ftree-vectorize option and no manual vectorization:
+// duration: 2.5767 without the -ftree-vectorize option but with manual
+// vectorization: duration:
