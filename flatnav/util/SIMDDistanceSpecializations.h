@@ -27,16 +27,6 @@
 #include <intrin.h>
 #include <stdexcept>
 
-void cpu_x86::cpuid(int32_t out[4], int32_t eax, int32_t ecx) {
-  __cpuidex(out, eax, ecx);
-}
-__int64 xgetbv(unsigned int x) { return _xgetbv(x); }
-
-#else
-#include <cpuid.h>
-#include <stdint.h>
-#include <x86intrin.h>
-
 /**
  * @brief Queries the CPU for various bits of information about its
  * capabilities, including supported instruction sets and features. This is done
@@ -63,6 +53,16 @@ __int64 xgetbv(unsigned int x) { return _xgetbv(x); }
  * @param ecx An additional parameter used by some CPUID function numbers to
  * provide further information about what information to retrieve.
  */
+void cpu_x86::cpuid(int32_t out[4], int32_t eax, int32_t ecx) {
+  __cpuidex(out, eax, ecx);
+}
+__int64 xgetbv(unsigned int x) { return _xgetbv(x); }
+
+#else
+#include <cpuid.h>
+#include <stdint.h>
+#include <x86intrin.h>
+
 void cpuid(int32_t cpu_info[4], int32_t eax, int32_t ecx) {
   __cpuid_count(eax, ecx, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
 }
@@ -220,7 +220,7 @@ static float distanceImplInnerProductSIMD16ExtAVX512(const void *x,
   float PORTABLE_ALIGN64 temp_res[16];
   size_t dimension_1_16 = dimension >> 4;
   const float *p_end_x = p_x + (dimension_1_16 << 4);
-  _m512 sum = _mm512_set1_ps(0.0f);
+  __m512 sum = _mm512_set1_ps(0.0f);
 
   while (p_x != p_end_x) {
     __m512 v1 = _mm512_loadu_ps(p_x);
@@ -243,7 +243,7 @@ static float distanceImplSquaredL2SIMD16ExtAVX512(const void *x, const void *y,
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
 
-  float PORTABLE_ALIGN64 tmp_res[16];
+  float PORTABLE_ALIGN64 temp_res[16];
   size_t dimension_1_16 = dimension >> 4;
   const float *p_end_x = p_x + (dimension_1_16 << 4);
 
@@ -259,7 +259,7 @@ static float distanceImplSquaredL2SIMD16ExtAVX512(const void *x, const void *y,
     p_y += 16;
   }
 
-  _mm512_store_ps(tmp_res, sum);
+  _mm512_store_ps(temp_res, sum);
   return temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3] + temp_res[4] +
          temp_res[5] + temp_res[6] + temp_res[7] + temp_res[8] + temp_res[9] +
          temp_res[10] + temp_res[11] + temp_res[12] + temp_res[13] +
@@ -338,9 +338,9 @@ static float distanceImplInnerProductSIMD16ExtAVX(const void *x, const void *y,
   }
 
   _mm256_store_ps(temp_res, sum);
-  float sum = temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3] +
-              temp_res[4] + temp_res[5] + temp_res[6] + temp_res[7];
-  return 1.0f - sum;
+  float total = temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3] +
+                temp_res[4] + temp_res[5] + temp_res[6] + temp_res[7];
+  return 1.0f - total;
 }
 
 static float distanceImplSquaredL2SIMD16ExtAVX(const void *x, const void *y,
@@ -348,7 +348,7 @@ static float distanceImplSquaredL2SIMD16ExtAVX(const void *x, const void *y,
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
 
-  float PORTABLE_ALIGN32 tmp_res[8];
+  float PORTABLE_ALIGN32 temp_res[8];
   size_t dimension_1_16 = dimension >> 4;
   const float *p_end_x = p_x + (dimension_1_16 << 4);
 
@@ -371,7 +371,7 @@ static float distanceImplSquaredL2SIMD16ExtAVX(const void *x, const void *y,
     p_y += 8;
   }
 
-  _mm256_store_ps(tmp_res, sum);
+  _mm256_store_ps(temp_res, sum);
 
   return temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3] + temp_res[4] +
          temp_res[5] + temp_res[6] + temp_res[7];
