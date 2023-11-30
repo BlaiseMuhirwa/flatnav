@@ -27,6 +27,32 @@
 #include <intrin.h>
 #include <stdexcept>
 
+/**
+ * @brief Queries the CPU for various bits of information about its
+ * capabilities, including supported instruction sets and features. This is done
+ * using the CPUID instruction, which is a processor supplementary instruction
+ * (PSI) for the x86 architecture allowing software to discover details of the
+ * processor.
+ *
+ * @param cpu_info An array of four 32-bit integers that will be filled with the
+ * CPU information. The specific information returned in cpu_info depends on the
+ * value of the `eax` and `ecx` registers.
+ *        - cpu_info[0] (EAX): The function result value after the CPUID
+ * instruction.
+ *        - cpu_info[1] (EBX): Additional information returned by the CPUID
+ * instruction.
+ *        - cpu_info[2] (ECX): Additional information returned by the CPUID
+ * instruction.
+ *        - cpu_info[3] (EDX): Additional information returned by the CPUID
+ * instruction.
+ *
+ * @param eax Specifies what information to retrieve. Different values
+ *        of EAX will return different information in the cpu_info array, such
+ * as processor type, family, model, stepping, and feature flags.
+ *
+ * @param ecx An additional parameter used by some CPUID function numbers to
+ * provide further information about what information to retrieve.
+ */
 void cpu_x86::cpuid(int32_t out[4], int32_t eax, int32_t ecx) {
   __cpuidex(out, eax, ecx);
 }
@@ -41,6 +67,29 @@ void cpuid(int32_t cpu_info[4], int32_t eax, int32_t ecx) {
   __cpuid_count(eax, ecx, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
 }
 
+/**
+ * @brief Retrieves the value of an extended control register (XCR).
+ * This is particularly useful for checking the status of advanced CPU features.
+ *
+ * @param index The index of the XCR to query. For example, 0 for XCR0, which
+ * contains flags for x87 state, SSE state, and AVX state.
+ *
+ * @return A 64-bit value with the state of the specified XCR. The lower 32 bits
+ * are from the EAX register, and the higher 32 bits from the EDX register after
+ * the instruction executes.
+ *
+ * Inline assembly breakdown:
+ * - __volatile__ tells the compiler not to optimize this assembly block as its
+ * side effects are important.
+ * - "xgetbv": The assembly instruction to execute.
+ * - "=a"(eax), "=d"(edx): Output operands; after executing 'xgetbv', store EAX
+ * in 'eax', and EDX in 'edx'.
+ * - "c"(index): Input operand; provides the 'index' parameter to the ECX
+ * register before executing 'xgetbv'.
+ *
+ * The result is constructed by shifting 'edx' left by 32 bits and combining it
+ * with 'eax' using bitwise OR.
+ */
 uint64_t xgetbv(unsigned int index) {
   uint32_t eax, edx;
   __asm__ __volatile__("xgetbv" : "=a"(eax), "=d"(edx) : "c"(index));
@@ -65,6 +114,22 @@ uint64_t xgetbv(unsigned int index) {
 // Adapted from https://github.com/Mysticial/FeatureDetector
 #define _XCR_XFEATURE_ENABLED_MASK 0
 
+/**
+ * Checks if the system's CPU and OS support AVX (Advanced Vector Extensions).
+ *
+ * - First, it uses the cpuid function to check if the CPU supports AVX
+ * instructions by examining the presence of the AVX bit in the CPU feature
+ * flags (ECX register, bit 28).
+ *
+ * - It then checks if the OS saves and restores AVX registers on context
+ * switches by checking the OS XSAVE feature flag (ECX register, bit 27) and
+ * confirming the OS has enabled AVX state saving with the xgetbv function. This
+ * function checks if the XMM and YMM registers (bits 1 and 2) are enabled in
+ * the XCR feature mask.
+ *
+ * - The function returns true if both hardware and OS-level AVX support are
+ * detected and enabled.
+ */
 bool platform_supports_avx() {
   int cpu_info[4];
 
@@ -92,6 +157,27 @@ bool platform_supports_avx() {
   return HW_AVX && avxSupported;
 }
 
+/**
+ * Checks if the system's CPU and OS support AVX-512 (Advanced Vector Extensions
+ * 512).
+ *
+ * - Initially, it verifies AVX capability since AVX-512 is an extension of AVX.
+ *
+ * - It uses the cpuid function to check for AVX-512 Foundation support by
+ * querying the presence of the AVX-512F feature flag (EBX register, bit 16) for
+ * the CPU.
+ *
+ * - Ensures the OS supports context switch saving for AVX-512 registers by
+ * checking the OS XSAVE feature flag (ECX register, bit 27) and that AVX is
+ * supported (bit 28).
+ *
+ * - Checks the OS has enabled AVX-512 state saving with the xgetbv function,
+ * looking for specific bits in the XCR feature mask that correspond to AVX-512
+ * registers.
+ *
+ * - Returns true if both hardware and OS-level AVX-512 support are present and
+ * enabled.
+ */
 bool platform_supports_avx512() {
   if (!platform_supports_avx()) {
     return false;
