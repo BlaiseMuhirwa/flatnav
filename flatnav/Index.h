@@ -10,7 +10,7 @@
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/ExplicitSet.h>
 #include <flatnav/util/Reordering.h>
-#include <flatnav/util/SIMDIntrinsics.h>
+#include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <fstream>
 #include <limits>
 #include <memory>

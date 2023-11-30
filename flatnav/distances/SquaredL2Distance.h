@@ -5,7 +5,7 @@
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
-#include <flatnav/util/SIMDIntrinsics.h>
+#include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <functional>
 #include <iostream>
 

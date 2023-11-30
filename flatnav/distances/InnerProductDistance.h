@@ -5,7 +5,7 @@
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
-#include <flatnav/util/SIMDIntrinsics.h>
+#include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -54,8 +54,8 @@ private:
     if (Archive::is_loading::value) {
       _data_size_bytes = _dimension * sizeof(float);
       _distance_computer = std::bind(
-          &InnerProductDistance::defaultDistanceImpl, this, std::placeholders::_1,
-          std::placeholders::_2, std::placeholders::_3);
+          &InnerProductDistance::defaultDistanceImpl, this,
+          std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 
       setDistanceFunction();
     }
