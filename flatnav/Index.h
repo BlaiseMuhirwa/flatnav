@@ -53,11 +53,10 @@ template <typename dist_t, typename label_t> class Index {
   size_t _node_size_bytes;
   size_t _max_node_count; // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
+  std::shared_ptr<DistanceInterface<dist_t>> _distance;
   std::mutex _cur_num_nodes_global_lock;
   std::condition_variable _cur_num_nodes_global_cv;
   std::atomic<bool> _current_node_inserted = false;
-
-  std::shared_ptr<DistanceInterface<dist_t>> _distance;
 
   // Remembers which nodes we've visited, to avoid re-computing distances.
   // Might be a caching problem in beamSearch - needs to be profiled.
@@ -90,7 +89,11 @@ public:
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(dist), _visited_nodes(dataset_size + 1) {
+        _cur_num_nodes(0), _distance(dist), _visited_nodes(dataset_size + 1),
+        _num_threads(0),
+        _sharded_visited_nodes(new ShardedVisitedSet(
+            /* total_size = */ dataset_size + 1,
+            /* num_shards = */ std::thread::hardware_concurrency())) {
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
@@ -105,7 +108,10 @@ public:
   // this class.
   Index() = default;
 
-  ~Index() { delete[] _index_memory; }
+  ~Index() { 
+    delete[] _index_memory; 
+    delete _sharded_visited_nodes;
+  }
 
   /**
    * @brief Add a new vector to the index.
@@ -157,7 +163,8 @@ public:
     uint32_t batch_size = labels.size() / thread_count;
 
     for (uint32_t thread_id = 0; thread_id < thread_count; thread_id++) {
-      void *current_batch = data + (thread_id * batch_size * _data_size_bytes);
+      void *current_batch =
+          (float *)data + (thread_id * batch_size * _data_size_bytes);
       thread_pool[thread_id] =
           std::thread(&addParallelBatch, current_batch, batch_size,
                       std::ref(labels), ef_construction, num_initializations);
@@ -178,7 +185,7 @@ public:
     }
 
     for (uint32_t vec_index = 0; vec_index < batch_size; vec_index++) {
-      void *vector = batch + (vec_index * _data_size_bytes);
+      void *vector = (float *)batch + (vec_index * _data_size_bytes);
       label_t label = labels[vec_index];
 
       // Lock from now on until we've inserted the new node into the index.
@@ -477,6 +484,54 @@ private:
 
           // Include the node in the buffer if buffer isn't full or
           // if the node is closer than a node already in the buffer.
+          if (neighbors.size() < buffer_size || dist < max_dist) {
+            candidates.emplace(-dist, d_node_links[i]);
+            neighbors.emplace(dist, d_node_links[i]);
+            if (neighbors.size() > buffer_size) {
+              neighbors.pop();
+            }
+            if (!neighbors.empty()) {
+              max_dist = neighbors.top().first;
+            }
+          }
+        }
+      }
+    }
+    return neighbors;
+  }
+
+  void concurrentBeamSearch(const void *query, const node_id_t entry_node,
+                            const int buffer_size) {
+    PriorityQueue neighbors;
+    PriorityQueue candidates;
+
+    // Maybe this is supposed to be clearAll()?
+    _sharded_visited_nodes->clear(entry_node);
+
+    float dist =
+        _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node),
+                            /* asymmetric = */ true);
+
+    float max_dist = dist;
+    candidates.emplace(-dist, entry_node);
+    neighbors.emplace(dist, entry_node);
+    _sharded_visited_nodes->insert(entry_node);
+
+    while(!candidates.empty()) {
+      dist_node_it d_node = candidates.top();
+      if ((-d_node.first) > max_dist) {
+        break;
+      }
+      candidates.pop();
+      node_id_t *d_node_links = getNodeLinks(d_node.second);
+      for (int i = 0; i < _M; i++) {
+        if (!_sharded_visited_nodes[d_node_links[i]]) {
+          _sharded_visited_nodes->insert(d_node_links[i]);
+
+          dist = _distance->distance(/* x = */ query,
+                                     /* y = */ getNodeData(d_node_links[i]),
+                                     /* asymmetric = */ true);
+
           if (neighbors.size() < buffer_size || dist < max_dist) {
             candidates.emplace(-dist, d_node_links[i]);
             neighbors.emplace(dist, d_node_links[i]);

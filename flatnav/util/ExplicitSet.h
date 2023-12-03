@@ -129,11 +129,32 @@ public:
     return (*_shards[shard_id])[index_in_shard];
   }
 
+  inline void clear(uint32_t node_id) {
+    uint32_t shard_id = node_id / _shard_size;
+    std::lock_guard<std::mutex> lock(_shard_mutexes[shard_id]);
+    _shards[shard_id]->clear();
+  }
+
+  inline void clearAll() {
+    // Step 1: Acquire locks on all shards
+    std::vector<std::unique_lock<std::mutex>> locks;
+    locks.reserve(_shard_mutexes.size());
+
+    for (auto& mutex : _shard_mutexes) {
+      locks.emplace_back(mutex);
+    }
+
+    // Step 2: Clear all shards
+    for (auto& shard : _shards) {
+      shard->clear();
+    }
+  }
+
   ~ShardedExplicitSet() {
     for (uint32_t i = 0; i < _shards.size(); i++) {
       delete _shards[i];
     }
   }
-}
+};
 
 } // namespace flatnav
