@@ -33,6 +33,7 @@ set(CMAKE_CXX_FLAGS
     -w \
     -ffast-math \
     -funroll-loops \
+    -march=native \
     -mavx \
     -mavx512f")
 

@@ -183,23 +183,27 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
            "for every query.")
       .def(
           "reorder",
-          [](IndexType &index_type, const std::string &algorithm) {
+          [](IndexType &index_type,
+             const std::vector<std::string> &algorithms) {
             auto index = index_type.getIndex();
-            auto alg = algorithm;
-            std::transform(alg.begin(), alg.end(), alg.begin(),
-                           [](unsigned char c) { return std::tolower(c); });
-            if (alg == "gorder") {
-              index->reorderGOrder();
-            } else if (alg == "rcm") {
-              index->reorderRCM();
-            } else {
-              throw std::invalid_argument(
-                  "`" + algorithm +
-                  "` is not a supported graph re-ordering algorithm.");
+            for (auto &algorithm : algorithms) {
+              auto alg = algorithm;
+              std::transform(alg.begin(), alg.end(), alg.begin(),
+                             [](unsigned char c) { return std::tolower(c); });
+              if (alg == "gorder") {
+                index->reorderGOrder();
+              } else if (alg == "rcm") {
+                index->reorderRCM();
+              } else {
+                throw std::invalid_argument(
+                    "`" + algorithm +
+                    "` is not a supported graph re-ordering algorithm.");
+              }
             }
           },
-          py::arg("algorithm"),
-          "Perform graph re-ordering based on the given re-ordering strategy. "
+          py::arg("algorithms"),
+          "Perform graph re-ordering based on the given sequence of "
+          "re-ordering strategies. "
           "Supported re-ordering algorithms include `gorder` and `rcm`.")
       .def_property_readonly(
           "max_edges_per_node",

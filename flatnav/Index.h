@@ -1,11 +1,13 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cereal/access.hpp>
 #include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
+#include <condition_variable>
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/ExplicitSet.h>
@@ -14,22 +16,68 @@
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <optional>
-#include <quantization/ProductQuantization.h>
 #include <queue>
+#include <thread>
 #include <utility>
 #include <vector>
-
-using flatnav::quantization::ProductQuantizer;
 
 namespace flatnav {
 
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
 template <typename dist_t, typename label_t> class Index {
-public:
   typedef std::pair<float, label_t> dist_label_t;
+  // internal node numbering scheme. We might need to change this to uint64_t
+  typedef uint32_t node_id_t;
+  typedef std::pair<float, node_id_t> dist_node_t;
 
+  typedef ExplicitSet VisitedSet;
+  typedef ShardedExplicitSet ShardedVisitedSet;
+
+  // NOTE: by default this is a max-heap. We could make this a min-heap
+  // by using std::greater, but we want to use the queue as both a max-heap and
+  // min-heap depending on the context.
+  typedef std::priority_queue<dist_node_t, std::vector<dist_node_t>>
+      PriorityQueue;
+
+  // Large (several GB), pre-allocated block of memory.
+  char *_index_memory;
+
+  size_t _M;
+  // size of one data point (does not support variable-size data, strings)
+  size_t _data_size_bytes;
+  // Node consists of: ([data] [M links] [data label]). This layout was chosen
+  // after benchmarking - it's slightly more cache-efficient than others.
+  size_t _node_size_bytes;
+  size_t _max_node_count; // Determines size of internal pre-allocated memory
+  size_t _cur_num_nodes;
+  std::mutex _cur_num_nodes_global_lock;
+  std::condition_variable _cur_num_nodes_global_cv;
+  std::atomic<bool> _current_node_inserted = false;
+
+  std::shared_ptr<DistanceInterface<dist_t>> _distance;
+
+  // Remembers which nodes we've visited, to avoid re-computing distances.
+  // Might be a caching problem in beamSearch - needs to be profiled.
+  VisitedSet _visited_nodes;
+  ShardedVisitedSet *_sharded_visited_nodes;
+
+  uint32_t _num_threads;
+
+  friend class cereal::access;
+
+  template <typename Archive> void serialize(Archive &archive) {
+    archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
+            _cur_num_nodes, *_distance, _visited_nodes);
+
+    // Serialize the allocated memory for the index & query.
+    archive(
+        cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
+  }
+
+public:
   /**
    * @brief Construct a new Index object for approximate near neighbor search
    *
@@ -59,12 +107,22 @@ public:
 
   ~Index() { delete[] _index_memory; }
 
+  /**
+   * @brief Add a new vector to the index.
+   * Initialization must happen before allocation due to a bug where
+   * initializeSearch chooses new_node_id as the initialization
+   * since new_node_id has distance 0 (but no links). The search is
+   * skipped because the "optimal" node seems to have been found.
+   *
+   * @param data                 The vector to add.
+   * @param label                The label (meta-data) of the vector.
+   * @param ef_construction      The search beam width. This is the `ef`
+   * parameter in the HNSW paper.
+   * @param num_initializations  The number of random initializations to use.
+   * This determines the number of nodes to search before adding the new node.
+   */
   void add(void *data, label_t &label, int ef_construction,
            int num_initializations = 100) {
-    // initialization must happen before alloc due to a bug where
-    // initializeSearch chooses new_node_id as the initialization
-    // since new_node_id has distance 0 (but no links). The search is
-    // skipped because the "optimal" node seems to have been found.
     node_id_t new_node_id;
     node_id_t entry_node = initializeSearch(data, num_initializations);
 
@@ -78,6 +136,98 @@ public:
                      /* buffer_size = */ ef_construction);
       selectNeighbors(/* neighbors = */ neighbors);
       connectNeighbors(neighbors, new_node_id);
+    }
+  }
+
+  void setNumThreads(uint32_t num_threads) {
+    if (!num_threads) {
+      _num_threads = std::thread::hardware_concurrency();
+      return;
+    }
+    _num_threads = num_threads;
+  }
+
+  void addParallel(void *data, std::vector<label_t> &labels,
+                   int ef_construction, int num_initializations = 100) {
+
+    uint32_t thread_count =
+        _num_threads <= 0 ? std::thread::hardware_concurrency() : _num_threads;
+
+    std::vector<std::thread> thread_pool(thread_count);
+    uint32_t batch_size = labels.size() / thread_count;
+
+    for (uint32_t thread_id = 0; thread_id < thread_count; thread_id++) {
+      void *current_batch = data + (thread_id * batch_size * _data_size_bytes);
+      thread_pool[thread_id] =
+          std::thread(&addParallelBatch, current_batch, batch_size,
+                      std::ref(labels), ef_construction, num_initializations);
+    }
+    // Do the actual work
+    for (uint32_t thread_id = 0; thread_id < thread_count; thread_id++) {
+      thread_pool[thread_id].join();
+    }
+  }
+
+  void addParallelBatch(void *batch, uint32_t batch_size,
+                        const std::vector<label_t> &labels, int ef_construction,
+                        int num_initializations = 100) {
+
+    if (num_initializations <= 0) {
+      throw std::invalid_argument(
+          "num_initializations must be greater than 0.");
+    }
+
+    for (uint32_t vec_index = 0; vec_index < batch_size; vec_index++) {
+      void *vector = batch + (vec_index * _data_size_bytes);
+      label_t label = labels[vec_index];
+
+      // Lock from now on until we've inserted the new node into the index.
+      // This prevents multiple threads from trying to insert the same node.
+      // Use the condition variable to stop other threads from busy-waiting,
+      // which would be a waste of CPU cycles.
+      std::unique_lock<std::mutex> lock(_cur_num_nodes_global_lock);
+      _cur_num_nodes_global_cv.wait(lock,
+                                    [this] { return !_current_node_inserted; });
+
+      if (_cur_num_nodes >= _max_node_count) {
+        throw std::runtime_error("Maximum number of nodes reached. Consider "
+                                 "increasing the `max_node_count` parameter to "
+                                 "create a larger index.");
+      }
+
+      uint32_t step_size = _cur_num_nodes / num_initializations;
+      if (step_size <= 0) {
+        step_size = 1;
+      }
+      float min_dist = std::numeric_limits<float>::max();
+      node_id_t entry_node = 0;
+      for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
+        float dist =
+            _distance->distance(/* x = */ vector, /* y = */ getNodeData(node),
+                                /* asymmetric = */ true);
+        if (dist < min_dist) {
+          min_dist = dist;
+          entry_node = node;
+        }
+      }
+      node_id_t new_node_id;
+      allocateNode(vector, label, new_node_id);
+
+      // Mark the node as inserted, notify other threads, and reset the flag.
+      _current_node_inserted = true;
+      _cur_num_nodes_global_cv.notify_all();
+      _current_node_inserted = false;
+
+      lock.unlock();
+
+      // search graph for neighbors of new no de, connect to them
+      if (new_node_id > 0) {
+        PriorityQueue neighbors =
+            beamSearch(/* query = */ vector, /* entry_node = */ entry_node,
+                       /* buffer_size = */ ef_construction);
+        selectNeighbors(/* neighbors = */ neighbors);
+        connectNeighbors(neighbors, new_node_id);
+      }
     }
   }
 
@@ -215,49 +365,6 @@ public:
   }
 
 private:
-  // internal node numbering scheme. We might need to change this to uint64_t
-  typedef uint32_t node_id_t;
-  typedef std::pair<float, node_id_t> dist_node_t;
-
-  typedef ExplicitSet VisitedSet;
-
-  // NOTE: by default this is a max-heap. We could make this a min-heap
-  // by using std::greater, but we want to use the queue as both a max-heap and
-  // min-heap depending on the context.
-  typedef std::priority_queue<dist_node_t, std::vector<dist_node_t>>
-      PriorityQueue;
-
-  // Large (several GB), pre-allocated block of memory.
-  char *_index_memory;
-
-  size_t _M;
-  // size of one data point (does not support variable-size data, strings)
-  size_t _data_size_bytes;
-  // Node consists of: ([data] [M links] [data label]). This layout was chosen
-  // after benchmarking - it's slightly more cache-efficient than others.
-  size_t _node_size_bytes;
-  size_t _max_node_count; // Determines size of internal pre-allocated memory
-  size_t _cur_num_nodes;
-
-  std::shared_ptr<DistanceInterface<dist_t>> _distance;
-
-  // Remembers which nodes we've visited, to avoid re-computing distances.
-  // Might be a caching problem in beamSearch - needs to be profiled.
-  VisitedSet _visited_nodes;
-
-  // std::unique_ptr<ProductQuantizer<dist_t>> _product_quantizer;
-
-  friend class cereal::access;
-
-  template <typename Archive> void serialize(Archive &archive) {
-    archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
-            _cur_num_nodes, *_distance, _visited_nodes);
-
-    // Serialize the allocated memory for the index & query.
-    archive(
-        cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
-  }
-
   char *getNodeData(const node_id_t &n) const {
     char *location = _index_memory + (n * _node_size_bytes);
     return location;
@@ -274,7 +381,12 @@ private:
     return reinterpret_cast<label_t *>(location);
   }
 
-  // TODO: Add optional argument here for quantized data vector.
+  /**
+   * @brief Allocates a new node in the index.
+   * @param data The vector to add.
+   * @param label The label (meta-data) of the vector.
+   * @param new_node_id The id of the new node.
+   */
   void allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
     if (_cur_num_nodes >= _max_node_count) {
       throw std::runtime_error("Maximum number of nodes reached. Consider "
@@ -381,9 +493,12 @@ private:
     return neighbors;
   }
 
+  /**
+   * @brief Selects neighbors from the PriorityQueue, according to the HNSW
+   * heuristic. The neighbors priority queue contains elements sorted by
+   * distance where the top element is the furthest neighbor from the query.
+   */
   void selectNeighbors(PriorityQueue &neighbors) {
-    // selects neighbors from the PriorityQueue, according to the HNSW
-    // heuristic
     if (neighbors.size() < _M) {
       return;
     }
@@ -509,7 +624,10 @@ private:
   inline node_id_t initializeSearch(const void *query,
                                     int num_initializations) {
     // select entry_node from a set of random entry point options
-    assert(num_initializations != 0);
+    if (num_initializations <= 0) {
+      throw std::invalid_argument(
+          "num_initializations must be greater than 0.");
+    }
 
     int step_size = _cur_num_nodes / num_initializations;
     if (step_size <= 0) {

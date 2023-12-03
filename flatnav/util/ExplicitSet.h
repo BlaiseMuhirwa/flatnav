@@ -8,7 +8,9 @@
 #include <cereal/types/memory.hpp>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 #include <stdint.h>
+#include <vector>
 
 namespace flatnav {
 
@@ -95,5 +97,43 @@ public:
     return *this;
   }
 };
+
+class ShardedExplicitSet {
+  uint32_t _shard_size;
+  std::vector<ExplicitSet *> _shards;
+  std::vector<std::mutex> _shard_mutexes;
+
+public:
+  ShardedExplicitSet(uint32_t total_size, uint32_t num_shards)
+      : _shard_size(total_size / num_shards), _shards(num_shards),
+        _shard_mutexes(num_shards) {
+    for (uint32_t i = 0; i < num_shards; i++) {
+      _shards[i] = new ExplicitSet(_shard_size);
+    }
+  }
+
+  void insert(uint32_t node_id) {
+    uint32_t shard_id = node_id / _shard_size;
+
+    {
+      std::lock_guard<std::mutex> lock(_shard_mutexes[shard_id]);
+      uint32_t index_in_shard = node_id % _shard_size;
+      _shards[shard_id]->insert(index_in_shard);
+    }
+  }
+
+  inline bool operator[](uint32_t node_id) {
+    uint32_t shard_id = node_id / _shard_size;
+    std::lock_guard<std::mutex> lock(_shard_mutexes[shard_id]);
+    uint32_t index_in_shard = node_id % _shard_size;
+    return (*_shards[shard_id])[index_in_shard];
+  }
+
+  ~ShardedExplicitSet() {
+    for (uint32_t i = 0; i < _shards.size(); i++) {
+      delete _shards[i];
+    }
+  }
+}
 
 } // namespace flatnav
