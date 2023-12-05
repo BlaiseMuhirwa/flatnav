@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <numeric>
 #include <omp.h>
 #include <optional>
 #include <quantization/ProductQuantization.h>
@@ -30,19 +31,32 @@ void buildIndex(float *data,
                 int M, int dim, int ef_construction,
                 const std::string &save_file) {
 
+  std::cout << "Building index" << std::endl;
+
   auto index = new Index<dist_t, int>(
       /* dist = */ std::move(distance), /* dataset_size = */ N,
       /* max_edges = */ M);
 
+  std::cout << "Index initialized" << std::endl;
+
   auto start = std::chrono::high_resolution_clock::now();
 
-  for (int label = 0; label < N; label++) {
-    float *element = data + (dim * label);
-    index->add(/* data = */ (void *)element, /* label = */ label,
-               /* ef_construction */ ef_construction);
-    if (label % 10000 == 0)
-      std::clog << "." << std::flush;
-  }
+  // for (int label = 0; label < N; label++) {
+  //   float *element = data + (dim * label);
+  //   index->add(/* data = */ (void *)element, /* label = */ label,
+  //              /* ef_construction */ ef_construction);
+  //   if (label % 10000 == 0)
+  //     std::clog << "." << std::flush;
+  // }
+
+  // Invoke addParallel() to add vectors in parallel.
+  std::cout << "Creating a vector of labels" << std::endl;
+  std::vector<int> labels(N);
+  std::iota(labels.begin(), labels.end(), 0);
+  std::cout << "Adding vectors in parallel" << std::endl;
+  index->addParallel(/* data = */ (void *)data, /* labels = */ labels,
+                     /* ef_construction */ ef_construction);
+  std::cout << "Done adding vectors in parallel" << std::endl;
   std::clog << std::endl;
 
   auto stop = std::chrono::high_resolution_clock ::now();

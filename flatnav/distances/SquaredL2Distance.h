@@ -31,7 +31,7 @@ public:
     setDistanceFunction();
   }
 
-  ~SquaredL2Distance() = default;
+  // ~SquaredL2Distance() = default;
 
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {

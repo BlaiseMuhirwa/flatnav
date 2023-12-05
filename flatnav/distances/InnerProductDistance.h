@@ -33,7 +33,7 @@ public:
     setDistanceFunction();
   }
 
-  ~InnerProductDistance() = default;
+  // ~InnerProductDistance() = default;
 
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {

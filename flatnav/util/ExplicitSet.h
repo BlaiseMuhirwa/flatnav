@@ -8,6 +8,7 @@
 #include <cereal/types/memory.hpp>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <stdint.h>
 #include <vector>
@@ -47,6 +48,8 @@ public:
     _mm_prefetch((char *)_table[num], _MM_HINT_T0);
 #endif
   }
+
+  inline uint32_t getMark() const { return _mark; }
 
   inline void insert(const uint32_t num) { set(num); }
 
@@ -100,15 +103,34 @@ public:
 
 class ShardedExplicitSet {
   uint32_t _shard_size;
-  std::vector<ExplicitSet *> _shards;
-  std::vector<std::mutex> _shard_mutexes;
+  std::vector<std::unique_ptr<ExplicitSet>> _shards;
+
+  // Mutexes for each shard
+  // We are using a std::unique_ptr here because std::mutex is neither
+  // copy-constructible nor move-constructible and std::vector requires
+  // its elements to be copy-constructible or move-constructible.
+  std::vector<std::unique_ptr<std::mutex>> _shard_mutexes;
 
 public:
+  // Constructor for cereal. Do not call except for serialization.
+  ShardedExplicitSet() = default;
+
+  /**
+   * @brief Construct a new Sharded Explicit Set object
+   * TODO: Add exception checks in the constructor to make sure we take
+   * valid input arguments for total_size and num_shards.
+   *
+   * @param total_size Corresponds to the total number of elements across all
+   * shards. This is also the maximum number of nodes held by a flatnav index.
+   * @param num_shards Corresponds to the number of sharded regions. Each region
+   * (shard) is an ExplicitSet object.
+   */
   ShardedExplicitSet(uint32_t total_size, uint32_t num_shards)
       : _shard_size(total_size / num_shards), _shards(num_shards),
         _shard_mutexes(num_shards) {
     for (uint32_t i = 0; i < num_shards; i++) {
-      _shards[i] = new ExplicitSet(_shard_size);
+      _shards[i] = std::make_unique<ExplicitSet>(_shard_size);
+      _shard_mutexes[i] = std::make_unique<std::mutex>();
     }
   }
 
@@ -116,7 +138,7 @@ public:
     uint32_t shard_id = node_id / _shard_size;
 
     {
-      std::lock_guard<std::mutex> lock(_shard_mutexes[shard_id]);
+      std::lock_guard<std::mutex> lock(*(_shard_mutexes[shard_id]));
       uint32_t index_in_shard = node_id % _shard_size;
       _shards[shard_id]->insert(index_in_shard);
     }
@@ -124,14 +146,15 @@ public:
 
   inline bool operator[](uint32_t node_id) {
     uint32_t shard_id = node_id / _shard_size;
-    std::lock_guard<std::mutex> lock(_shard_mutexes[shard_id]);
+
+    std::lock_guard<std::mutex> lock(*(_shard_mutexes[shard_id]));
     uint32_t index_in_shard = node_id % _shard_size;
-    return (*_shards[shard_id])[index_in_shard];
+    return _shards[shard_id]->operator[](index_in_shard);
   }
 
   inline void clear(uint32_t node_id) {
     uint32_t shard_id = node_id / _shard_size;
-    std::lock_guard<std::mutex> lock(_shard_mutexes[shard_id]);
+    std::lock_guard<std::mutex> lock(*(_shard_mutexes[shard_id]));
     _shards[shard_id]->clear();
   }
 
@@ -140,19 +163,41 @@ public:
     std::vector<std::unique_lock<std::mutex>> locks;
     locks.reserve(_shard_mutexes.size());
 
-    for (auto& mutex : _shard_mutexes) {
-      locks.emplace_back(mutex);
+    for (auto &mutex : _shard_mutexes) {
+      locks.emplace_back(*mutex);
     }
 
     // Step 2: Clear all shards
-    for (auto& shard : _shards) {
+    for (auto &shard : _shards) {
       shard->clear();
     }
   }
 
-  ~ShardedExplicitSet() {
-    for (uint32_t i = 0; i < _shards.size(); i++) {
-      delete _shards[i];
+  inline bool allShardsHaveSameMark() {
+    uint32_t mark = _shards[0]->getMark();
+
+    for (uint32_t i = 1; i < _shards.size(); i++) {
+      if (_shards[i]->getMark() != mark) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  ~ShardedExplicitSet() = default;
+
+private:
+  friend class cereal::access;
+  template <typename Archive> void serialize(Archive &archive) {
+    archive(_shard_size, _shards);
+
+    if (Archive::is_loading::value) {
+
+      _shard_mutexes.resize(_shards.size());
+      for (uint32_t i = 0; i < _shards.size(); i++) {
+        _shard_mutexes[i] = std::make_unique<std::mutex>();
+      }
     }
   }
 };
