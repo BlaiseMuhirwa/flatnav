@@ -123,6 +123,7 @@ def compute_metrics(
     Returns:
         Mean recall over all queries.
         QPS over all queries
+        
     """
     start = time.time()
     _, top_k_indices = index.search(queries=queries, ef_search=ef_search, K=k)
