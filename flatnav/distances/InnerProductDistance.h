@@ -69,10 +69,10 @@ private:
     std::memcpy(dst, src, _data_size_bytes);
   }
 
-  void printParamsImpl() {
+  void getSummaryImpl() {
     std::cout << "\nInnerProductDistance Parameters" << std::flush;
-    std::cout << "-----------------------------" << std::flush;
-    std::cout << "Dimension: " << _dimension << std::flush;
+    std::cout << "-----------------------------" << "\n" << std::flush;
+    std::cout << "Dimension: " << _dimension << "\n" << std::flush;
   }
 
   void setDistanceFunction() {
