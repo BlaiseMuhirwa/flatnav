@@ -1,6 +1,6 @@
 #pragma once
 
-#include "verifysimd.h"
+#include <flatnav/util/SIMDDistanceSpecializations.h>
 
 #include <cereal/access.hpp>
 #include <cereal/archives/binary.hpp>

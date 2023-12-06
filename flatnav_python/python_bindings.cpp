@@ -66,7 +66,8 @@ public:
 
   void
   add(const py::array_t<float, py::array::c_style | py::array::forcecast> &data,
-      int ef_construction, py::object labels = py::none()) {
+      int ef_construction, py::object labels = py::none(),
+      int num_initializations = 100) {
     // py::array_t<float, py::array::c_style | py::array::forcecast> means that
     // the functions expects either a Numpy array of floats or a castable type
     // to that type. If the given type can't be casted, pybind11 will throw an
@@ -81,7 +82,8 @@ public:
       for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
         this->_index->add(/* data = */ (void *)data.data(vec_index),
                           /* label = */ label_id,
-                          /* ef_construction = */ ef_construction);
+                          /* ef_construction = */ ef_construction,
+                          /* num_initializations = */ 100);
         if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
           std::clog << "." << std::flush;
         }
@@ -102,7 +104,8 @@ public:
       label_t label_id = *node_labels.data(vec_index);
       this->_index->add(/* data = */ (void *)data.data(vec_index),
                         /* label = */ label_id,
-                        /* ef_construction = */ ef_construction);
+                        /* ef_construction = */ ef_construction,
+                        /* num_initializations = */ 100);
 
       if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
         std::clog << "." << std::flush;
@@ -114,7 +117,7 @@ public:
   DistancesLabelsPair
   search(const py::array_t<float, py::array::c_style | py::array::forcecast>
              queries,
-         int K, int ef_search) {
+         int K, int ef_search, int num_initializations = 100) {
     size_t num_queries = queries.shape(0);
     size_t queries_dim = queries.shape(1);
 
@@ -128,7 +131,8 @@ public:
     for (size_t query_index = 0; query_index < num_queries; query_index++) {
       std::vector<std::pair<float, label_t>> top_k = this->_index->search(
           /* query = */ (const void *)queries.data(query_index), /* K = */ K,
-          /* ef_search = */ ef_search);
+          /* ef_search = */ ef_search,
+          /* num_initializations = */ num_initializations);
 
       for (size_t i = 0; i < top_k.size(); i++) {
         distances[query_index * K + i] = top_k[i].first;
@@ -174,14 +178,14 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
       .def_static("load", &IndexType::loadIndex, py::arg("filename"),
                   "Load a FlatNav index from a given file location")
       .def("add", &IndexType::add, py::arg("data"), py::arg("ef_construction"),
-           py::arg("labels") = py::none(),
+           py::arg("labels") = py::none(), py::arg("num_initializations") = 100,
            "Add vectors(data) to the index with the given `ef_construction` "
            "parameter and optional labels. `ef_construction` determines how "
            "many "
            "vertices are visited while inserting every vector in the "
            "underlying graph structure.")
       .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
-           py::arg("ef_search"),
+           py::arg("ef_search"), py::arg("num_initializations") = 100,
            "Return top `K` closest data points for every query in the "
            "provided `queries`. The results are returned as a Tuple of "
            "distances and label ID's. The `ef_search` parameter determines how "

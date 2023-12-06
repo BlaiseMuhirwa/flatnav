@@ -1,4 +1,5 @@
 #pragma once
+
 #include <algorithm>
 #include <cassert>
 #include <cereal/access.hpp>
@@ -8,8 +9,8 @@
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/ExplicitSet.h>
-#include <flatnav/util/reordering.h>
-#include <flatnav/util/verifysimd.h>
+#include <flatnav/util/Reordering.h>
+#include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -518,18 +519,6 @@ private:
     float min_dist = std::numeric_limits<float>::max();
     node_id_t entry_node = 0;
 
-    /**
-     * @brief If we use a product quantizer, this is what will happen:
-     * 1. When comparing the query to a database vector (during insertion or
-     * search in HNSW), you don't directly compute a distance using their
-     * original vectors or even use the PQ code of the query. Instead, for each
-     * segment of the database vector, look up the distance between the query's
-     * segment and the database vector's corresponding centroid using the
-     * pre-computed distance table for that segment. Sum these distances across
-     * all segments to get the total asymmetric distance between the query and
-     * the database vector.
-     *
-     */
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
 
       float dist =

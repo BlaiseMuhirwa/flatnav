@@ -17,7 +17,7 @@
 
 #ifdef _OPENMP
 #include <omp.h>
-#endif 
+#endif
 
 #include <quantization/CentroidsGenerator.h>
 #include <quantization/Utils.h>
