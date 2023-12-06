@@ -92,7 +92,11 @@ private:
 #endif
     if (!(_dimension % 16 == 0)) {
       if (_dimension % 4 == 0) {
+#if defined(USE_AVX)
+        _distance_computer = distanceImplInnerProductSIMD4ExtAVX;
+#else
         _distance_computer = distanceImplInnerProductSIMD4ExtSSE;
+#endif
       } else if (_dimension > 16) {
         _distance_computer = distanceImplInnerProductSIMD16ExtResiduals;
       } else if (_dimension > 4) {
