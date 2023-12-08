@@ -15,12 +15,9 @@
 #include <limits>
 #include <memory>
 #include <optional>
-#include <quantization/ProductQuantization.h>
 #include <queue>
 #include <utility>
 #include <vector>
-
-using flatnav::quantization::ProductQuantizer;
 
 namespace flatnav {
 
@@ -29,6 +26,10 @@ namespace flatnav {
 template <typename dist_t, typename label_t> class Index {
 public:
   typedef std::pair<float, label_t> dist_label_t;
+
+  // Constructor for serialization with cereal. Do not use outside of
+  // this class.
+  Index() = default;
 
   /**
    * @brief Construct a new Index object for approximate near neighbor search
@@ -53,12 +54,75 @@ public:
     _index_memory = new char[index_memory_size];
   }
 
-  // Constructor for serialization with cereal. Do not use outside of
-  // this class.
-  Index() = default;
+  /**
+   * @brief Construct a new Index object using a pre-computed outdegree table.
+   *
+   * @param dist              A distance metric for the specific index
+   * distance. Options include l2(euclidean) and inner product.
+   * @param outdegree_table  A table of outdegrees for each node in the graph.
+   * Each vector in the table contains the IDs of the nodes to which it is
+   * connected.
+   */
+  Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
+        std::vector<std::vector<uint32_t>> &outdegree_table)
+      : _M(outdegree_table[0].size()), _max_node_count(outdegree_table.size()),
+        _cur_num_nodes(0), _distance(dist),
+        _visited_nodes(outdegree_table.size() + 1),
+        _outdegree_table(std::move(outdegree_table)) {
+
+    _data_size_bytes = _distance->dataSize();
+    _node_size_bytes =
+        _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
+
+    size_t index_memory_size = _node_size_bytes * _max_node_count;
+    _index_memory = new char[index_memory_size];
+  }
 
   ~Index() { delete[] _index_memory; }
 
+  void buildGraphLinks() {
+    if (!_outdegree_table.has_value()) {
+      throw std::runtime_error("Cannot build graph links without outdegree "
+                               "table. Please construct index with outdegree "
+                               "table.");
+    }
+
+    for (node_id_t node = 0; node < _outdegree_table.value().size(); node++) {
+      node_id_t *links = getNodeLinks(node);
+      for (int i = 0; i < _M; i++) {
+        if (_outdegree_table.value()[node].size() < _M) {
+          links[i] = node;
+        }
+        else {
+          auto linkvalue = _outdegree_table.value()[node][i];
+          links[i] = linkvalue;
+        }
+      }
+    }
+  }
+
+  std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
+    std::vector<std::vector<uint32_t>> outdegree_table(_cur_num_nodes);
+    for (node_id_t node = 0; node < _cur_num_nodes; node++) {
+      node_id_t *links = getNodeLinks(node);
+      for (int i = 0; i < _M; i++) {
+        if (links[i] != node) {
+          outdegree_table[node].push_back(links[i]);
+        }
+      }
+    }
+    return outdegree_table;
+  }
+
+  /**
+   * @brief Add a new vector to the index.
+   *
+   * @param data                 The vector to add.
+   * @param label                The label (meta-data) of the vector.
+   * @param ef_construction      ef parameter in the HNSW paper.
+   * @param num_initializations  Parameter determining how to choose an entry
+   * point.
+   */
   void add(void *data, label_t &label, int ef_construction,
            int num_initializations = 100) {
     // initialization must happen before alloc due to a bug where
@@ -114,6 +178,27 @@ public:
                 return left.first < right.first;
               });
     return results;
+  }
+
+  // TODO: Add optional argument here for quantized data vector.
+  void allocateNode(void *data, label_t &label, uint32_t &new_node_id) {
+    if (_cur_num_nodes >= _max_node_count) {
+      throw std::runtime_error("Maximum number of nodes reached. Consider "
+                               "increasing the `max_node_count` parameter to "
+                               "create a larger index.");
+    }
+    new_node_id = _cur_num_nodes;
+
+    _distance->transformData(/* destination = */ getNodeData(new_node_id),
+                             /* src = */ data);
+    *(getNodeLabel(_cur_num_nodes)) = label;
+
+    node_id_t *links = getNodeLinks(_cur_num_nodes);
+    for (uint32_t i = 0; i < _M; i++) {
+      links[i] = _cur_num_nodes;
+    }
+
+    _cur_num_nodes++;
   }
 
   void reorderGOrder(const int window_size = 5) {
@@ -244,8 +329,7 @@ private:
   // Remembers which nodes we've visited, to avoid re-computing distances.
   // Might be a caching problem in beamSearch - needs to be profiled.
   VisitedSet _visited_nodes;
-
-  // std::unique_ptr<ProductQuantizer<dist_t>> _product_quantizer;
+  std::optional<std::vector<std::vector<uint32_t>>> _outdegree_table;
 
   friend class cereal::access;
 
@@ -272,27 +356,6 @@ private:
     char *location = _index_memory + (n * _node_size_bytes) + _data_size_bytes +
                      (_M * sizeof(node_id_t));
     return reinterpret_cast<label_t *>(location);
-  }
-
-  // TODO: Add optional argument here for quantized data vector.
-  void allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
-    if (_cur_num_nodes >= _max_node_count) {
-      throw std::runtime_error("Maximum number of nodes reached. Consider "
-                               "increasing the `max_node_count` parameter to "
-                               "create a larger index.");
-    }
-    new_node_id = _cur_num_nodes;
-
-    _distance->transformData(/* destination = */ getNodeData(new_node_id),
-                             /* src = */ data);
-    *(getNodeLabel(_cur_num_nodes)) = label;
-
-    node_id_t *links = getNodeLinks(_cur_num_nodes);
-    for (uint32_t i = 0; i < _M; i++) {
-      links[i] = _cur_num_nodes;
-    }
-
-    _cur_num_nodes++;
   }
 
   inline void swapNodes(node_id_t a, node_id_t b, void *temp_data,
