@@ -65,7 +65,7 @@ public:
    */
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
         std::vector<std::vector<uint32_t>> &outdegree_table)
-      : _M(outdegree_table[0].size()), _max_node_count(outdegree_table.size()),
+      : _M(32), _max_node_count(outdegree_table.size()),
         _cur_num_nodes(0), _distance(dist),
         _visited_nodes(outdegree_table.size() + 1),
         _outdegree_table(std::move(outdegree_table)) {
@@ -90,13 +90,14 @@ public:
     for (node_id_t node = 0; node < _outdegree_table.value().size(); node++) {
       node_id_t *links = getNodeLinks(node);
       for (int i = 0; i < _M; i++) {
-        if (_outdegree_table.value()[node].size() < _M) {
+        if (i >= _outdegree_table.value()[node].size()) {
           links[i] = node;
         }
         else {
           auto linkvalue = _outdegree_table.value()[node][i];
           links[i] = linkvalue;
         }
+
       }
     }
   }

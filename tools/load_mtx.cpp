@@ -52,6 +52,15 @@ Graph loadGraphFromMatrixMarket(const char *filename) {
   return graph;
 }
 
+void printVector(float* vector) {
+  for (int i = 0; i < 128; i++) {
+    std::cout << vector[i] << " ";
+  }
+  std::cout << std::endl;
+}
+
+
+
 int main() {
   // Replace with your filename
   const char *ground_truth_file =
@@ -79,6 +88,7 @@ int main() {
   float *data = trainfile.data<float>();
   float *queries = queryfile.data<float>();
   int *gtruth = truthfile.data<int>();
+
 
   std::cout << "constructing the index" << std::endl;
   auto distance = std::make_shared<flatnav::SquaredL2Distance>(128);
