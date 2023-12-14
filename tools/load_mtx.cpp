@@ -9,6 +9,11 @@
 #include <sstream>
 #include <vector>
 
+
+using flatnav::Index;
+using flatnav::SquaredL2Distance;
+using flatnav::DistanceInterface;
+
 struct Graph {
   std::vector<std::vector<uint32_t>> adjacency_list;
   int num_vertices;
@@ -52,29 +57,45 @@ Graph loadGraphFromMatrixMarket(const char *filename) {
   return graph;
 }
 
-void printVector(float* vector) {
-  for (int i = 0; i < 128; i++) {
-    std::cout << vector[i] << " ";
+void writeToMatrixMarketFile(
+    std::vector<std::vector<uint32_t>> &outdegree_table, std::string &filename,
+    uint32_t num_edges) {
+  std::ofstream output_file;
+  output_file.open(filename);
+
+  if (!output_file.is_open()) {
+    std::cerr << "Error opening file" << std::endl;
+    exit(1);
   }
-  std::cout << std::endl;
+
+  output_file << "%%MatrixMarket matrix coordinate integer general"
+              << std::endl;
+  output_file << outdegree_table.size() << " " << outdegree_table.size() << " "
+              << num_edges << std::endl;
+
+  for (int i = 0; i < outdegree_table.size(); i++) {
+    for (int j = 0; j < outdegree_table[i].size(); j++) {
+      output_file << i + 1 << " " << outdegree_table[i][j] + 1 << std::endl;
+    }
+  }
+
+  output_file.close();
 }
-
-
 
 int main() {
   // Replace with your filename
   const char *ground_truth_file =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "sift-128-euclidean/sift-128-euclidean.gtruth.npy";
+      "mnist-784-euclidean/mnist-784-euclidean.gtruth.npy";
   const char *train_file =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "sift-128-euclidean/sift-128-euclidean.train.npy";
+      "mnist-784-euclidean/mnist-784-euclidean.train.npy";
   const char *queries_file =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "sift-128-euclidean/sift-128-euclidean.test.npy";
+      "mnist-784-euclidean/mnist-784-euclidean.test.npy";
   const char *sift_mtx =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "sift-128-euclidean/sift.mtx";
+      "mnist-784-euclidean/mnist.mtx";
 
   Graph g = loadGraphFromMatrixMarket(sift_mtx);
 
@@ -88,10 +109,12 @@ int main() {
   float *data = trainfile.data<float>();
   float *queries = queryfile.data<float>();
   int *gtruth = truthfile.data<int>();
-
+  int dim = 784;
+  int M = 32;
+  int dataset_size = 60000;
 
   std::cout << "constructing the index" << std::endl;
-  auto distance = std::make_shared<flatnav::SquaredL2Distance>(128);
+  auto distance = std::make_shared<flatnav::SquaredL2Distance>(dim);
   std::unique_ptr<flatnav::Index<flatnav::SquaredL2Distance, int>> index =
       std::make_unique<flatnav::Index<flatnav::SquaredL2Distance, int>>(
           distance, g.adjacency_list);
@@ -99,15 +122,30 @@ int main() {
   std::vector<int> ef_searches{100, 200};
   int num_queries = queryfile.shape[0];
   int num_gtruth = truthfile.shape[1];
-  int dim = 128;
   int K = 100;
+  int ef_construction = 200;
 
   std::cout << "Adding vectors to the index" << std::endl;
-  for (int label = 0; label < 1000000; label++) {
+  for (int label = 0; label < dataset_size; label++) {
     float *element = data + (dim * label);
     uint32_t node_id;
-    index->allocateNode(element, label, node_id);
+
+    index->add(element, label, ef_construction);
+
+    // index->allocateNode(element, label, node_id);
   }
+
+  // Get outdegree table
+  auto table = index->getGraphOutdegreeTable();
+
+  // Write to file
+  std::string filename =
+      "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
+      "mnist-784-euclidean/mnist2.mtx";
+
+  writeToMatrixMarketFile(table, filename, M);
+
+  exit(0);
 
   std::cout << "Building graph links" << std::endl;
   index->buildGraphLinks();

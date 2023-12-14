@@ -65,9 +65,8 @@ public:
    */
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
         std::vector<std::vector<uint32_t>> &outdegree_table)
-      : _M(32), _max_node_count(outdegree_table.size()),
-        _cur_num_nodes(0), _distance(dist),
-        _visited_nodes(outdegree_table.size() + 1),
+      : _M(32), _max_node_count(outdegree_table.size()), _cur_num_nodes(0),
+        _distance(dist), _visited_nodes(outdegree_table.size() + 1),
         _outdegree_table(std::move(outdegree_table)) {
 
     _data_size_bytes = _distance->dataSize();
@@ -79,6 +78,22 @@ public:
   }
 
   ~Index() { delete[] _index_memory; }
+
+  void printNodeValue(uint32_t node) {
+    std::cout << "Node: " << node << std::endl;
+    std::cout << "Data: ";
+
+    char *data = getNodeData(node);
+
+    for (int i = 0; i < _data_size_bytes; i += sizeof(float)) {
+      float value;
+      std::memcpy(&value, &data[i], sizeof(float)); // Copy bytes into a float
+      std::cout << value << " ";
+    }
+
+    std::cout << std::endl;
+    std::cout << "Label: " << *getNodeLabel(node) << std::endl;
+  }
 
   void buildGraphLinks() {
     if (!_outdegree_table.has_value()) {
@@ -92,12 +107,9 @@ public:
       for (int i = 0; i < _M; i++) {
         if (i >= _outdegree_table.value()[node].size()) {
           links[i] = node;
+        } else {
+          links[i] = _outdegree_table.value()[node][i];
         }
-        else {
-          auto linkvalue = _outdegree_table.value()[node][i];
-          links[i] = linkvalue;
-        }
-
       }
     }
   }
