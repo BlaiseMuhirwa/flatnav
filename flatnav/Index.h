@@ -26,31 +26,6 @@
 
 namespace flatnav {
 
-/**
- * The following struct is a configuration of parameters needed for the index.
- * It also exposes a builder pattern for constructing the index.
- */
-
-struct IndexParameterConfig {
-
-  IndexParameterConfig() = default;
-  size_t _M;
-  // size of one data point (does not support variable-size data, strings)
-  size_t _data_size_bytes;
-  // Node consists of: ([data] [M links] [data label]). This layout was chosen
-  // after benchmarking - it's slightly more cache-efficient than others.
-  size_t _node_size_bytes;
-  size_t _max_node_count; // Determines size of internal pre-allocated memory
-  size_t _cur_num_nodes;
-  std::mutex _cur_num_nodes_global_lock;
-  std::atomic<bool> _current_node_inserted = false;
-
-  // Remembers which nodes we've visited, to avoid re-computing distances.
-  // ThreadSafeVisitedNodesHandler *_visited_nodes;
-
-  uint32_t _num_threads;
-};
-
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
 template <typename dist_t, typename label_t> class Index {

@@ -3,7 +3,7 @@ import time
 import flatnav
 from flatnav.index import index_factory
 from flatnav.index import L2Index
-from .test_utils import get_ann_benchmark_dataset, compute_recall, create_index, generate_random_data
+from .test_utils import get_ann_benchmark_dataset, compute_recall, create_index
 import os
 import numpy as np 
 

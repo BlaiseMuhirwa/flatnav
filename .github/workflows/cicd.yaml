@@ -23,8 +23,8 @@ jobs:
 
     - name: Set up Poetry
       uses: snok/install-poetry@v1
-        with:
-          version: ${{ env.POETRY_VERSION }}
+      with:
+        version: ${{ env.POETRY_VERSION }}
 
     - name: Install dependencies
       run: |
