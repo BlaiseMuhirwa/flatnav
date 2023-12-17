@@ -36,6 +36,7 @@ jobs:
     - name: Build flatnav 
       run: |
         cd flatnav_python
+        export NO_MANUAL_VECTORIZATION=1
         ./install_flatnav.sh
 
     - name: Run Unit Tests

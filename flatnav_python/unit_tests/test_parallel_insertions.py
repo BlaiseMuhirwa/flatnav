@@ -5,7 +5,8 @@ from flatnav.index import index_factory
 from flatnav.index import L2Index
 from .test_utils import get_ann_benchmark_dataset, compute_recall, create_index
 import os
-import numpy as np 
+import numpy as np
+
 
 def test_parallel_insertions_yield_similar_recall():
     training_set, queries, ground_truth, _ = get_ann_benchmark_dataset(
