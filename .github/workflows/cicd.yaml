@@ -28,6 +28,10 @@ jobs:
       with:
         version: ${{ env.POETRY_VERSION }}
 
+    - name: Install libomp (MacOS)
+      if: runner.os == 'macOS'
+      run: brew install libomp 
+
     - name: Install dependencies
       run: |
         cd flatnav_python

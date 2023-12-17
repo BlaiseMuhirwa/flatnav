@@ -34,7 +34,7 @@ def get_ann_benchmark_dataset(dataset_name):
     dataset_uri = f"{base_uri}/{dataset_name}.hdf5"
 
     with tempfile.TemporaryDirectory() as tmp:
-        response = requests.get(dataset_uri)
+        response = requests.get(dataset_uri, timeout=120)
         loc = os.path.join(tmp, dataset_name)
 
         with open(loc, "wb") as f:

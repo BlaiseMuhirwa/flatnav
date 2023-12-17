@@ -131,7 +131,7 @@ def run_test(
     index.add(data=training_set, ef_construction=ef_construction)
     end = time.time()
 
-    print(f"Indexing time = {end - start} seconds")
+    print(f"\nIndexing time = {end - start} seconds")
 
     if use_reordering:
         if not reordering_algorithm:
