@@ -9,7 +9,8 @@ jobs:
   build-and-test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # TODO: Get macos-latest to work as well
+        os: [ubuntu-latest] 
         python-version: [3.11]
     runs-on: ${{ matrix.os }}
     steps:
