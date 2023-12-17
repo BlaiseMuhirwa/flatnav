@@ -3,15 +3,16 @@ import time
 import flatnav
 from flatnav.index import index_factory
 from flatnav.index import L2Index
-from .test_utils import get_ann_benchmark_dataset, compute_recall, create_index
+from .test_utils import generate_random_data, compute_recall, create_index
 import os
 import numpy as np
 
 
 def test_parallel_insertions_yield_similar_recall():
-    training_set, queries, ground_truth, _ = get_ann_benchmark_dataset(
-        dataset_name="mnist-784-euclidean"
-    )
+    training_set = generate_random_data(dataset_length=30_000, dim=784)
+    queries = generate_random_data(dataset_length=5_000, dim=784)
+    ground_truth = np.random.randint(low=0, high=50, size=(5_000, 100))
+    
     index = create_index(
         distance_type="l2",
         dim=training_set.shape[1],

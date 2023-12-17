@@ -9,7 +9,7 @@ from .test_utils import (
     compute_recall,
     create_index,
 )
-
+import pytest 
 
 def test_flatnav_l2_index_random_dataset():
     dataset_to_index = generate_random_data(dataset_length=30_000, dim=784)
@@ -34,7 +34,7 @@ def test_flatnav_l2_index_random_dataset():
         ground_truth=ground_truth,
     )
 
-
+@pytest.mark.skip(reason="Difficult to run on GitHub actions env due to data download")
 def test_flatnav_l2_index_mnist_dataset():
     training_set, queries, ground_truth, _ = get_ann_benchmark_dataset(
         dataset_name="mnist-784-euclidean"
@@ -85,7 +85,7 @@ def test_flatnav_ip_index_random_dataset():
         ground_truth=ground_truth,
     )
 
-
+@pytest.mark.skip(reason="Difficult to run on GitHub actions env due to data download")
 def test_flatnav_index_with_reordering():
     training_set, queries, ground_truth, _ = get_ann_benchmark_dataset(
         dataset_name="mnist-784-euclidean"

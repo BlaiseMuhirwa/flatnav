@@ -49,7 +49,7 @@ EXTRA_COMPILE_ARGS = [
     "-funroll-loops",  # Unroll loops
     "-mavx",  # Enable AVX instructions
     "-mavx512f",  # Enable AVX-512 instructions
-    "-march=native",  # Enable architecture-specific optimizations
+    # "-march=native",  # Enable architecture-specific optimizations
 ]
 
 if not platform_has_avx_support():
