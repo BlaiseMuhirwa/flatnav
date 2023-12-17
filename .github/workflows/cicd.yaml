@@ -8,10 +8,13 @@ env:
 jobs:
   build-and-test:
     strategy:
+      # Ensure that failure for one test does not cancel other 
+      # actions 
+      fail-fast: false
       matrix:
         # TODO: Get macos-latest to work as well
         os: [ubuntu-latest] 
-        python-version: [3.7, 3.8, 3.9, 3.10, 3.11]
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout Repository
