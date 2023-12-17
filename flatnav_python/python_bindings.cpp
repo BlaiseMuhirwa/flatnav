@@ -1,17 +1,17 @@
 #include <algorithm>
+#include <flatnav/DistanceInterface.h>
+#include <flatnav/Index.h>
+#include <flatnav/distances/InnerProductDistance.h>
+#include <flatnav/distances/SquaredL2Distance.h>
 #include <iostream>
 #include <memory>
 #include <ostream>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
-
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/Index.h>
-#include <flatnav/distances/InnerProductDistance.h>
-#include <flatnav/distances/SquaredL2Distance.h>
 
 using flatnav::DistanceInterface;
 using flatnav::Index;
@@ -68,14 +68,20 @@ public:
     if (data.ndim() != 2 || data_dim != _dim) {
       throw std::invalid_argument("Data has incorrect dimensions.");
     }
+
     if (labels.is_none()) {
       std::vector<label_t> vec_labels(num_vectors);
       std::iota(vec_labels.begin(), vec_labels.end(), 0);
 
-      this->_index->addParallel(
-          /* data = */ (void *)data.data(0), /* labels = */ vec_labels,
-          /* ef_construction = */ ef_construction,
-          /* num_initializations = */ num_initializations);
+      {
+        // Release python GIL while threads are running
+        py::gil_scoped_release gil;
+        this->_index->addParallel(
+            /* data = */ (void *)data.data(0),
+            /* labels = */ vec_labels,
+            /* ef_construction = */ ef_construction,
+            /* num_initializations = */ num_initializations);
+      }
       return;
     }
 
@@ -85,11 +91,14 @@ public:
       if (vec_labels.size() != num_vectors) {
         throw std::invalid_argument("Incorrect numbe of labels.");
       }
-
-      this->_index->addParallel(
-          /* data = */ (void *)data.data(0), /* labels = */ vec_labels,
-          /* ef_construction = */ ef_construction,
-          /* num_initializations = */ num_initializations);
+      {
+        // Relase python GIL while threads are running
+        py::gil_scoped_release gil;
+        this->_index->addParallel(
+            /* data = */ (void *)data.data(0), /* labels = */ vec_labels,
+            /* ef_construction = */ ef_construction,
+            /* num_initializations = */ num_initializations);
+      }
     } catch (const py::cast_error &error) {
       throw std::invalid_argument("Invalid labels provided.");
     }

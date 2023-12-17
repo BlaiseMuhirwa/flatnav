@@ -141,14 +141,14 @@ public:
       return;
     }
 
-    parallelFor(/* start = */ 0, /* end = */ total_num_nodes,
-                /* num_threads = */ _num_threads, /* fn = */
-                [&](uint32_t row_index) {
-                  void *vector = (float *)data + (row_index * data_dimension);
-                  label_t label = labels[row_index];
-                  concurrentAdd(vector, label, ef_construction,
-                                num_initializations);
-                });
+    flatnav::parallelExecutor(
+        /* start = */ 0, /* end = */ total_num_nodes,
+        /* num_threads = */ _num_threads, /* function = */
+        [&](uint32_t row_index) {
+          void *vector = (float *)data + (row_index * data_dimension);
+          label_t label = labels[row_index];
+          concurrentAdd(vector, label, ef_construction, num_initializations);
+        });
   }
 
   void concurrentAdd(void *data, label_t &label, int ef_construction,
@@ -467,9 +467,6 @@ private:
         }
       }
     }
-
-    // Release the lock(unnecessary since we are exiting the scope)
-    lock.unlock();
   }
 
   /**
@@ -600,10 +597,6 @@ private:
       }
       neighbors.pop();
     }
-
-    // Release the lock. I don't think this is necessary since are actually
-    // exiting the function scope, but just in case
-    lock.unlock();
   }
 
   /**
@@ -689,7 +682,8 @@ private:
       }
     }
 
-    _visited_nodes_handlers->pushHandler(/* handler = */ visited_nodes);
+    _visited_nodes_handlers->pushHandler(
+        /* handler = */ visited_nodes);
 
     delete[] temp_data;
     delete[] temp_links;

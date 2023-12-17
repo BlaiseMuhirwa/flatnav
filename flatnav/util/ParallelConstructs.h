@@ -9,25 +9,37 @@
 
 namespace flatnav {
 
+/**
+ * @brief template for executing a function in parallel using STL's threading
+ * library This is preferred in lieu of OpenMP only because it will not require
+ * having logic for installing OpenMP on the host system while installing the
+ * Python library.
+ *
+ * @tparam Function
+ * @param start_index
+ * @param end_index
+ * @param num_threads
+ * @param function
+ */
 template <typename Function>
-void parallelFor(uint32_t start, uint32_t end, uint32_t num_threads,
-                 Function fn) {
+void parallelExecutor(uint32_t start_index, uint32_t end_index,
+                      uint32_t num_threads, Function function) {
   if (num_threads == 0) {
     throw std::invalid_argument("Invalid number of threads");
   }
 
   // This needs to be an atomic because mutliple threads will be
   // modifying it concurrently.
-  std::atomic<uint32_t> current(start);
+  std::atomic<uint32_t> current(start_index);
   std::thread thread_objects[num_threads];
 
   auto parallel_executor = [&] {
     while (true) {
       uint32_t current_vector_idx = current.fetch_add(1);
-      if (current_vector_idx >= end) {
+      if (current_vector_idx >= end_index) {
         break;
       }
-      fn(current_vector_idx);
+      function(current_vector_idx);
     }
   };
 

@@ -2,10 +2,6 @@
 
 #include <flatnav/util/SIMDDistanceSpecializations.h>
 
-#include <cereal/access.hpp>
-#include <cereal/archives/binary.hpp>
-#include <cereal/cereal.hpp>
-#include <cereal/types/memory.hpp>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -21,23 +17,7 @@ private:
   uint32_t *_table;
   uint32_t _table_size;
 
-  friend class cereal::access;
-  template <typename Archive> void serialize(Archive &archive) {
-    archive(_mark, _table_size);
-
-    if (Archive::is_loading::value) {
-      // If we are loading, allocate memory for the table and delete
-      // previously allocated memory if any.
-      delete[] _table;
-      _table = new uint32_t[_table_size];
-    }
-
-    archive(cereal::binary_data(_table, _table_size * sizeof(uint32_t)));
-  }
-
 public:
-  VisitedNodesHandler() = default;
-
   VisitedNodesHandler(const uint32_t size) : _mark(0), _table_size(size) {
     // initialize values to 0
     _table = new uint32_t[_table_size]();
@@ -66,19 +46,18 @@ public:
   ~VisitedNodesHandler() { delete[] _table; }
 
   // copy constructor
-  VisitedNodesHandler(const VisitedNodesHandler &other) {
-    _table_size = other._table_size;
-    _mark = other._mark;
+  VisitedNodesHandler(const VisitedNodesHandler &other)
+      : _table_size(other._table_size), _mark(other._mark) {
+
     _table = new uint32_t[_table_size];
     std::memcpy(_table, other._table, _table_size * sizeof(uint32_t));
   }
 
   // move constructor
-  VisitedNodesHandler(VisitedNodesHandler &&other) noexcept {
-    _table_size = other._table_size;
-    _mark = other._mark;
-    _table = other._table;
-    other._table = NULL;
+  VisitedNodesHandler(VisitedNodesHandler &&other) noexcept
+      : _table_size(other._table_size), _mark(other._mark),
+        _table(other._table) {
+    other._table = nullptr;
     other._table_size = 0;
     other._mark = 0;
   }
@@ -107,28 +86,60 @@ public:
   }
 };
 
+/**
+ *
+ * @brief Manages a pool of VisitedNodesHandler objects in a thread-safe manner.
+ *
+ * This class is designed to efficiently provide and manage a pool of
+ * VisitedNodesHandler instances for concurrent use in multi-threaded
+ * environments. It ensures that each handler can be used by only one thread at
+ * a time without the risk of concurrent access and modification.
+ *
+ * The class preallocates a specified number of VisitedNodesHandler objects to
+ * eliminate the overhead of dynamic allocation during runtime. It uses a mutex
+ * to synchronize access to the handler pool, ensuring that only one thread can
+ * modify the pool at any given time. This mechanism provides both thread safety
+ * and improved performance by reusing handler objects instead of continuously
+ * creating and destroying them.
+ *
+ * When a thread requires a VisitedNodesHandler, it can call
+ * `pollAvailableHandler()` to retrieve an available handler from the pool. If
+ * the pool is empty, the function will dynamically allocate a new handler to
+ * ensure that the requesting thread can proceed with its task. Once the thread
+ * has finished using the handler, it should return it to the pool by calling
+ * `pushHandler()`.
+ *
+ * @note The class assumes that all threads will properly return the handlers to
+ * the pool after use. Failing to return a handler will deplete the pool and
+ * lead to dynamic allocation, negating the performance benefits.
+ *
+ * Usage example:
+ * @code
+ * ThreadSafeVisitedNodesHandler handler_pool(10, 1000);
+ * VisitedNodesHandler* handler = handler_pool.pollAvailableHandler();
+ * // Use the handler in a thread...
+ * handler_pool.pushHandler(handler);
+ * @endcode
+ *
+ * @param initial_pool_size The number of handler objects to initially create
+ * and store in the pool.
+ * @param num_elements The size of each VisitedNodesHandler, which typically
+ * corresponds to the number of nodes or elements that each handler is expected
+ * to manage.
+ */
 class ThreadSafeVisitedNodesHandler {
-  std::vector<std::unique_ptr<VisitedNodesHandler>> _handler_pool;
+  std::vector<VisitedNodesHandler *> _handler_pool;
   std::mutex _pool_guard;
   uint32_t _num_elements;
-  uint32_t _total_handlers_in_use;
-
-  friend class cereal::access;
-
-  template <typename Archive> void serialize(Archive &archive) {
-    archive(_handler_pool, _num_elements, _total_handlers_in_use);
-  }
 
 public:
-  ThreadSafeVisitedNodesHandler() = default;
   ThreadSafeVisitedNodesHandler(uint32_t initial_pool_size,
                                 uint32_t num_elements)
-      : _handler_pool(initial_pool_size), _num_elements(num_elements),
-        _total_handlers_in_use(1) {
+      : _handler_pool(initial_pool_size), _num_elements(num_elements) {
     for (uint32_t handler_id = 0; handler_id < _handler_pool.size();
          handler_id++) {
       _handler_pool[handler_id] =
-          std::make_unique<VisitedNodesHandler>(/* size = */ _num_elements);
+          new VisitedNodesHandler(/* size = */ _num_elements);
     }
   }
 
@@ -136,32 +147,29 @@ public:
     std::unique_lock<std::mutex> lock(_pool_guard);
 
     if (!_handler_pool.empty()) {
-      // NOTE: release() call is required here to ensure that we don't free
-      // the handler's memory before using it since it's under a unique pointer.
-      auto *handler = _handler_pool.back().release();
+      auto *handler = _handler_pool.back();
       _handler_pool.pop_back();
       return handler;
     } else {
-      // TODO: This is not great because it assumes the caller is responsible
-      // enough to return this handler to the pool. If the caller doesn't return
-      // the handler to the pool, we will have a memory leak. This can be
-      // resolved by std::unique_ptr but I prefer to use a raw pointer here.
-      auto *handler = new VisitedNodesHandler(/* size = */ _num_elements);
-      _total_handlers_in_use++;
-      return handler;
+      return new VisitedNodesHandler(/* size = */ _num_elements);
     }
   }
 
   void pushHandler(VisitedNodesHandler *handler) {
     std::unique_lock<std::mutex> lock(_pool_guard);
 
-    _handler_pool.push_back(std::make_unique<VisitedNodesHandler>(*handler));
-    _handler_pool.shrink_to_fit();
+    _handler_pool.push_back(handler);
   }
 
   inline uint32_t getPoolSize() { return _handler_pool.size(); }
 
-  ~ThreadSafeVisitedNodesHandler() = default;
+  ~ThreadSafeVisitedNodesHandler() {
+    while (!_handler_pool.empty()) {
+      auto *handler = _handler_pool.back();
+      _handler_pool.pop_back();
+      delete handler;
+    }
+  }
 };
 
 } // namespace flatnav
