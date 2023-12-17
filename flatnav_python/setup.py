@@ -56,6 +56,16 @@ if not platform_has_avx_support():
     EXTRA_COMPILE_ARGS.append("-ftree-vectorize")
 
 
+no_manual_vectorization = int(os.environ.get("NO_MANUAL_VECTORIZATION", "0"))
+
+if no_manual_vectorization:
+    # Remove SIMD-related flags. Otherwise, it would crush in an environment
+    # where SIMD extensions (SSE, AVX) are not supported
+    EXTRA_COMPILE_ARGS = [
+        arg for arg in EXTRA_COMPILE_ARGS if arg not in ("-mavx", "-mavx512f")
+    ]
+
+
 ext_modules = [
     Pybind11Extension(
         "flatnav",

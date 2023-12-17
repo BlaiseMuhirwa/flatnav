@@ -3,7 +3,7 @@ name: Run Tests
 on: [pull_request]
 
 env: 
-  POETRY_VERSION: "1.6.1"
+  POETRY_VERSION: "1.7.1"
 
 jobs:
   build-and-test:
@@ -36,7 +36,7 @@ jobs:
     - name: Build flatnav 
       run: |
         cd flatnav_python
-        ./install_flatnav.sh
+        ./install_flatnav.sh 
 
     - name: Run Unit Tests
       run: |
