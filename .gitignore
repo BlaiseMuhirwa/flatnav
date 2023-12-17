@@ -16,6 +16,7 @@ flatnav_python/flatnav.egg-info/
 flatnav_python/poetry.lock
 flatnav_python/dist
 flatnav_python/__pycache__
+flatnav_python/unit_tests/__pycache__
 
 
 # other files
