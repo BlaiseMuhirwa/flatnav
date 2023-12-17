@@ -211,7 +211,7 @@ endif()
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/ExplicitSet.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/VisitedNodesHandler.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/SIMDDistanceSpecializations.h

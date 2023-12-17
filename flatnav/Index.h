@@ -10,10 +10,10 @@
 #include <condition_variable>
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
-#include <flatnav/util/ExplicitSet.h>
 #include <flatnav/util/ParallelConstructs.h>
 #include <flatnav/util/Reordering.h>
 #include <flatnav/util/SIMDDistanceSpecializations.h>
+#include <flatnav/util/VisitedNodesHandler.h>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -43,12 +43,10 @@ struct IndexParameterConfig {
   size_t _max_node_count; // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
   std::mutex _cur_num_nodes_global_lock;
-  std::condition_variable _cur_num_nodes_global_cv;
   std::atomic<bool> _current_node_inserted = false;
 
   // Remembers which nodes we've visited, to avoid re-computing distances.
-  // Might be a caching problem in beamSearch - needs to be profiled.
-  ShardedExplicitSet *_sharded_visited_nodes;
+  // ThreadSafeVisitedNodesHandler *_visited_nodes;
 
   uint32_t _num_threads;
 };
@@ -60,9 +58,6 @@ template <typename dist_t, typename label_t> class Index {
   // internal node numbering scheme. We might need to change this to uint64_t
   typedef uint32_t node_id_t;
   typedef std::pair<float, node_id_t> dist_node_t;
-
-  typedef ExplicitSet VisitedSet;
-  typedef ShardedExplicitSet ShardedVisitedSet;
 
   // NOTE: by default this is a max-heap. We could make this a min-heap
   // by using std::greater, but we want to use the queue as both a max-heap and
@@ -80,24 +75,21 @@ template <typename dist_t, typename label_t> class Index {
   // after benchmarking - it's slightly more cache-efficient than others.
   size_t _node_size_bytes;
   size_t _max_node_count; // Determines size of internal pre-allocated memory
-  std::atomic<size_t> _cur_num_nodes;
+  size_t _cur_num_nodes;
   std::shared_ptr<DistanceInterface<dist_t>> _distance;
-  std::mutex _cur_num_nodes_global_lock;
-  std::condition_variable _cur_num_nodes_global_cv;
-  std::atomic<bool> _current_node_inserted = false;
-
-  // Remembers which nodes we've visited, to avoid re-computing distances.
-  // Might be a caching problem in beamSearch - needs to be profiled.
-  VisitedSet _visited_nodes;
-  ShardedVisitedSet *_sharded_visited_nodes;
+  std::mutex _index_data_guard;
 
   uint32_t _num_threads;
+
+  // Remembers which nodes we've visited, to avoid re-computing distances.
+  ThreadSafeVisitedNodesHandler *_visited_nodes_handlers;
+  std::vector<std::mutex> _node_links_mutexes;
 
   friend class cereal::access;
 
   template <typename Archive> void serialize(Archive &archive) {
-    archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count, *_distance,
-            _visited_nodes, *_sharded_visited_nodes);
+    archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
+            _cur_num_nodes, *_distance);
 
     // Serialize the allocated memory for the index & query.
     archive(
@@ -117,11 +109,12 @@ public:
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(dist), _visited_nodes(dataset_size + 1),
+        _cur_num_nodes(0), _distance(dist),
         _num_threads(std::thread::hardware_concurrency()),
-        _sharded_visited_nodes(new ShardedVisitedSet(
-            /* total_size = */ dataset_size + 1,
-            /* num_shards = */ std::thread::hardware_concurrency())) {
+        _visited_nodes_handlers(new ThreadSafeVisitedNodesHandler(
+            /* initial_pool_size = */ 1,
+            /* num_elements = */ dataset_size)),
+        _node_links_mutexes(dataset_size) {
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
@@ -137,7 +130,7 @@ public:
 
   ~Index() {
     delete[] _index_memory;
-    delete _sharded_visited_nodes;
+    delete _visited_nodes_handlers;
   }
 
   /**
@@ -154,153 +147,59 @@ public:
    * @param num_initializations  The number of random initializations to use.
    * This determines the number of nodes to search before adding the new node.
    */
-  void add(void *data, label_t &label, int ef_construction,
-           int num_initializations = 100) {
-    node_id_t new_node_id;
-    node_id_t entry_node = initializeSearch(data, num_initializations);
-
-    // make space for the new node
-    allocateNode(data, label, new_node_id);
-
-    // search graph for neighbors of new node, connect to them
-    if (new_node_id > 0) {
-      PriorityQueue neighbors = concurrentBeamSearch(
-          /* query = */ data, /* entry_node = */ entry_node,
-          /* buffer_size = */ ef_construction);
-      selectNeighbors(/* neighbors = */ neighbors);
-      connectNeighbors(neighbors, new_node_id);
-    }
-  }
-
-  void setNumThreads(uint32_t num_threads) {
-    if (!num_threads) {
-      _num_threads = std::thread::hardware_concurrency();
-      return;
-    }
-    _num_threads = num_threads;
-  }
-
   void addParallel(void *data, std::vector<label_t> &labels,
                    int ef_construction, int num_initializations = 100) {
     if (num_initializations <= 0) {
       throw std::invalid_argument(
           "num_initializations must be greater than 0.");
     }
-    uint32_t thread_count =
-        _num_threads <= 0 ? std::thread::hardware_concurrency() : _num_threads;
 
     uint32_t total_num_nodes = labels.size();
     uint32_t data_dimension = _distance->dimension();
 
+    if (_num_threads == 1) {
+      for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
+        void *vector = (float *)data + (row_id * data_dimension);
+        label_t label = labels[row_id];
+        concurrentAdd(vector, label, ef_construction, num_initializations);
+      }
+      return;
+    }
+
     parallelFor(/* start = */ 0, /* end = */ total_num_nodes,
-                /* num_threads = */ thread_count, /* fn = */
-                [&](uint32_t row, uint32_t thread_id) {
-                  void *vector = (float *)data + (row * data_dimension);
-                  label_t label = labels[row];
+                /* num_threads = */ _num_threads, /* fn = */
+                [&](uint32_t row_index) {
+                  void *vector = (float *)data + (row_index * data_dimension);
+                  label_t label = labels[row_index];
                   concurrentAdd(vector, label, ef_construction,
                                 num_initializations);
                 });
   }
 
   void concurrentAdd(void *data, label_t &label, int ef_construction,
-                     int num_initializations = 100) {
-    // Lock the global counter to prevent multiple threads from
-    // trying to insert the same node.
-    // std::unique_lock<std::mutex> lock(_cur_num_nodes_global_lock);
+                     int num_initializations) {
 
     if (_cur_num_nodes >= _max_node_count) {
       throw std::runtime_error("Maximum number of nodes reached. Consider "
                                "increasing the `max_node_count` parameter to "
                                "create a larger index.");
     }
+    _index_data_guard.lock();
     auto entry_node = initializeSearch(data, num_initializations);
     node_id_t new_node_id;
     allocateNode(data, label, new_node_id);
+    _index_data_guard.unlock();
 
-    // if (new_node_id == 0) {
-    //   return;
-    // }
-
-    // PriorityQueue neighbors = beamSearch(
-    //     /* query = */ data, /* entry_node = */ entry_node,
-    //     /* buffer_size = */ ef_construction);
-    // selectNeighbors(/* neighbors = */ neighbors);
-    // connectNeighbors(neighbors, new_node_id);
-  }
-
-  void addParallelBatch(void *batch, uint32_t batch_size, uint32_t label_start,
-                        const std::vector<label_t> &labels, int ef_construction,
-                        int num_initializations = 100) {
-
-    if (num_initializations <= 0) {
-      throw std::invalid_argument(
-          "num_initializations must be greater than 0.");
+    if (new_node_id == 0) {
+      return;
     }
-    uint32_t vec_dimension = _distance->dimension();
-    {
-      std::unique_lock<std::mutex> lock(_cur_num_nodes_global_lock);
 
-      for (uint32_t vec_index = label_start; vec_index < batch_size;
-           vec_index++) {
-        void *vector = (float *)batch + (vec_index * vec_dimension);
-        label_t label = labels[vec_index];
+    auto neighbors = beamSearch(
+        /* query = */ data, /* entry_node = */ entry_node,
+        /* buffer_size = */ ef_construction);
 
-        // Lock from now on until we've inserted the new node into the index.
-        // This prevents multiple threads from trying to insert the same node.
-        // Use the condition variable to stop other threads from busy-waiting,
-        // which would be a waste of CPU cycles.
-
-        // _cur_num_nodes_global_cv.wait(lock,
-        //                               [this] { return
-        //                               !_current_node_inserted; });
-
-        if (_cur_num_nodes >= _max_node_count) {
-          throw std::runtime_error(
-              "Maximum number of nodes reached. Consider "
-              "increasing the `max_node_count` parameter to "
-              "create a larger index.");
-        }
-
-        uint32_t step_size = _cur_num_nodes / num_initializations;
-        if (step_size <= 0) {
-          step_size = 1;
-        }
-        float min_dist = std::numeric_limits<float>::max();
-        node_id_t entry_node = 0;
-        for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
-          float dist = _distance->distance(/* x = */ vector, /* y = */
-                                           getNodeData(node),
-                                           /* asymmetric = */ true);
-          if (dist < min_dist) {
-            min_dist = dist;
-            entry_node = node;
-          }
-        }
-        node_id_t new_node_id;
-        allocateNode(vector, label, new_node_id);
-
-        // Mark the node as inserted, notify other threads, and reset the flag.
-        // _current_node_inserted = true;
-        // _cur_num_nodes_global_cv.notify_all();
-        // _current_node_inserted = false;
-
-        // lock.unlock();
-
-        // search graph for neighbors of new no de, connect to them
-        if (new_node_id > 0) {
-          PriorityQueue neighbors = concurrentBeamSearch(
-              /* query = */ vector, /* entry_node = */ entry_node,
-              /* buffer_size = */ ef_construction);
-          selectNeighbors(/* neighbors = */ neighbors);
-          connectNeighbors(neighbors, new_node_id);
-        }
-        // _current_node_inserted = true;
-        // _cur_num_nodes_global_cv.notify_all();
-        // _current_node_inserted = false;
-
-        // lock.unlock();
-      }
-    }
+    selectNeighbors(/* neighbors = */ neighbors);
+    connectNeighbors(neighbors, new_node_id);
   }
 
   /***
@@ -314,10 +213,9 @@ public:
                                    int ef_search,
                                    int num_initializations = 100) {
     node_id_t entry_node = initializeSearch(query, num_initializations);
-    PriorityQueue neighbors =
-        concurrentBeamSearch(/* query = */ query,
-                             /* entry_node = */ entry_node,
-                             /* buffer_size = */ ef_search);
+    PriorityQueue neighbors = beamSearch(/* query = */ query,
+                                         /* entry_node = */ entry_node,
+                                         /* buffer_size = */ ef_search);
     while (neighbors.size() > K) {
       neighbors.pop();
     }
@@ -380,21 +278,22 @@ public:
     std::shared_ptr<DistanceInterface<dist_t>> dist =
         std::make_shared<dist_t>();
 
-    ShardedVisitedSet *sharded_visited_nodes = new ShardedVisitedSet();
-
     // 1. Deserialize metadata
     archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
-            index->_max_node_count, *dist, index->_visited_nodes,
-            *sharded_visited_nodes);
+            index->_max_node_count, index->_cur_num_nodes, *dist);
+    index->_visited_nodes_handlers = new ThreadSafeVisitedNodesHandler(
+        /* initial_pool_size = */ 1,
+        /* num_elements = */ index->_max_node_count);
     index->_distance = dist;
-    index->_sharded_visited_nodes = sharded_visited_nodes;
-    index->_cur_num_nodes = 0;
+    index->_num_threads = std::thread::hardware_concurrency();
+    index->_node_links_mutexes =
+        std::vector<std::mutex>(index->_max_node_count);
 
-    // 3. Allocate memory using deserialized metadata
+    // 2. Allocate memory using deserialized metadata
     index->_index_memory =
         new char[index->_node_size_bytes * index->_max_node_count];
 
-    // 4. Deserialize content into allocated memory
+    // 3. Deserialize content into allocated memory
     archive(
         cereal::binary_data(index->_index_memory,
                             index->_node_size_bytes * index->_max_node_count));
@@ -412,6 +311,16 @@ public:
     cereal::BinaryOutputArchive archive(stream);
     archive(*this);
   }
+
+  inline void setNumThreads(uint32_t num_threads) {
+    if (!num_threads) {
+      _num_threads = std::thread::hardware_concurrency();
+      return;
+    }
+    _num_threads = num_threads;
+  }
+
+  inline uint32_t getNumThreads() const { return _num_threads; }
 
   inline size_t maxEdgesPerNode() const { return _M; }
   inline size_t dataSizeBytes() const { return _data_size_bytes; }
@@ -432,7 +341,6 @@ public:
     std::cout << "node_size_bytes: " << _node_size_bytes << std::endl;
     std::cout << "max_node_count: " << _max_node_count << std::endl;
     std::cout << "cur_num_nodes: " << _cur_num_nodes << std::endl;
-    std::cout << "visited_nodes size: " << _visited_nodes.size() << std::endl;
 
     _distance->printParams();
   }
@@ -458,30 +366,26 @@ private:
   }
 
   /**
-   * @brief Allocates a new node in the index.
+   * @brief Store the new node in the global data structure. In a
+   * multi-threaded setting, the index data guard should be held by the caller
+   * with an exclusive lock.
+   *
    * @param data The vector to add.
    * @param label The label (meta-data) of the vector.
    * @param new_node_id The id of the new node.
    */
   void allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
 
-    {
-      std::cout << "allocateNode: " << new_node_id << std::endl;
-      std::unique_lock<std::mutex> lock(_cur_num_nodes_global_lock);
-      new_node_id = _cur_num_nodes.fetch_add(1);
-    }
-      _distance->transformData(
-          /* destination = */ (void *)getNodeData(new_node_id),
-          /* src = */ data);
-    std::cout << "Setting label for node " << new_node_id << std::endl;
+    new_node_id = _cur_num_nodes;
+    _distance->transformData(
+        /* destination = */ (void *)getNodeData(new_node_id),
+        /* src = */ data);
     *(getNodeLabel(new_node_id)) = label;
-  
+
     node_id_t *links = getNodeLinks(new_node_id);
-    std::cout << "Inserting links now" << std::endl;
-    for (uint32_t i = 0; i < _M; i++) {
-      links[i] = new_node_id;
-    }
-    std::cout << "Finished inserting links" << std::endl;
+    // Initialize all edges to self
+    std::fill_n(links, _M, new_node_id);
+    _cur_num_nodes++;
   }
 
   inline void swapNodes(node_id_t a, node_id_t b, void *temp_data,
@@ -501,8 +405,6 @@ private:
     std::memcpy(getNodeData(a), temp_data, _data_size_bytes);
     std::memcpy(getNodeLinks(a), temp_links, _M * sizeof(node_id_t));
     std::memcpy(getNodeLabel(a), temp_label, sizeof(label_t));
-
-    return;
   }
 
   /**
@@ -518,71 +420,12 @@ private:
    */
   PriorityQueue beamSearch(const void *query, const node_id_t entry_node,
                            const int buffer_size) {
-
-    // The query pointer should contain transformed data.
-    // returns an iterable list of node_id_t's, sorted by distance (ascending)
-    PriorityQueue neighbors;  // W in the HNSW paper
-    PriorityQueue candidates; // C in the HNSW paper
-
-    _visited_nodes.clear();
-    float dist =
-        _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node),
-                            /* asymmetric = */ true);
-
-    float max_dist = dist;
-
-    candidates.emplace(-dist, entry_node);
-    neighbors.emplace(dist, entry_node);
-    _visited_nodes.insert(entry_node);
-
-    while (!candidates.empty()) {
-      // get nearest element from candidates
-      dist_node_t d_node = candidates.top();
-      if ((-d_node.first) > max_dist) {
-        break;
-      }
-      candidates.pop();
-      node_id_t *d_node_links = getNodeLinks(d_node.second);
-      for (int i = 0; i < _M; i++) {
-        node_id_t neighbor_node_id = d_node_links[i];
-        bool neighbor_is_visited = _visited_nodes[neighbor_node_id];
-        if (!neighbor_is_visited) {
-          // If we haven't visited the node yet.
-          _visited_nodes.insert(neighbor_node_id);
-
-          dist = _distance->distance(/* x = */ query,
-                                     /* y = */ getNodeData(neighbor_node_id),
-                                     /* asymmetric = */ true);
-
-          // Include the node in the buffer if buffer isn't full or
-          // if the node is closer than a node already in the buffer.
-          if (neighbors.size() < buffer_size || dist < max_dist) {
-            candidates.emplace(-dist, neighbor_node_id);
-            neighbors.emplace(dist, neighbor_node_id);
-            if (neighbors.size() > buffer_size) {
-              neighbors.pop();
-            }
-            if (!neighbors.empty()) {
-              max_dist = neighbors.top().first;
-            }
-          }
-        }
-      }
-    }
-    return neighbors;
-  }
-
-  PriorityQueue concurrentBeamSearch(const void *query,
-                                     const node_id_t entry_node,
-                                     const int buffer_size) {
     PriorityQueue neighbors;
     PriorityQueue candidates;
 
-    _sharded_visited_nodes->clearAll();
-
-    if (!_sharded_visited_nodes->allShardsHaveSameMark()) {
-      throw std::runtime_error("All shards must have the same mark.");
-    }
+    auto *visited_nodes_handler =
+        _visited_nodes_handlers->pollAvailableHandler();
+    visited_nodes_handler->clear();
 
     float dist =
         _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node),
@@ -591,7 +434,7 @@ private:
     float max_dist = dist;
     candidates.emplace(-dist, entry_node);
     neighbors.emplace(dist, entry_node);
-    _sharded_visited_nodes->insert(entry_node);
+    visited_nodes_handler->insert(entry_node);
 
     while (!candidates.empty()) {
       dist_node_t d_node = candidates.top();
@@ -599,32 +442,59 @@ private:
         break;
       }
       candidates.pop();
-      node_id_t *d_node_links = getNodeLinks(d_node.second);
-      for (int i = 0; i < _M; i++) {
-        node_id_t neighbor_node_id = d_node_links[i];
-        bool neighbor_is_visited = _sharded_visited_nodes->operator[](
-            /* node_id = */ neighbor_node_id);
-        if (!neighbor_is_visited) {
-          _sharded_visited_nodes->insert(/* node_id = */ neighbor_node_id);
 
-          dist = _distance->distance(/* x = */ query,
-                                     /* y = */ getNodeData(neighbor_node_id),
-                                     /* asymmetric = */ true);
+      processCandidateNode(
+          /* query = */ query, /* node = */ d_node.second,
+          /* max_dist = */ max_dist, /* buffer_size = */ buffer_size,
+          /* visited_nodes = */ visited_nodes_handler,
+          /* neighbors = */ neighbors, /* candidates = */ candidates);
+    }
 
-          if (neighbors.size() < buffer_size || dist < max_dist) {
-            candidates.emplace(-dist, neighbor_node_id);
-            neighbors.emplace(dist, neighbor_node_id);
-            if (neighbors.size() > buffer_size) {
-              neighbors.pop();
-            }
-            if (!neighbors.empty()) {
-              max_dist = neighbors.top().first;
-            }
-          }
+    _visited_nodes_handlers->pushHandler(
+        /* handler = */ visited_nodes_handler);
+
+    return neighbors;
+  }
+
+  void processCandidateNode(const void *query, node_id_t &node, float &max_dist,
+                            const int buffer_size,
+                            VisitedNodesHandler *visited_nodes,
+                            PriorityQueue &neighbors,
+                            PriorityQueue &candidates) {
+    // Lock all operations on this specific node
+    std::unique_lock<std::mutex> lock(_node_links_mutexes[node]);
+    float dist = 0.f;
+
+    node_id_t *neighbor_node_links = getNodeLinks(node);
+    for (uint32_t i = 0; i < _M; i++) {
+      node_id_t neighbor_node_id = neighbor_node_links[i];
+      bool neighbor_is_visited =
+          visited_nodes->operator[](/* num = */ neighbor_node_id);
+
+      if (neighbor_is_visited) {
+        continue;
+      }
+
+      visited_nodes->insert(/* num = */ neighbor_node_id);
+      dist = _distance->distance(/* x = */ query,
+                                 /* y = */ getNodeData(neighbor_node_id),
+                                 /* asymmetric = */ true);
+
+      if (neighbors.size() < buffer_size || dist < max_dist) {
+        candidates.emplace(-dist, neighbor_node_id);
+        neighbors.emplace(dist, neighbor_node_id);
+
+        if (neighbors.size() > buffer_size) {
+          neighbors.pop();
+        }
+        if (!neighbors.empty()) {
+          max_dist = neighbors.top().first;
         }
       }
     }
-    return neighbors;
+
+    // Release the lock(unnecessary since we are exiting the scope)
+    lock.unlock();
   }
 
   /**
@@ -683,6 +553,10 @@ private:
 
   void connectNeighbors(PriorityQueue &neighbors, node_id_t new_node_id) {
     // connects neighbors according to the HSNW heuristic
+
+    // Lock all operations on this node
+    std::unique_lock<std::mutex> lock(_node_links_mutexes[new_node_id]);
+
     node_id_t *new_node_links = getNodeLinks(new_node_id);
     int i = 0; // iterates through links for "new_node_id"
 
@@ -691,6 +565,9 @@ private:
       // add link to the current new node
       new_node_links[i] = neighbor_node_id;
       // now do the back-connections (a little tricky)
+
+      std::unique_lock<std::mutex> neighbor_lock(
+          _node_links_mutexes[neighbor_node_id]);
       node_id_t *neighbor_node_links = getNodeLinks(neighbor_node_id);
       bool is_inserted = false;
       for (size_t j = 0; j < _M; j++) {
@@ -737,6 +614,10 @@ private:
           j++;
         }
       }
+
+      // Unlock the current node we are iterating on
+      neighbor_lock.unlock();
+
       // loop increments:
       i++;
       if (i >= _M) {
@@ -744,6 +625,10 @@ private:
       }
       neighbors.pop();
     }
+
+    // Release the lock. I don't think this is necessary since are actually
+    // exiting the function scope, but just in case
+    lock.unlock();
   }
 
   /**
@@ -762,7 +647,9 @@ private:
       throw std::invalid_argument(
           "num_initializations must be greater than 0.");
     }
-    int step_size = _cur_num_nodes ? _cur_num_nodes / num_initializations : 1;
+
+    int step_size = _cur_num_nodes / num_initializations;
+    step_size = step_size ? step_size : 1;
 
     float min_dist = std::numeric_limits<float>::max();
     node_id_t entry_node = 0;
@@ -771,7 +658,6 @@ private:
       float dist =
           _distance->distance(/* x = */ query, /* y = */ getNodeData(node),
                               /* asymmetric = */ true);
-
       if (dist < min_dist) {
         min_dist = dist;
         entry_node = node;
@@ -794,36 +680,41 @@ private:
     node_id_t *temp_links = new node_id_t[_M];
     label_t *temp_label = new label_t;
 
+    auto *visited_nodes = _visited_nodes_handlers->pollAvailableHandler();
+
     // In this context, is_visited stores which nodes have been relocated
     // (it would be equivalent to name this variable "is_relocated").
-    _visited_nodes.clear();
+    visited_nodes->clear();
 
     for (node_id_t n = 0; n < _cur_num_nodes; n++) {
-      if (!_visited_nodes[n]) {
+      if (visited_nodes->operator[](/* num = */ n)) {
+        continue;
+      }
 
-        node_id_t src = n;
-        node_id_t dest = P[src];
+      node_id_t src = n;
+      node_id_t dest = P[src];
+
+      // swap node at src with node at dest
+      swapNodes(src, dest, temp_data, temp_links, temp_label);
+
+      // mark src as having been relocated
+      visited_nodes->insert(src);
+
+      // recursively relocate the node from "dest"
+      while (!visited_nodes->operator[](/* num = */ dest)) {
+        // mark node as having been relocated
+        visited_nodes->insert(dest);
+        // the value of src remains the same. However, dest needs
+        // to change because the node located at src was previously
+        // located at dest, and must be relocated to P[dest].
+        dest = P[dest];
 
         // swap node at src with node at dest
         swapNodes(src, dest, temp_data, temp_links, temp_label);
-
-        // mark src as having been relocated
-        _visited_nodes.insert(src);
-
-        // recursively relocate the node from "dest"
-        while (!_visited_nodes[dest]) {
-          // mark node as having been relocated
-          _visited_nodes.insert(dest);
-          // the value of src remains the same. However, dest needs
-          // to change because the node located at src was previously
-          // located at dest, and must be relocated to P[dest].
-          dest = P[dest];
-
-          // swap node at src with node at dest
-          swapNodes(src, dest, temp_data, temp_links, temp_label);
-        }
       }
     }
+
+    _visited_nodes_handlers->pushHandler(/* handler = */ visited_nodes);
 
     delete[] temp_data;
     delete[] temp_links;

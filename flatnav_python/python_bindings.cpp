@@ -69,39 +69,30 @@ public:
       throw std::invalid_argument("Data has incorrect dimensions.");
     }
     if (labels.is_none()) {
-      for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
-        this->_index->add(/* data = */ (void *)data.data(vec_index),
-                          /* label = */ label_id,
-                          /* ef_construction = */ ef_construction,
-                          /* num_initializations = */ 100);
-        if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
-          std::clog << "." << std::flush;
-        }
-        label_id++;
-      }
-      std::clog << std::endl;
+      std::vector<label_t> vec_labels(num_vectors);
+      std::iota(vec_labels.begin(), vec_labels.end(), 0);
+
+      this->_index->addParallel(
+          /* data = */ (void *)data.data(0), /* labels = */ vec_labels,
+          /* ef_construction = */ ef_construction,
+          /* num_initializations = */ num_initializations);
       return;
     }
 
     // Use the provided labels now
-    py::array_t<label_t, py::array::c_style | py::array::forcecast> node_labels(
-        labels);
-    if (node_labels.ndim() != 1 || node_labels.shape(0) != num_vectors) {
-      throw std::invalid_argument("Labels have incorrect dimensions.");
-    }
-
-    for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
-      label_t label_id = *node_labels.data(vec_index);
-      this->_index->add(/* data = */ (void *)data.data(vec_index),
-                        /* label = */ label_id,
-                        /* ef_construction = */ ef_construction,
-                        /* num_initializations = */ 100);
-
-      if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
-        std::clog << "." << std::flush;
+    try {
+      auto vec_labels = py::cast<std::vector<label_t>>(labels);
+      if (vec_labels.size() != num_vectors) {
+        throw std::invalid_argument("Incorrect numbe of labels.");
       }
+
+      this->_index->addParallel(
+          /* data = */ (void *)data.data(0), /* labels = */ vec_labels,
+          /* ef_construction = */ ef_construction,
+          /* num_initializations = */ num_initializations);
+    } catch (const py::cast_error &error) {
+      throw std::invalid_argument("Invalid labels provided.");
     }
-    std::clog << std::endl;
   }
 
   DistancesLabelsPair
@@ -205,6 +196,15 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
           "Perform graph re-ordering based on the given sequence of "
           "re-ordering strategies. "
           "Supported re-ordering algorithms include `gorder` and `rcm`.")
+      .def_property(
+          "num_threads",
+          [](IndexType &index_type, uint32_t num_threads) {
+            index_type.getIndex()->setNumThreads(
+                /* num_threads = */ num_threads);
+          },
+          [](IndexType &index_type) { index_type.getIndex()->getNumThreads(); },
+          "Configure the desired number of threads. This is useful for "
+          "constructing the NSW graph in parallel.")
       .def_property_readonly(
           "max_edges_per_node",
           [](IndexType &index_type) {

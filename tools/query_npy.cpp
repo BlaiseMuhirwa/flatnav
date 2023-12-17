@@ -50,8 +50,6 @@ void run(float *queries, int *gtruth, const std::string &index_filename,
       float *q = queries + dim * i;
       int *g = gtruth + num_gtruth * i;
 
-      std::cout << "[INFO] Query " << i << std::endl;
-
       std::vector<std::pair<float, int>> result =
           index->search(q, K, ef_search);
 

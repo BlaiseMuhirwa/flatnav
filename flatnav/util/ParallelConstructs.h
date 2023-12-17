@@ -12,49 +12,30 @@ namespace flatnav {
 template <typename Function>
 void parallelFor(uint32_t start, uint32_t end, uint32_t num_threads,
                  Function fn) {
-  if (num_threads <= 0) {
+  if (num_threads == 0) {
     throw std::invalid_argument("Invalid number of threads");
   }
 
-  if (num_threads == 1) {
-    for (uint32_t i = start; i < end; i++) {
-      fn(i, 0);
-    }
-    return;
-  }
-  std::vector<std::thread> threads;
+  // This needs to be an atomic because mutliple threads will be
+  // modifying it concurrently.
   std::atomic<uint32_t> current(start);
+  std::thread thread_objects[num_threads];
 
-  std::exception_ptr last_exception = nullptr;
-  std::mutex last_exception_mutex;
-
-  for (uint32_t thread_id = 0; thread_id < num_threads; thread_id++) {
-    threads.push_back(std::thread([&, thread_id] {
-      while (true) {
-        uint32_t current_value = current.fetch_add(1);
-        if (current_value >= end) {
-          break;
-        }
-
-        try {
-          fn(current_value, thread_id);
-        } catch (...) {
-          std::unique_lock<std::mutex> lock(last_exception_mutex);
-          last_exception = std::current_exception();
-
-          current = end;
-          break;
-        }
+  auto parallel_executor = [&] {
+    while (true) {
+      uint32_t current_vector_idx = current.fetch_add(1);
+      if (current_vector_idx >= end) {
+        break;
       }
-    }));
-  }
+      fn(current_vector_idx);
+    }
+  };
 
-  for (auto &thread : threads) {
-    thread.join();
+  for (uint32_t id = 0; id < num_threads; id++) {
+    thread_objects[id] = std::thread(parallel_executor);
   }
-
-  if (last_exception) {
-    std::rethrow_exception(last_exception);
+  for (uint32_t id = 0; id < num_threads; id++) {
+    thread_objects[id].join();
   }
 }
 
