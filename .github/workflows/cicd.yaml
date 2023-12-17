@@ -39,4 +39,6 @@ jobs:
         ./install_flatnav.sh
 
     - name: Run Unit Tests
-      run: poetry run pytest -vs flatnav_python/unit_tests
+      run: |
+        cd flatnav_python
+        poetry run pytest -vs unit_tests
