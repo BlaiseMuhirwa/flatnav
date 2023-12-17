@@ -12,7 +12,7 @@ def test_parallel_insertions_yield_similar_recall():
     training_set = generate_random_data(dataset_length=30_000, dim=784)
     queries = generate_random_data(dataset_length=5_000, dim=784)
     ground_truth = np.random.randint(low=0, high=50, size=(5_000, 100))
-    
+
     index = create_index(
         distance_type="l2",
         dim=training_set.shape[1],
@@ -28,6 +28,7 @@ def test_parallel_insertions_yield_similar_recall():
 
     assert index.max_edges_per_node == 16
 
+    # This is not necessary. By default, FlatNav will use all available cores
     index.num_threads = os.cpu_count()
 
     start = time.time()
@@ -36,7 +37,7 @@ def test_parallel_insertions_yield_similar_recall():
 
     parallel_construction_time = end - start
     print(
-        f"Index construction time (parallel): = {parallel_construction_time} seconds."
+        f"\nIndex construction time (parallel): = {parallel_construction_time} seconds."
         f"Num-threads = {index.num_threads}"
     )
 
@@ -52,7 +53,7 @@ def test_parallel_insertions_yield_similar_recall():
 
     single_threaded_index_construction_time = end - start
     print(
-        f"Index construction time (single thread): = {single_threaded_index_construction_time}"
+        f"\nIndex construction time (single thread): = {single_threaded_index_construction_time}"
     )
 
     recall_with_single_threaded_index = compute_recall(
