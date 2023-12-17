@@ -11,7 +11,7 @@ jobs:
       matrix:
         # TODO: Get macos-latest to work as well
         os: [ubuntu-latest] 
-        python-version: [3.11]
+        python-version: [3.9, 3.11]
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout Repository

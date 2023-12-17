@@ -23,7 +23,6 @@ class InnerProductDistance : public DistanceInterface<InnerProductDistance> {
 
 public:
   InnerProductDistance() = default;
-
   explicit InnerProductDistance(size_t dim)
       : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
         _distance_computer(std::bind(&InnerProductDistance::defaultDistanceImpl,
