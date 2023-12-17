@@ -198,11 +198,13 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
           "Supported re-ordering algorithms include `gorder` and `rcm`.")
       .def_property(
           "num_threads",
+          [](IndexType &index_type) -> uint32_t {
+            return index_type.getIndex()->getNumThreads();
+          },
           [](IndexType &index_type, uint32_t num_threads) {
             index_type.getIndex()->setNumThreads(
                 /* num_threads = */ num_threads);
           },
-          [](IndexType &index_type) { index_type.getIndex()->getNumThreads(); },
           "Configure the desired number of threads. This is useful for "
           "constructing the NSW graph in parallel.")
       .def_property_readonly(

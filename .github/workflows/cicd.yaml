@@ -1,0 +1,40 @@
+name: Run Tests
+
+on: [push, pull_request]
+
+env: 
+  POETRY_VERSION: "1.6.1"
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: [3.9, 3.10, 3.11]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Set up Poetry
+      uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        cd flatnav_python
+        poetry install 
+
+    - name: Build flatnav 
+      run: |
+        cd flatnav_python
+        ./install_flatnav.sh
+
+    - name: Run Unit Tests
+      run: poetry run pytest -vs flatnav_python/unit_tests
