@@ -141,8 +141,8 @@ public:
       return;
     }
 
-    flatnav::parallelExecutor(
-        /* start = */ 0, /* end = */ total_num_nodes,
+    flatnav::executeInParallel(
+        /* start_index = */ 0, /* end_index = */ total_num_nodes,
         /* num_threads = */ _num_threads, /* function = */
         [&](uint32_t row_index) {
           void *vector = (float *)data + (row_index * data_dimension);

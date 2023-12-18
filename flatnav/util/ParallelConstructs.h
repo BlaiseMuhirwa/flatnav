@@ -22,8 +22,8 @@ namespace flatnav {
  * @param function
  */
 template <typename Function>
-void parallelExecutor(uint32_t start_index, uint32_t end_index,
-                      uint32_t num_threads, Function function) {
+void executeInParallel(uint32_t start_index, uint32_t end_index,
+                       uint32_t num_threads, Function function) {
   if (num_threads == 0) {
     throw std::invalid_argument("Invalid number of threads");
   }

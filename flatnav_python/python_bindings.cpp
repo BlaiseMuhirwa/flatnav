@@ -3,6 +3,7 @@
 #include <flatnav/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/util/ParallelConstructs.h>
 #include <iostream>
 #include <memory>
 #include <ostream>
@@ -104,10 +105,11 @@ public:
     }
   }
 
-  DistancesLabelsPair
-  search(const py::array_t<float, py::array::c_style | py::array::forcecast>
-             queries,
-         int K, int ef_search, int num_initializations = 100) {
+  DistancesLabelsPair searchParallel(
+      const py::array_t<float, py::array::c_style | py::array::forcecast>
+          queries,
+      int K, int ef_search, int num_initializations = 100) {
+
     size_t num_queries = queries.shape(0);
     size_t queries_dim = queries.shape(1);
 
@@ -115,6 +117,58 @@ public:
       throw std::invalid_argument("Queries have incorrect dimensions.");
     }
 
+    auto num_threads = _index->getNumThreads();
+
+    // No need to spawn any threads if we are in a single-threaded environment
+    if (num_threads == 1) {
+      return search(/* queries = */ queries, /* K = */ K,
+                    /* ef_search = */ ef_search,
+                    /* num_initializations = */ num_initializations);
+    }
+
+    label_t *results = new label_t[num_queries * K];
+    float *distances = new float[num_queries * K];
+
+    flatnav::executeInParallel(
+        /* start_index = */ 0, /* end_index = */ num_queries,
+        /* num_threads = */ num_threads,
+        /* function = */ [&](uint32_t row_index) {
+          auto *query = (const void *)queries.data(row_index);
+          std::vector<std::pair<float, label_t>> top_k = this->_index->search(
+              /* query = */ query, /* K = */ K, /* ef_search = */ ef_search,
+              /* num_initializations = */ num_initializations);
+
+          for (uint32_t result_id = 0; result_id < K; result_id++) {
+            distances[(row_index * K) + result_id] = top_k[result_id].first;
+            results[(row_index * K) + result_id] = top_k[result_id].second;
+          }
+        });
+    // Allows to transfer ownership to Python
+    py::capsule free_results_when_done(
+        results, [](void *ptr) { delete (label_t *)ptr; });
+    py::capsule free_distances_when_done(
+        distances, [](void *ptr) { delete (float *)ptr; });
+
+    py::array_t<label_t> labels =
+        py::array_t<label_t>({num_queries, (size_t)K}, // shape of the array
+                             {K * sizeof(label_t), sizeof(label_t)}, // strides
+                             results,               // data pointer
+                             free_results_when_done // capsule
+        );
+
+    py::array_t<float> dists = py::array_t<float>(
+        {num_queries, (size_t)K}, {K * sizeof(float), sizeof(float)}, distances,
+        free_distances_when_done);
+
+    return {dists, labels};
+  }
+
+  DistancesLabelsPair
+  search(const py::array_t<float, py::array::c_style | py::array::forcecast>
+             queries,
+         int K, int ef_search, int num_initializations = 100) {
+    size_t num_queries = queries.shape(0);
+    size_t queries_dim = queries.shape(1);
     label_t *results = new label_t[num_queries * K];
     float *distances = new float[num_queries * K];
 
@@ -174,8 +228,9 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
            "many "
            "vertices are visited while inserting every vector in the "
            "underlying graph structure.")
-      .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
-           py::arg("ef_search"), py::arg("num_initializations") = 100,
+      .def("search", &IndexType::searchParallel, py::arg("queries"),
+           py::arg("K"), py::arg("ef_search"),
+           py::arg("num_initializations") = 100,
            "Return top `K` closest data points for every query in the "
            "provided `queries`. The results are returned as a Tuple of "
            "distances and label ID's. The `ef_search` parameter determines how "
