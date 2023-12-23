@@ -271,7 +271,6 @@ static float distanceImplSquaredL2SIMD16ExtAVX512(const void *x, const void *y,
 static float distanceImplInnerProductSIMD4ExtAVX(const void *x, const void *y,
                                                  const size_t &dimension) {
 
-  std::cout << "[info] invoking distanceImplInnerProductSIMD4ExtAVX" << std::flush;
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
   float PORTABLE_ALIGN32 temp_res[8];

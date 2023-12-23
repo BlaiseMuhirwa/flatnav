@@ -2,28 +2,30 @@
 
 #include <atomic>
 #include <cstdint>
-#include <exception>
 #include <mutex>
 #include <thread>
-#include <vector>
+#include <tuple>
+#include <utility>
 
 namespace flatnav {
 
 /**
- * @brief template for executing a function in parallel using STL's threading
- * library This is preferred in lieu of OpenMP only because it will not require
- * having logic for installing OpenMP on the host system while installing the
- * Python library.
+ * @brief Variadic template for executing a function in parallel using STL's
+ * threading library. This is preferred in lieu of OpenMP only because it will
+ * not require having logic for installing OpenMP on the host system while
+ * installing the Python library.
  *
  * @tparam Function
  * @param start_index
  * @param end_index
  * @param num_threads
  * @param function
+ * @param additional_args
  */
-template <typename Function>
+template <typename Function, typename... Args>
 void executeInParallel(uint32_t start_index, uint32_t end_index,
-                       uint32_t num_threads, Function function) {
+                       uint32_t num_threads, Function function,
+                       Args... additional_args) {
   if (num_threads == 0) {
     throw std::invalid_argument("Invalid number of threads");
   }
@@ -39,7 +41,9 @@ void executeInParallel(uint32_t start_index, uint32_t end_index,
       if (current_vector_idx >= end_index) {
         break;
       }
-      function(current_vector_idx);
+      // Use std::apply to pass arguments to the function
+      std::apply(function, std::tuple_cat(std::make_tuple(current_vector_idx),
+                                          std::make_tuple(additional_args...)));
     }
   };
 

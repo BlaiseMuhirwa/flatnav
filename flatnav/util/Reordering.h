@@ -1,7 +1,7 @@
 #pragma once
 
 #include <flatnav/util/GorderPriorityQueue.h>
-#include <flatnav/util/VisitedNodesHandler.h>
+#include <flatnav/util/VisitedSetPool.h>
 
 #include <algorithm>
 #include <queue>
@@ -137,7 +137,7 @@ rcmOrder(std::vector<std::vector<node_id_t>> &outdegree_table) {
          const std::pair<node_id_t, int> &b) { return a.second < b.second; });
 
   std::vector<node_id_t> P;
-  VisitedNodesHandler is_listed = VisitedNodesHandler(cur_num_nodes);
+  auto is_listed = VisitedSet(cur_num_nodes);
   is_listed.clear();
 
   for (int i = 0; i < sorted_nodes.size(); i++) {

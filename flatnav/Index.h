@@ -13,7 +13,7 @@
 #include <flatnav/util/ParallelConstructs.h>
 #include <flatnav/util/Reordering.h>
 #include <flatnav/util/SIMDDistanceSpecializations.h>
-#include <flatnav/util/VisitedNodesHandler.h>
+#include <flatnav/util/VisitedSetPool.h>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -57,7 +57,7 @@ template <typename dist_t, typename label_t> class Index {
   uint32_t _num_threads;
 
   // Remembers which nodes we've visited, to avoid re-computing distances.
-  ThreadSafeVisitedNodesHandler *_visited_nodes_handlers;
+  VisitedSetPool *_visited_set_pool;
   std::vector<std::mutex> _node_links_mutexes;
 
   friend class cereal::access;
@@ -86,7 +86,7 @@ public:
       : _M(max_edges_per_node), _max_node_count(dataset_size),
         _cur_num_nodes(0), _distance(dist),
         _num_threads(std::thread::hardware_concurrency()),
-        _visited_nodes_handlers(new ThreadSafeVisitedNodesHandler(
+        _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
         _node_links_mutexes(dataset_size) {
@@ -105,7 +105,7 @@ public:
 
   ~Index() {
     delete[] _index_memory;
-    delete _visited_nodes_handlers;
+    delete _visited_set_pool;
   }
 
   /**
@@ -132,6 +132,7 @@ public:
     uint32_t total_num_nodes = labels.size();
     uint32_t data_dimension = _distance->dimension();
 
+    // Don't spawn any threads if we are only using one.
     if (_num_threads == 1) {
       for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
         void *vector = (float *)data + (row_id * data_dimension);
@@ -256,7 +257,7 @@ public:
     // 1. Deserialize metadata
     archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
             index->_max_node_count, index->_cur_num_nodes, *dist);
-    index->_visited_nodes_handlers = new ThreadSafeVisitedNodesHandler(
+    index->_visited_set_pool = new VisitedSetPool(
         /* initial_pool_size = */ 1,
         /* num_elements = */ index->_max_node_count);
     index->_distance = dist;
@@ -398,9 +399,8 @@ private:
     PriorityQueue neighbors;
     PriorityQueue candidates;
 
-    auto *visited_nodes_handler =
-        _visited_nodes_handlers->pollAvailableHandler();
-    visited_nodes_handler->clear();
+    auto *visited_set = _visited_set_pool->pollAvailableSet();
+    visited_set->clear();
 
     float dist =
         _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node),
@@ -409,7 +409,7 @@ private:
     float max_dist = dist;
     candidates.emplace(-dist, entry_node);
     neighbors.emplace(dist, entry_node);
-    visited_nodes_handler->insert(entry_node);
+    visited_set->insert(entry_node);
 
     while (!candidates.empty()) {
       dist_node_t d_node = candidates.top();
@@ -421,19 +421,18 @@ private:
       processCandidateNode(
           /* query = */ query, /* node = */ d_node.second,
           /* max_dist = */ max_dist, /* buffer_size = */ buffer_size,
-          /* visited_nodes = */ visited_nodes_handler,
+          /* visited_nodes = */ visited_set,
           /* neighbors = */ neighbors, /* candidates = */ candidates);
     }
 
-    _visited_nodes_handlers->pushHandler(
-        /* handler = */ visited_nodes_handler);
+    _visited_set_pool->pushVisitedSet(
+        /* visited_set = */ visited_set);
 
     return neighbors;
   }
 
   void processCandidateNode(const void *query, node_id_t &node, float &max_dist,
-                            const int buffer_size,
-                            VisitedNodesHandler *visited_nodes,
+                            const int buffer_size, VisitedSet *visited_set,
                             PriorityQueue &neighbors,
                             PriorityQueue &candidates) {
     // Lock all operations on this specific node
@@ -444,13 +443,13 @@ private:
     for (uint32_t i = 0; i < _M; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
       bool neighbor_is_visited =
-          visited_nodes->operator[](/* num = */ neighbor_node_id);
+          visited_set->operator[](/* num = */ neighbor_node_id);
 
       if (neighbor_is_visited) {
         continue;
       }
 
-      visited_nodes->insert(/* num = */ neighbor_node_id);
+      visited_set->insert(/* num = */ neighbor_node_id);
       dist = _distance->distance(/* x = */ query,
                                  /* y = */ getNodeData(neighbor_node_id),
                                  /* asymmetric = */ true);
@@ -648,14 +647,14 @@ private:
     node_id_t *temp_links = new node_id_t[_M];
     label_t *temp_label = new label_t;
 
-    auto *visited_nodes = _visited_nodes_handlers->pollAvailableHandler();
+    auto *visited_set = _visited_set_pool->pollAvailableSet();
 
     // In this context, is_visited stores which nodes have been relocated
     // (it would be equivalent to name this variable "is_relocated").
-    visited_nodes->clear();
+    visited_set->clear();
 
     for (node_id_t n = 0; n < _cur_num_nodes; n++) {
-      if (visited_nodes->operator[](/* num = */ n)) {
+      if (visited_set->operator[](/* num = */ n)) {
         continue;
       }
 
@@ -666,12 +665,12 @@ private:
       swapNodes(src, dest, temp_data, temp_links, temp_label);
 
       // mark src as having been relocated
-      visited_nodes->insert(src);
+      visited_set->insert(src);
 
       // recursively relocate the node from "dest"
-      while (!visited_nodes->operator[](/* num = */ dest)) {
+      while (!visited_set->operator[](/* num = */ dest)) {
         // mark node as having been relocated
-        visited_nodes->insert(dest);
+        visited_set->insert(dest);
         // the value of src remains the same. However, dest needs
         // to change because the node located at src was previously
         // located at dest, and must be relocated to P[dest].
@@ -682,8 +681,8 @@ private:
       }
     }
 
-    _visited_nodes_handlers->pushHandler(
-        /* handler = */ visited_nodes);
+    _visited_set_pool->pushVisitedSet(
+        /* visited_set = */ visited_set);
 
     delete[] temp_data;
     delete[] temp_links;
