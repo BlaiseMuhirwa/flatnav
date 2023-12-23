@@ -35,6 +35,17 @@ Example Usage:
   ./build.sh -t -e -v
 ```
 
+### Support for SIMD Extensions 
+
+We currently support SIMD extensions for certain platforms as detailed below. 
+
+| Operation | x86_64 | arm64v8 | Apple silicone |
+|-----------|--------|---------|-----------------|
+| FP32 Inner product |SSE, AVX, AVX512 | No SIMD support | No SIMD support |
+| FP32 L2 distance |SSE, AVX, AVX512| No SIMD support | No SIMD support |
+
+
+
 ### System Requirements
 Currently, we only support MacOS (and partially Ubuntu Linux). Before building Flatnav, you will need the following 
 
