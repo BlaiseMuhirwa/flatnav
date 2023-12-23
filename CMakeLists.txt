@@ -33,9 +33,32 @@ set(CMAKE_CXX_FLAGS
     -w \
     -ffast-math \
     -funroll-loops \
-    -march=native \
-    -mavx \
-    -mavx512f")
+    -march=native")
+
+if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "(x86_64)|(AMD64|amd64)|(^i.86$)")
+  # Build SSE/AVX/AVX512 code only if we are on x64.
+  # Check that the compiler suppports instructions flag. 
+  CHECK_CXX_COMPILER_FLAG("-mavx" CXX_AVX)
+  CHECK_CXX_COMPILER_FLAG("-mavx512f" CXX_AVX512)
+  CHECK_CXX_COMPILER_FLAG("-msse" CXX_SSE)
+
+  if(CXX_AVX512)
+    message(STATUS "Building with AVX512 support")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx512f")
+  endif()
+
+  if(CXX_AVX)
+    message(STATUS "Building with AVX support")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
+  endif()
+
+  if(CXX_SSE)
+    message(STATUS "Building with SSE support")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse")
+  endif()
+
+endif()
+
 
 option(CMAKE_BUILD_TYPE "Build type" Release)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
