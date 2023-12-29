@@ -67,7 +67,7 @@ public:
         std::vector<std::vector<uint32_t>> &outdegree_table)
       : _M(32), _max_node_count(outdegree_table.size()), _cur_num_nodes(0),
         _distance(dist), _visited_nodes(outdegree_table.size() + 1),
-        _outdegree_table(std::move(outdegree_table)) {
+        _outdegree_table(outdegree_table) {
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =

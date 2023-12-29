@@ -86,16 +86,16 @@ int main() {
   // Replace with your filename
   const char *ground_truth_file =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "mnist-784-euclidean/mnist-784-euclidean.gtruth.npy";
+      "deep-image-96-angular/deep-image-96-angular.gtruth.npy";
   const char *train_file =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "mnist-784-euclidean/mnist-784-euclidean.train.npy";
+      "deep-image-96-angular/deep-image-96-angular.train.npy";
   const char *queries_file =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "mnist-784-euclidean/mnist-784-euclidean.test.npy";
+      "deep-image-96-angular/deep-image-96-angular.test.npy";
   const char *sift_mtx =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "mnist-784-euclidean/mnist.mtx";
+      "deep-image-96-angular/deep96.mtx";
 
   Graph g = loadGraphFromMatrixMarket(sift_mtx);
 
@@ -109,9 +109,9 @@ int main() {
   float *data = trainfile.data<float>();
   float *queries = queryfile.data<float>();
   int *gtruth = truthfile.data<int>();
-  int dim = 784;
+  int dim = 96;
   int M = 32;
-  int dataset_size = 60000;
+  int dataset_size = 9990000;
 
   std::cout << "constructing the index" << std::endl;
   auto distance = std::make_shared<flatnav::SquaredL2Distance>(dim);
@@ -119,33 +119,18 @@ int main() {
       std::make_unique<flatnav::Index<flatnav::SquaredL2Distance, int>>(
           distance, g.adjacency_list);
 
-  std::vector<int> ef_searches{100, 200};
+  std::vector<int> ef_searches{100, 200, 300, 500, 1000, 2000, 3000};
   int num_queries = queryfile.shape[0];
   int num_gtruth = truthfile.shape[1];
   int K = 100;
-  int ef_construction = 200;
 
   std::cout << "Adding vectors to the index" << std::endl;
   for (int label = 0; label < dataset_size; label++) {
     float *element = data + (dim * label);
     uint32_t node_id;
 
-    index->add(element, label, ef_construction);
-
-    // index->allocateNode(element, label, node_id);
+    index->allocateNode(element, label, node_id);
   }
-
-  // Get outdegree table
-  auto table = index->getGraphOutdegreeTable();
-
-  // Write to file
-  std::string filename =
-      "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "mnist-784-euclidean/mnist2.mtx";
-
-  writeToMatrixMarketFile(table, filename, M);
-
-  exit(0);
 
   std::cout << "Building graph links" << std::endl;
   index->buildGraphLinks();
