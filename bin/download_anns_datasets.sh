@@ -1,6 +1,6 @@
 #!/bin/bash 
 
-PYTHON="poetry run python"
+PYTHON="python"
 
 # Make sure we are in this directory before runnin
 

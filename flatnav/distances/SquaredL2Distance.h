@@ -31,13 +31,26 @@ public:
     setDistanceFunction();
   }
 
+  static std::shared_ptr<SquaredL2Distance> create(size_t dim) {
+#if defined(USE_AVX512) || defined(USE_AVX) || defined(USE_SSE)
+#if defined(USE_AVX512)
+    return std::make_shared<SquaredL2SIMDAVX512>(dim);
+#elif defined(USE_AVX)
+    return std::make_shared<SquaredL2SIMDAVX>(dim);
+#elif defined(USE_SSE)
+    return std::make_shared<SquaredL2SIMDSSE>(dim);
+#endif // USE_AVX512
+#endif // USE_AVX512 || USE_AVX || USE_SSE
+    return std::make_shared<SquaredL2Distance>(dim);
+  }
+
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {
     (void)asymmetric;
     return _distance_computer(x, y, _dimension);
   }
 
-private:
+protected:
   size_t _dimension;
   size_t _data_size_bytes;
   std::function<float(const void *, const void *, const size_t &)>
@@ -119,5 +132,83 @@ private:
     return squared_distance;
   }
 };
+
+#if defined(USE_AVX512)
+class SquaredL2SIMDAVX512 : public SquaredL2Distance {
+public:
+  SquaredL2SIMDAVX512() = default;
+  explicit SquaredL2SIMDAVX512(size_t dim) : SquaredL2Distance(dim) {}
+  float distanceImpl(const void *x, const void *y,
+                     bool asymmetric = false) const {
+    (void)asymmetric;
+    float *p_x = (float *)(x);
+    float *p_y = (float *)(y);
+
+    float PORTABLE_ALIGN64 temp_res[16];
+    size_t dimension_1_16 = _dimension >> 4;
+    const float *p_end_x = p_x + (dimension_1_16 << 4);
+
+    __m512 diff, v1, v2;
+    __m512 sum = _mm512_set1_ps(0.0f);
+
+    while (p_x != p_end_x) {
+      v1 = _mm512_loadu_ps(p_x);
+      v2 = _mm512_loadu_ps(p_y);
+      diff = _mm512_sub_ps(v1, v2);
+      sum = _mm512_add_ps(sum, _mm512_mul_ps(diff, diff));
+      p_x += 16;
+      p_y += 16;
+    }
+
+    _mm512_store_ps(temp_res, sum);
+    return temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3] + temp_res[4] +
+           temp_res[5] + temp_res[6] + temp_res[7] + temp_res[8] + temp_res[9] +
+           temp_res[10] + temp_res[11] + temp_res[12] + temp_res[13] +
+           temp_res[14] + temp_res[15];
+  }
+};
+#endif // USE_AVX512
+
+#if defined(USE_AVX)
+class SquaredL2SIMDAVX : public SquaredL2Distance {
+public:
+  SquaredL2SIMDAVX() = default;
+  explicit SquaredL2SIMDAVX(size_t dim) : SquaredL2Distance(dim) {}
+  float distanceImpl(const void *x, const void *y,
+                     bool asymmetric = false) const {
+    (void)asymmetric;  
+  float *p_x = (float *)(x);
+  float *p_y = (float *)(y);
+
+  float PORTABLE_ALIGN32 temp_res[8];
+  size_t dimension_1_16 = _dimension >> 4;
+  const float *p_end_x = p_x + (dimension_1_16 << 4);
+
+  __m256 diff, v1, v2;
+  __m256 sum = _mm256_set1_ps(0.0f);
+
+  while (p_x != p_end_x) {
+    v1 = _mm256_loadu_ps(p_x);
+    v2 = _mm256_loadu_ps(p_y);
+    diff = _mm256_sub_ps(v1, v2);
+    sum = _mm256_add_ps(sum, _mm256_mul_ps(diff, diff));
+    p_x += 8;
+    p_y += 8;
+
+    v1 = _mm256_loadu_ps(p_x);
+    v2 = _mm256_loadu_ps(p_y);
+    diff = _mm256_sub_ps(v1, v2);
+    sum = _mm256_add_ps(sum, _mm256_mul_ps(diff, diff));
+    p_x += 8;
+    p_y += 8;
+  }
+
+  _mm256_store_ps(temp_res, sum);
+
+  return temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3] + temp_res[4] +
+         temp_res[5] + temp_res[6] + temp_res[7];
+  }
+};
+#endif // USE_AVX
 
 } // namespace flatnav

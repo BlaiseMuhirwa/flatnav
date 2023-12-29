@@ -8,6 +8,7 @@
 namespace flatnav {
 
 enum class METRIC_TYPE { EUCLIDEAN, INNER_PRODUCT };
+enum class ARCH_OPTIMIZATION { NONE, SSE, AVX, AVX512 };
 
 // We use the CRTP to implement static polymorphism on the distance. This is
 // done to allow for metrics and distance functions that support arbitrary

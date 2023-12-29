@@ -80,7 +80,7 @@ void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
 
   } else {
     if (metric_type == flatnav::METRIC_TYPE::EUCLIDEAN) {
-      auto distance = std::make_shared<SquaredL2Distance>(dim);
+      auto distance = SquaredL2Distance::create(dim);
       buildIndex<SquaredL2Distance>(data, std::move(distance), N, M, dim,
                                     ef_construction, save_file);
     } else if (metric_type == flatnav::METRIC_TYPE::INNER_PRODUCT) {
