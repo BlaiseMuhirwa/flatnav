@@ -86,18 +86,18 @@ int main() {
   // Replace with your filename
   const char *ground_truth_file =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "deep-image-96-angular/deep-image-96-angular.gtruth.npy";
+      "sift-128-euclidean/sift-128-euclidean.gtruth.npy";
   const char *train_file =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "deep-image-96-angular/deep-image-96-angular.train.npy";
+      "sift-128-euclidean/sift-128-euclidean.train.npy";
   const char *queries_file =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "deep-image-96-angular/deep-image-96-angular.test.npy";
+      "sift-128-euclidean/sift-128-euclidean.test.npy";
   const char *sift_mtx =
       "/Users/blaisemunyampirwa/Desktop/flatnav-experimental/data/"
-      "deep-image-96-angular/deep96.mtx";
+      "sift-128-euclidean/deep96.mtx";
 
-  Graph g = loadGraphFromMatrixMarket(sift_mtx);
+  // Graph g = loadGraphFromMatrixMarket(sift_mtx);
 
   cnpy::NpyArray trainfile = cnpy::npy_load(train_file);
   cnpy::NpyArray queryfile = cnpy::npy_load(queries_file);
@@ -109,31 +109,44 @@ int main() {
   float *data = trainfile.data<float>();
   float *queries = queryfile.data<float>();
   int *gtruth = truthfile.data<int>();
-  int dim = 96;
+  int dim = trainfile.shape[1];
   int M = 32;
-  int dataset_size = 9990000;
+  int ef_construction = 100;
+  int dataset_size = trainfile.shape[0];
 
   std::cout << "constructing the index" << std::endl;
   auto distance = std::make_shared<flatnav::SquaredL2Distance>(dim);
+  // std::unique_ptr<flatnav::Index<flatnav::SquaredL2Distance, int>> index =
+  //     std::make_unique<flatnav::Index<flatnav::SquaredL2Distance, int>>(
+  //         distance, g.adjacency_list);
+
   std::unique_ptr<flatnav::Index<flatnav::SquaredL2Distance, int>> index =
       std::make_unique<flatnav::Index<flatnav::SquaredL2Distance, int>>(
-          distance, g.adjacency_list);
+          distance, dataset_size, M);
+  
+  for (int label = 0; label < dataset_size; label++) {
+    float *element = data + (dim * label);
+    index->add((void*)element, label, ef_construction);
+    if (label % 100000 == 0) {
+      std::cout << "Added " << label << " vectors" << std::endl;
+    }
+  }
 
   std::vector<int> ef_searches{100, 200, 300, 500, 1000, 2000, 3000};
   int num_queries = queryfile.shape[0];
   int num_gtruth = truthfile.shape[1];
   int K = 100;
 
-  std::cout << "Adding vectors to the index" << std::endl;
-  for (int label = 0; label < dataset_size; label++) {
-    float *element = data + (dim * label);
-    uint32_t node_id;
+  // std::cout << "Adding vectors to the index" << std::endl;
+  // for (int label = 0; label < dataset_size; label++) {
+  //   float *element = data + (dim * label);
+  //   uint32_t node_id;
 
-    index->allocateNode(element, label, node_id);
-  }
+  //   index->allocateNode(element, label, node_id);
+  // }
 
-  std::cout << "Building graph links" << std::endl;
-  index->buildGraphLinks();
+  // std::cout << "Building graph links" << std::endl;
+  // index->buildGraphLinks();
 
   std::cout << "Querying" << std::endl;
 
