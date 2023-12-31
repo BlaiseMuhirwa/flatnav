@@ -32,9 +32,19 @@ public:
   }
 
   static std::shared_ptr<SquaredL2Distance> create(size_t dim) {
+    // Optimizations will assume that dim > 16. If not, we will use the naive
+    // distance implementation
+    if (dim < 16) {
+      return std::make_shared<SquaredL2Distance>(dim);
+    }
+
 #if defined(USE_AVX512) || defined(USE_AVX) || defined(USE_SSE)
 #if defined(USE_AVX512)
-    return std::make_shared<SquaredL2SIMDAVX512>(dim);
+    if (dim % 16 == 0) {
+      return std::make_shared<SquaredL2SIMDAVX512>(dim);
+    } else if (dim % 4 == 0) {
+      return std::make_shared<SquaredL2SIMDAVX>(dim);
+    }
 #elif defined(USE_AVX)
     return std::make_shared<SquaredL2SIMDAVX>(dim);
 #elif defined(USE_SSE)
@@ -176,37 +186,37 @@ public:
   explicit SquaredL2SIMDAVX(size_t dim) : SquaredL2Distance(dim) {}
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {
-    (void)asymmetric;  
-  float *p_x = (float *)(x);
-  float *p_y = (float *)(y);
+    (void)asymmetric;
+    float *p_x = (float *)(x);
+    float *p_y = (float *)(y);
 
-  float PORTABLE_ALIGN32 temp_res[8];
-  size_t dimension_1_16 = _dimension >> 4;
-  const float *p_end_x = p_x + (dimension_1_16 << 4);
+    float PORTABLE_ALIGN32 temp_res[8];
+    size_t dimension_1_16 = _dimension >> 4;
+    const float *p_end_x = p_x + (dimension_1_16 << 4);
 
-  __m256 diff, v1, v2;
-  __m256 sum = _mm256_set1_ps(0.0f);
+    __m256 diff, v1, v2;
+    __m256 sum = _mm256_set1_ps(0.0f);
 
-  while (p_x != p_end_x) {
-    v1 = _mm256_loadu_ps(p_x);
-    v2 = _mm256_loadu_ps(p_y);
-    diff = _mm256_sub_ps(v1, v2);
-    sum = _mm256_add_ps(sum, _mm256_mul_ps(diff, diff));
-    p_x += 8;
-    p_y += 8;
+    while (p_x != p_end_x) {
+      v1 = _mm256_loadu_ps(p_x);
+      v2 = _mm256_loadu_ps(p_y);
+      diff = _mm256_sub_ps(v1, v2);
+      sum = _mm256_add_ps(sum, _mm256_mul_ps(diff, diff));
+      p_x += 8;
+      p_y += 8;
 
-    v1 = _mm256_loadu_ps(p_x);
-    v2 = _mm256_loadu_ps(p_y);
-    diff = _mm256_sub_ps(v1, v2);
-    sum = _mm256_add_ps(sum, _mm256_mul_ps(diff, diff));
-    p_x += 8;
-    p_y += 8;
-  }
+      v1 = _mm256_loadu_ps(p_x);
+      v2 = _mm256_loadu_ps(p_y);
+      diff = _mm256_sub_ps(v1, v2);
+      sum = _mm256_add_ps(sum, _mm256_mul_ps(diff, diff));
+      p_x += 8;
+      p_y += 8;
+    }
 
-  _mm256_store_ps(temp_res, sum);
+    _mm256_store_ps(temp_res, sum);
 
-  return temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3] + temp_res[4] +
-         temp_res[5] + temp_res[6] + temp_res[7];
+    return temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3] + temp_res[4] +
+           temp_res[5] + temp_res[6] + temp_res[7];
   }
 };
 #endif // USE_AVX

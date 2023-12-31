@@ -51,4 +51,24 @@ public:
   }
 };
 
+#define SELECT_DISTANCE_IMPLEMENTATION(selected, dimension, chunksize,         \
+                                       ImplementerClass)                       \
+  do {                                                                         \
+    decltype(selected) __returned_implementer;                                 \
+    switch (dimension % chunksize) {                                           \
+    case 0:                                                                    \
+      __returned_implementer = std::make_shared<ImplementerClass>(dimension);  \
+      break;                                                                   \
+    case 1:                                                                    \
+      __returned_implementer =                                                 \
+          std::make_shared<ImplementerClass>(dimension, 1);                    \
+      break;                                                                   \
+    default:                                                                   \
+      __returned_implementer =                                                 \
+          std::make_shared<ImplementerClass>(dimension, 2);                    \
+      break;                                                                   \
+    }                                                                          \
+    selected = __returned_implementer;                                         \
+  } while (false)
+
 } // namespace flatnav
