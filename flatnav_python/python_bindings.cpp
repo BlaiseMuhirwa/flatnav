@@ -34,7 +34,12 @@ public:
 
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), label_id(0), _verbose(false),
-        _index(index.get()) {}
+        _index(index.get()) {
+
+    if (_verbose) {
+      _index->getIndexSummary();
+    }
+  }
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dim,
           int dataset_size, int max_edges_per_node, bool verbose = false)
@@ -42,7 +47,12 @@ public:
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
-            /* max_edges_per_node = */ max_edges_per_node)) {}
+            /* max_edges_per_node = */ max_edges_per_node)) {
+
+    if (_verbose) {
+      _index->getIndexSummary();
+    }
+  }
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
           const std::string &mtx_filename, bool verbose = false)
@@ -62,8 +72,8 @@ public:
 
   void
   add(const py::array_t<float, py::array::c_style | py::array::forcecast> &data,
-      int ef_construction, py::object labels = py::none(),
-      int num_initializations = 100) {
+      int ef_construction, int num_initializations = 100,
+      py::object labels = py::none()) {
     // py::array_t<float, py::array::c_style | py::array::forcecast> means that
     // the functions expects either a Numpy array of floats or a castable type
     // to that type. If the given type can't be casted, pybind11 will throw an
@@ -79,7 +89,7 @@ public:
         this->_index->add(/* data = */ (void *)data.data(vec_index),
                           /* label = */ label_id,
                           /* ef_construction = */ ef_construction,
-                          /* num_initializations = */ 100);
+                          /* num_initializations = */ num_initializations);
         if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
           std::clog << "." << std::flush;
         }
@@ -101,7 +111,7 @@ public:
       this->_index->add(/* data = */ (void *)data.data(vec_index),
                         /* label = */ label_id,
                         /* ef_construction = */ ef_construction,
-                        /* num_initializations = */ 100);
+                        /* num_initializations = */ num_initializations);
 
       if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
         std::clog << "." << std::flush;
@@ -174,14 +184,14 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
       .def_static("load", &IndexType::loadIndex, py::arg("filename"),
                   "Load a FlatNav index from a given file location")
       .def("add", &IndexType::add, py::arg("data"), py::arg("ef_construction"),
-           py::arg("labels") = py::none(), py::arg("num_initializations") = 100,
+           py::arg("num_initializations"), py::arg("labels") = py::none(),
            "Add vectors(data) to the index with the given `ef_construction` "
            "parameter and optional labels. `ef_construction` determines how "
            "many "
            "vertices are visited while inserting every vector in the "
            "underlying graph structure.")
       .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
-           py::arg("ef_search"), py::arg("num_initializations") = 100,
+           py::arg("ef_search"), py::arg("num_initializations"),
            "Return top `K` closest data points for every query in the "
            "provided `queries`. The results are returned as a Tuple of "
            "distances and label ID's. The `ef_search` parameter determines how "

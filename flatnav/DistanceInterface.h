@@ -33,7 +33,7 @@ public:
   size_t dataSize() { return static_cast<T *>(this)->dataSizeImpl(); }
 
   // Prints the parameters of the distance function.
-  void printParams() { static_cast<T *>(this)->printParamsImpl(); }
+  void getSummary() { static_cast<T *>(this)->getSummaryImpl(); }
 
   // This transforms the data located at src into a form that is writeable
   // to disk / storable in RAM. For distance functions that don't

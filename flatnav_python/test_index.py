@@ -11,7 +11,8 @@ import os
 
 
 def generate_random_data(dataset_length: int, dim: int) -> np.ndarray:
-    return np.random.rand(dataset_length, dim)
+    # return np.random.rand(dataset_length, dim)
+    return np.random.randint(0, 256, size=(dataset_length, dim), dtype=np.uint8)
 
 
 def get_ann_benchmark_dataset(dataset_name):
