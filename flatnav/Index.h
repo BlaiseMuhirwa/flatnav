@@ -105,8 +105,8 @@ public:
     }
   }
 
-  std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
-    std::vector<std::vector<uint32_t>> outdegree_table(_cur_num_nodes);
+  std::vector<std::vector<label_t>> getGraphOutdegreeTable() {
+    std::vector<std::vector<label_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
       node_id_t *links = getNodeLinks(node);
       for (int i = 0; i < _M; i++) {
@@ -206,31 +206,14 @@ public:
   }
 
   void reorderGOrder(const int window_size = 5) {
-    std::vector<std::vector<node_id_t>> outdegree_table(_cur_num_nodes);
-    for (node_id_t node = 0; node < _cur_num_nodes; node++) {
-      node_id_t *links = getNodeLinks(node);
-      for (int i = 0; i < _M; i++) {
-        if (links[i] != node) {
-          outdegree_table[node].push_back(links[i]);
-        }
-      }
-    }
+    auto outdegree_table = getGraphOutdegreeTable();
     std::vector<node_id_t> P = gOrder<node_id_t>(outdegree_table, window_size);
 
     relabel(P);
   }
 
   void reorderRCM() {
-    // TODO: Remove code duplication for outdegree_table.
-    std::vector<std::vector<node_id_t>> outdegree_table(_cur_num_nodes);
-    for (node_id_t node = 0; node < _cur_num_nodes; node++) {
-      node_id_t *links = getNodeLinks(node);
-      for (int i = 0; i < _M; i++) {
-        if (links[i] != node) {
-          outdegree_table[node].push_back(links[i]);
-        }
-      }
-    }
+    auto outdegree_table = getGraphOutdegreeTable();
     std::vector<node_id_t> P = rcmOrder<node_id_t>(outdegree_table);
     relabel(P);
   }
