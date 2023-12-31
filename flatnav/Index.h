@@ -201,18 +201,18 @@ public:
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
 
-  void printIndexParams() const {
-    std::cout << "\nIndex Parameters" << std::endl;
-    std::cout << "-----------------------------" << std::endl;
-    std::cout << "max_edges_per_node (M): " << _M << std::endl;
-    std::cout << "data_size_bytes: " << _data_size_bytes << std::endl;
-    std::cout << "node_size_bytes: " << _node_size_bytes << std::endl;
-    std::cout << "max_node_count: " << _max_node_count << std::endl;
-    std::cout << "cur_num_nodes: " << _cur_num_nodes << std::endl;
-    std::cout << "visited_nodes size: " << _visited_nodes.size() << std::endl;
+void getIndexSummary() const {
+  std::cout << "\nIndex Parameters\n" << std::flush;
+  std::cout << "-----------------------------\n" << std::flush;
+  std::cout << "max_edges_per_node (M): " << _M << "\n" << std::flush;
+  std::cout << "data_size_bytes: " << _data_size_bytes << "\n" << std::flush;
+  std::cout << "node_size_bytes: " << _node_size_bytes << "\n" << std::flush;
+  std::cout << "max_node_count: " << _max_node_count << "\n" << std::flush;
+  std::cout << "cur_num_nodes: " << _cur_num_nodes << "\n" << std::flush;
+  std::cout << "visited_nodes size: " << _visited_nodes.size() << "\n" << std::flush;
 
-    _distance->printParams();
-  }
+  _distance->getSummary();
+}
 
 private:
   // internal node numbering scheme. We might need to change this to uint64_t

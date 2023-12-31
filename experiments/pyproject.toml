@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Track benchmark experiments."
 authors = ["BlaiseMuhirwa <blaisemuhirwa3@gmail.com>"]
 license = "Apache 2.0"
-readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
