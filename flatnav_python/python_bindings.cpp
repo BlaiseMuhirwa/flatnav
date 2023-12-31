@@ -44,6 +44,12 @@ public:
             /* dataset_size = */ dataset_size,
             /* max_edges_per_node = */ max_edges_per_node)) {}
 
+  PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
+          const std::string &mtx_filename, bool verbose = false)
+      : _verbose(verbose),
+        _index(new Index<dist_t, label_t>(/* dist = */ std::move(distance),
+                                          /* mtx_filename = */ mtx_filename)) {}
+
   Index<dist_t, label_t> *getIndex() { return _index; }
 
   ~PyIndex() { delete _index; }
@@ -210,21 +216,21 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
           "data structure.");
 }
 
+template <typename... Args>
 py::object createIndex(const std::string &distance_type, int dim,
-                       int dataset_size, int max_edges_per_node,
-                       bool verbose = false) {
+                       Args &&...args) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });
 
   if (dist_type == "l2") {
     auto distance = std::make_shared<SquaredL2Distance>(/* dim = */ dim);
-    return py::cast(new L2FlatNavIndex(std::move(distance), dim, dataset_size,
-                                       max_edges_per_node, verbose));
+    return py::cast(
+        new L2FlatNavIndex(std::move(distance), std::forward<Args>(args)...));
   } else if (dist_type == "angular") {
     auto distance = std::make_shared<InnerProductDistance>(/* dim = */ dim);
-    return py::cast(new InnerProductFlatNavIndex(
-        std::move(distance), dim, dataset_size, max_edges_per_node, verbose));
+    return py::cast(new InnerProductFlatNavIndex(std::move(distance),
+                                                 std::forward<Args>(args)...));
   }
   throw std::invalid_argument("Invalid distance type: `" + dist_type +
                               "` during index construction. Valid options "
@@ -232,12 +238,32 @@ py::object createIndex(const std::string &distance_type, int dim,
 }
 
 void defineIndexSubmodule(py::module_ &index_submodule) {
-  index_submodule.def("index_factory", &createIndex, py::arg("distance_type"),
-                      py::arg("dim"), py::arg("dataset_size"),
-                      py::arg("max_edges_per_node"), py::arg("verbose") = false,
-                      "Creates a FlatNav index given the corresponding "
-                      "parameters. The `distance_type` argument determines the "
-                      "kind of index created (either L2Index or IPIndex)");
+  index_submodule.def(
+      "index_factory",
+      [](const std::string &distance_type, int dim, int dataset_size,
+         int max_edges_per_node, bool verbose = false) {
+        return createIndex(distance_type, dim, dataset_size, max_edges_per_node,
+                           verbose);
+      },
+      py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
+      py::arg("max_edges_per_node"), py::arg("verbose") = false,
+      "Creates a FlatNav index given the corresponding "
+      "parameters. The `distance_type` argument determines the "
+      "kind of index created (either L2Index or IPIndex)");
+
+  index_submodule.def(
+      "index_factory",
+      [](const std::string &distance_type, int dim,
+         const std::string &mtx_filename, bool verbose = false) {
+        return createIndex(distance_type, dim, mtx_filename, verbose);
+      },
+      py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
+      py::arg("verbose") = false,
+      "Creates a FlatNav index given the corresponding "
+      "parameters. The `distance_type` argument determines the "
+      "kind of index created (either L2Index or IPIndex). The "
+      "mtx_filename argument is the path to a Matrix Market "
+      "file representing the underlying graph's edge connectivity.");
 
   py::class_<L2FlatNavIndex> l2_index_class(index_submodule, "L2Index");
   bindIndexMethods(l2_index_class);

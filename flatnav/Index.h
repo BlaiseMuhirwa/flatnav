@@ -9,6 +9,7 @@
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/ExplicitSet.h>
+#include <flatnav/util/PreprocesorUtils.h>
 #include <flatnav/util/Reordering.h>
 #include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <fstream>
@@ -56,6 +57,7 @@ public:
 
   /**
    * @brief Construct a new Index object using a pre-computed outdegree table.
+   * The outdegree table is extracted from a Matrix Market file.
    *
    * @param dist              A distance metric for the specific index
    * distance. Options include l2(euclidean) and inner product.
@@ -63,37 +65,26 @@ public:
    * Each vector in the table contains the IDs of the nodes to which it is
    * connected.
    */
+
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
-        std::vector<std::vector<uint32_t>> &outdegree_table)
-      : _M(32), _max_node_count(outdegree_table.size()), _cur_num_nodes(0),
-        _distance(dist), _visited_nodes(outdegree_table.size() + 1),
-        _outdegree_table(outdegree_table) {
+        const std::string &mtx_filename)
+      : _cur_num_nodes(0), _distance(dist) {
+    auto mtx_graph =
+        flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
+    _outdegree_table = std::move(mtx_graph.adjacency_list);
+    _max_node_count = _outdegree_table.value().size();
+    _M = mtx_graph.max_num_edges;
+
+    _visited_nodes = VisitedSet(_max_node_count);
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
         _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
-
     size_t index_memory_size = _node_size_bytes * _max_node_count;
     _index_memory = new char[index_memory_size];
   }
 
   ~Index() { delete[] _index_memory; }
-
-  void printNodeValue(uint32_t node) {
-    std::cout << "Node: " << node << std::endl;
-    std::cout << "Data: ";
-
-    char *data = getNodeData(node);
-
-    for (int i = 0; i < _data_size_bytes; i += sizeof(float)) {
-      float value;
-      std::memcpy(&value, &data[i], sizeof(float)); // Copy bytes into a float
-      std::cout << value << " ";
-    }
-
-    std::cout << std::endl;
-    std::cout << "Label: " << *getNodeLabel(node) << std::endl;
-  }
 
   void buildGraphLinks() {
     if (!_outdegree_table.has_value()) {
