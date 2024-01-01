@@ -421,11 +421,14 @@ public:
   void getSummaryImpl() const {
     std::cout << "\nProduct Quantizer Parameters" << std::flush;
     std::cout << "-----------------------------" << std::flush;
-    std::cout << "Number of subquantizers (M): " << _num_subquantizers << "\n" 
+    std::cout << "Number of subquantizers (M): " << _num_subquantizers << "\n"
               << std::flush;
-    std::cout << "Number of bits per index: " << _num_bits << "\n" << std::flush;
-    std::cout << "Subvector dimension: " << _subvector_dim << "\n" << std::flush;
-    std::cout << "Subquantizer centroids count: " << _subq_centroids_count << "\n"
+    std::cout << "Number of bits per index: " << _num_bits << "\n"
+              << std::flush;
+    std::cout << "Subvector dimension: " << _subvector_dim << "\n"
+              << std::flush;
+    std::cout << "Subquantizer centroids count: " << _subq_centroids_count
+              << "\n"
               << std::flush;
     std::cout << "Code size: " << _code_size << "\n" << std::flush;
     std::cout << "Is trained: " << _is_trained << "\n" << std::flush;

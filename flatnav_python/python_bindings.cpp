@@ -20,7 +20,8 @@ using flatnav::SquaredL2Distance;
 
 namespace py = pybind11;
 
-template <typename dist_t, typename label_t> class PyIndex {
+template <typename dist_t, typename label_t>
+class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   const uint32_t NUM_LOG_STEPS = 10000;
 
 private:
@@ -54,6 +55,14 @@ public:
     }
   }
 
+  PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
+          const std::string &mtx_filename, bool verbose = false)
+      : _verbose(verbose),
+        _index(new Index<dist_t, label_t>(/* dist = */ std::move(distance),
+                                          /* mtx_filename = */ mtx_filename)) {
+    _dim = _index->dataDimension();
+  }
+
   Index<dist_t, label_t> *getIndex() { return _index; }
 
   ~PyIndex() { delete _index; }
@@ -62,6 +71,24 @@ public:
   loadIndex(const std::string &filename) {
     auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename);
     return std::make_unique<PyIndex<dist_t, label_t>>(std::move(index));
+  }
+
+  std::shared_ptr<PyIndex<dist_t, label_t>> allocateNodes(
+      const py::array_t<float, py::array::c_style | py::array::forcecast>
+          &data) {
+    auto num_vectors = data.shape(0);
+    auto data_dim = data.shape(1);
+    if (data.ndim() != 2 || data_dim != _dim) {
+      throw std::invalid_argument("Data has incorrect dimensions.");
+    }
+    for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
+      uint32_t new_node_id;
+      this->_index->allocateNode(/* data = */ (void *)data.data(vec_index),
+                                 /* label = */ label_id,
+                                 /* new_node_id = */ new_node_id);
+      label_id++;
+    }
+    return this->shared_from_this();
   }
 
   void
@@ -165,7 +192,8 @@ using L2FlatNavIndex = PyIndex<SquaredL2Distance, int>;
 using InnerProductFlatNavIndex = PyIndex<InnerProductDistance, int>;
 
 template <typename IndexType>
-void bindIndexMethods(py::class_<IndexType> &index_class) {
+void bindIndexMethods(
+    py::class_<IndexType, std::shared_ptr<IndexType>> &index_class) {
   index_class
       .def(
           "save",
@@ -184,13 +212,38 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
            "many "
            "vertices are visited while inserting every vector in the "
            "underlying graph structure.")
+      .def("allocate_nodes", &IndexType::allocateNodes, py::arg("data"),
+           "Allocate nodes in the underlying graph structure for the given "
+           "data. Unlike the add method, this method does not construct the "
+           "edge connectivity. It only allocates memory for each node in the "
+           "grpah. When using this method, you should invoke "
+           "`build_graph_links` explicity. NOTE: In most cases you should not "
+           "need to use this method.")
       .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
-           py::arg("ef_search"), py::arg("num_initializations"),
+           py::arg("ef_search"), py::arg("num_initializations") = 100,
            "Return top `K` closest data points for every query in the "
            "provided `queries`. The results are returned as a Tuple of "
            "distances and label ID's. The `ef_search` parameter determines how "
            "many neighbors are visited while finding the closest neighbors "
            "for every query.")
+      .def(
+          "get_graph_outdegree_table",
+          [](IndexType &index_type) {
+            auto index = index_type.getIndex();
+            return index->getGraphOutdegreeTable();
+          },
+          "Returns the outdegree table (adjacency list) representation of the "
+          "underlying graph.")
+      .def(
+          "build_graph_links",
+          [](IndexType &index_type) {
+            auto index = index_type.getIndex();
+            index->buildGraphLinks();
+          },
+          "Construct the edge connectivity of the underlying graph. This "
+          "method "
+          "should be invoked after allocating nodes using the `allocate_nodes` "
+          "method.")
       .def(
           "reorder",
           [](IndexType &index_type, const std::string &algorithm) {
@@ -220,21 +273,21 @@ void bindIndexMethods(py::class_<IndexType> &index_class) {
           "data structure.");
 }
 
+template <typename... Args>
 py::object createIndex(const std::string &distance_type, int dim,
-                       int dataset_size, int max_edges_per_node,
-                       bool verbose = false) {
+                       Args &&...args) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });
 
   if (dist_type == "l2") {
     auto distance = std::make_shared<SquaredL2Distance>(/* dim = */ dim);
-    return py::cast(new L2FlatNavIndex(std::move(distance), dim, dataset_size,
-                                       max_edges_per_node, verbose));
+    return py::cast(std::make_shared<L2FlatNavIndex>(
+        std::move(distance), std::forward<Args>(args)...));
   } else if (dist_type == "angular") {
     auto distance = std::make_shared<InnerProductDistance>(/* dim = */ dim);
-    return py::cast(new InnerProductFlatNavIndex(
-        std::move(distance), dim, dataset_size, max_edges_per_node, verbose));
+    return py::cast(std::make_shared<InnerProductFlatNavIndex>(
+        std::move(distance), std::forward<Args>(args)...));
   }
   throw std::invalid_argument("Invalid distance type: `" + dist_type +
                               "` during index construction. Valid options "
@@ -242,18 +295,40 @@ py::object createIndex(const std::string &distance_type, int dim,
 }
 
 void defineIndexSubmodule(py::module_ &index_submodule) {
-  index_submodule.def("index_factory", &createIndex, py::arg("distance_type"),
-                      py::arg("dim"), py::arg("dataset_size"),
-                      py::arg("max_edges_per_node"), py::arg("verbose") = false,
-                      "Creates a FlatNav index given the corresponding "
-                      "parameters. The `distance_type` argument determines the "
-                      "kind of index created (either L2Index or IPIndex)");
+  index_submodule.def(
+      "index_factory",
+      [](const std::string &distance_type, int dim, int dataset_size,
+         int max_edges_per_node, bool verbose = false) {
+        return createIndex(distance_type, dim, dataset_size, max_edges_per_node,
+                           verbose);
+      },
+      py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
+      py::arg("max_edges_per_node"), py::arg("verbose") = false,
+      "Creates a FlatNav index given the corresponding "
+      "parameters. The `distance_type` argument determines the "
+      "kind of index created (either L2Index or IPIndex)");
 
-  py::class_<L2FlatNavIndex> l2_index_class(index_submodule, "L2Index");
+  index_submodule.def(
+      "index_factory",
+      [](const std::string &distance_type, int dim,
+         const std::string &mtx_filename, bool verbose = false) {
+        return createIndex(distance_type, dim, mtx_filename, verbose);
+      },
+      py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
+      py::arg("verbose") = false,
+      "Creates a FlatNav index given the corresponding "
+      "parameters. The `distance_type` argument determines the "
+      "kind of index created (either L2Index or IPIndex). The "
+      "mtx_filename argument is the path to a Matrix Market "
+      "file representing the underlying graph's edge connectivity.");
+
+  py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
+      index_submodule, "L2Index");
   bindIndexMethods(l2_index_class);
 
-  py::class_<InnerProductFlatNavIndex> ip_index_class(index_submodule,
-                                                      "IPIndex");
+  py::class_<InnerProductFlatNavIndex,
+             std::shared_ptr<InnerProductFlatNavIndex>>
+      ip_index_class(index_submodule, "IPIndex");
   bindIndexMethods(ip_index_class);
 }
 
