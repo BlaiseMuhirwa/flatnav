@@ -7,7 +7,7 @@
 
 namespace flatnav::util {
 
-struct Graph {
+struct MtxGraph {
   std::vector<std::vector<uint32_t>> adjacency_list;
   int num_vertices;
   int max_num_edges;
@@ -15,7 +15,7 @@ struct Graph {
 
 // Function to load a graph from a Matrix Market file
 // TODO: This might need a more robust error handling.
-Graph loadGraphFromMatrixMarket(const char *filename) {
+MtxGraph loadGraphFromMatrixMarket(const char *filename) {
   std::ifstream input_file;
   input_file.open(filename);
 
@@ -36,7 +36,7 @@ Graph loadGraphFromMatrixMarket(const char *filename) {
   iss >> num_vertices >> num_vertices >> num_edges;
 
   // Initialize graph
-  Graph graph;
+  MtxGraph graph;
   graph.num_vertices = num_vertices;
   graph.max_num_edges = num_edges;
   graph.adjacency_list.resize(num_vertices);

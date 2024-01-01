@@ -69,7 +69,9 @@ private:
 
   void getSummaryImpl() {
     std::cout << "\nSquaredL2Distance Parameters" << std::flush;
-    std::cout << "-----------------------------" << "\n" << std::flush;
+    std::cout << "-----------------------------"
+              << "\n"
+              << std::flush;
     std::cout << "Dimension: " << _dimension << "\n" << std::flush;
   }
 

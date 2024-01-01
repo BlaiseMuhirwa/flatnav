@@ -8,9 +8,20 @@ yandex-deep-bench:
 		--gtruth /media/scratch/yandex-deep/ground_truth.10K.bin \
 		--metric l2 > logs.txt 2>&1
 
+sift-bench: 
+	poetry run python run-big-bench.py \
+		--dataset ../data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries ../data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth ../data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename sift.mtx \
+		--metric l2 > logs.txt 2>&1
+
+
+setup: install-flatnav install-hnswlib
 
 # Install all dependencies including flatnav
-install-lib: generate-wheel 
+install-flatnav: generate-wheel 
 	poetry add ../flatnav_python/dist/*.whl 
 	rm poetry.lock && poetry install --no-root
 
@@ -19,4 +30,16 @@ install-lib: generate-wheel
 generate-wheel:
 	poetry remove flatnav &> /dev/null 
 	cd .. && cd flatnav_python && ./install_flatnav.sh 
+
+install-hnswlib:
+	if [ ! -d "hnswlib-original" ]; then \
+		git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git; \
+	fi
+	cd hnswlib-original/python_bindings && \
+	poetry install --no-root && \
+	poetry run python setup.py bdist_wheel 
+	poetry add hnswlib-original/python_bindings/dist/*.whl
+
+cleanup:
+	rm -rf hnswlib-original 
 	

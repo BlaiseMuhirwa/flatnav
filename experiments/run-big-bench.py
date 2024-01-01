@@ -1,6 +1,7 @@
 import time
 from typing import Union
 import json
+import hnswlib
 import numpy as np
 from typing import Optional, Tuple, List
 import numpy as np
@@ -123,7 +124,7 @@ def compute_metrics(
     Returns:
         Mean recall over all queries.
         QPS over all queries
-        
+
     """
     start = time.time()
     _, top_k_indices = index.search(queries=queries, ef_search=ef_search, K=k)
@@ -155,21 +156,58 @@ def train_flatnav_index(
     dataset_size: int,
     max_edges_per_node: int,
     ef_construction: int,
+    use_hnsw_base_layer: bool = False,
+    hnsw_base_layer_filename: Optional[str] = None,
 ) -> Union[flatnav.index.L2Index, flatnav.index.IPIndex]:
-    index = flatnav.index.index_factory(
-        distance_type=distance_type,
-        dim=dim,
-        dataset_size=dataset_size,
-        max_edges_per_node=max_edges_per_node,
-        verbose=True,
-    )
+    if use_hnsw_base_layer:
+        if not hnsw_base_layer_filename:
+            raise ValueError("Must provide a filename for the HNSW base layer graph.")
+        logging.info("Using HNSW's base layer to build a FlatNav index.")
 
-    # Train the index.
-    start = time.time()
-    index.add(data=train_dataset, ef_construction=ef_construction)
-    end = time.time()
+        # build the HNSW index to use as the base layer
+        # We use "angular" instead of "ip", so here we are just converting.
+        distance_type = distance_type if distance_type == "l2" else "ip"
+        hnsw_index = hnswlib.Index(space=distance_type, dim=dim)
 
-    logging.info(f"Indexing time = {end - start} seconds")
+        # HNSWlib will have M * 2 edges in the base layer.
+        # So if we want to use M=32, we need to set M=16 here.
+        hnsw_index.init_index(
+            max_elements=dataset_size,
+            ef_construction=ef_construction,
+            M=max_edges_per_node // 2,
+        )
+        hnsw_index.add_items(data=train_dataset, ids=np.arange(dataset_size))
+
+        # Now extract the base layer's graph and save it to a file.
+        # This will be a Matrix Market file that we use to construct the Flatnav index.
+        hnsw_index.save_base_layer_graph(filename=hnsw_base_layer_filename)
+
+        index = flatnav.index.index_factory(
+            distance_type=distance_type,
+            dim=dim,
+            mtx_filename=hnsw_base_layer_filename,
+        )
+
+        # Here we will first allocate memory for the index and then build edge connectivity
+        # using the HNSW base layer graph. We do not use the ef-construction parameter since
+        # it's assumed to have been used when building the HNSW base layer.
+        index.allocate_nodes(data=train_dataset).build_graph_links()
+
+    else:
+        index = flatnav.index.index_factory(
+            distance_type=distance_type,
+            dim=dim,
+            dataset_size=dataset_size,
+            max_edges_per_node=max_edges_per_node,
+            verbose=True,
+        )
+
+        # Train the index.
+        start = time.time()
+        index.add(data=train_dataset, ef_construction=ef_construction)
+        end = time.time()
+
+        logging.info(f"Indexing time = {end - start} seconds")
 
     return index
 
@@ -182,6 +220,8 @@ def main(
     ef_search_params: List[int],
     num_node_links: List[int],
     distance_type: str,
+    use_hnsw_base_layer: bool = False,
+    hnsw_base_layer_filename: Optional[str] = None,
 ):
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
@@ -196,6 +236,8 @@ def main(
                     dataset_size=dataset_size,
                     dim=dim,
                     distance_type=distance_type,
+                    use_hnsw_base_layer=use_hnsw_base_layer,
+                    hnsw_base_layer_filename=hnsw_base_layer_filename,
                 )
 
                 recall, qps = compute_metrics(
@@ -210,9 +252,22 @@ def main(
                     f" ef_cons={ef_cons}, ef_search={ef_search}"
                 )
 
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Benchmark Flatnav on Big ANN datasets."
+    )
+
+    parser.add_argument(
+        "--use-hnsw-base-layer",
+        action="store_true",
+        help="If set, use HNSW's base layer's connectivity for the Flatnav index.",
+    )
+    parser.add_argument(
+        "--hnsw-base-layer-filename",
+        required=False,
+        default=None,
+        help="Filename to save the HNSW base layer graph to. Please use the .mtx extension for clarity.",
     )
     parser.add_argument(
         "--dataset",
@@ -239,14 +294,15 @@ def parse_arguments() -> argparse.Namespace:
 
     return parser.parse_args()
 
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     args = parse_arguments()
 
-    ef_construction_params = [64, 128]
-    ef_search_params = [64, 128, 256]
-    num_node_links = [16, 32]
+    num_node_links = [32, 64]
+    ef_construction_params = [100, 200]
+    ef_search_params = [100, 200, 300]
 
     train_data, queries, ground_truth = load_benchmark_dataset(
         train_dataset_path=args.dataset,
@@ -261,4 +317,6 @@ if __name__ == "__main__":
         ef_search_params=ef_search_params,
         num_node_links=num_node_links,
         distance_type=args.metric.lower(),
+        use_hnsw_base_layer=args.use_hnsw_base_layer,
+        hnsw_base_layer_filename=args.hnsw_base_layer_filename,
     )

@@ -105,8 +105,8 @@ public:
     }
   }
 
-  std::vector<std::vector<label_t>> getGraphOutdegreeTable() {
-    std::vector<std::vector<label_t>> outdegree_table(_cur_num_nodes);
+  std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
+    std::vector<std::vector<uint32_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
       node_id_t *links = getNodeLinks(node);
       for (int i = 0; i < _M; i++) {
@@ -207,14 +207,15 @@ public:
 
   void reorderGOrder(const int window_size = 5) {
     auto outdegree_table = getGraphOutdegreeTable();
-    std::vector<node_id_t> P = gOrder<node_id_t>(outdegree_table, window_size);
+    std::vector<node_id_t> P =
+        flatnav::gOrder<node_id_t>(outdegree_table, window_size);
 
     relabel(P);
   }
 
   void reorderRCM() {
     auto outdegree_table = getGraphOutdegreeTable();
-    std::vector<node_id_t> P = rcmOrder<node_id_t>(outdegree_table);
+    std::vector<node_id_t> P = flatnav::rcmOrder<node_id_t>(outdegree_table);
     relabel(P);
   }
 
@@ -273,18 +274,19 @@ public:
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
 
-void getIndexSummary() const {
-  std::cout << "\nIndex Parameters\n" << std::flush;
-  std::cout << "-----------------------------\n" << std::flush;
-  std::cout << "max_edges_per_node (M): " << _M << "\n" << std::flush;
-  std::cout << "data_size_bytes: " << _data_size_bytes << "\n" << std::flush;
-  std::cout << "node_size_bytes: " << _node_size_bytes << "\n" << std::flush;
-  std::cout << "max_node_count: " << _max_node_count << "\n" << std::flush;
-  std::cout << "cur_num_nodes: " << _cur_num_nodes << "\n" << std::flush;
-  std::cout << "visited_nodes size: " << _visited_nodes.size() << "\n" << std::flush;
+  void getIndexSummary() const {
+    std::cout << "\nIndex Parameters\n" << std::flush;
+    std::cout << "-----------------------------\n" << std::flush;
+    std::cout << "max_edges_per_node (M): " << _M << "\n" << std::flush;
+    std::cout << "data_size_bytes: " << _data_size_bytes << "\n" << std::flush;
+    std::cout << "node_size_bytes: " << _node_size_bytes << "\n" << std::flush;
+    std::cout << "max_node_count: " << _max_node_count << "\n" << std::flush;
+    std::cout << "cur_num_nodes: " << _cur_num_nodes << "\n" << std::flush;
+    std::cout << "visited_nodes size: " << _visited_nodes.size() << "\n"
+              << std::flush;
 
-  _distance->getSummary();
-}
+    _distance->getSummary();
+  }
 
 private:
   // internal node numbering scheme. We might need to change this to uint64_t
