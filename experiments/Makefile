@@ -15,8 +15,10 @@ sift-bench:
 		--gtruth ../data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
 		--use-hnsw-base-layer \
 		--hnsw-base-layer-filename sift.mtx \
+		--num-node-links 32 \
+		--ef-construction 100 200 \
+		--ef-search 100 200 300 \
 		--metric l2 > logs.txt 2>&1
-
 
 setup: install-flatnav install-hnswlib
 

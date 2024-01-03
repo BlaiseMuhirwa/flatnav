@@ -10,6 +10,7 @@ import os
 import logging
 import platform, socket, psutil
 import argparse
+import functools
 import flatnav
 
 
@@ -24,6 +25,17 @@ ENVIRONMENT_INFO = {
     "ram_gb": round(psutil.virtual_memory().total / (1024.0**3)),
     "num_cores": psutil.cpu_count(logical=True),
 }
+
+
+
+def load_sift_dataset(
+    train_dataset_path: str, queries_path: str, gtruth_path: str
+) -> Tuple[np.ndarray]:
+    return (
+        np.load(train_dataset_path).astype(np.float32),
+        np.load(queries_path).astype(np.float32),
+        np.load(gtruth_path).astype(np.uint32),
+    )
 
 
 def load_benchmark_dataset(
@@ -129,7 +141,7 @@ def compute_metrics(
     start = time.time()
     _, top_k_indices = index.search(queries=queries, ef_search=ef_search, K=k)
     end = time.time()
-
+    
     querying_time = end - start
     qps = len(queries) / querying_time
 
@@ -166,8 +178,8 @@ def train_flatnav_index(
 
         # build the HNSW index to use as the base layer
         # We use "angular" instead of "ip", so here we are just converting.
-        distance_type = distance_type if distance_type == "l2" else "ip"
-        hnsw_index = hnswlib.Index(space=distance_type, dim=dim)
+        _distance_type = distance_type if distance_type == "l2" else "ip"
+        hnsw_index = hnswlib.Index(space=_distance_type, dim=dim)
 
         # HNSWlib will have M * 2 edges in the base layer.
         # So if we want to use M=32, we need to set M=16 here.
@@ -204,7 +216,9 @@ def train_flatnav_index(
 
         # Train the index.
         start = time.time()
-        index.add(data=train_dataset, ef_construction=ef_construction)
+        index.add(
+            data=train_dataset, ef_construction=ef_construction
+        )
         end = time.time()
 
         logging.info(f"Indexing time = {end - start} seconds")
@@ -269,6 +283,34 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="Filename to save the HNSW base layer graph to. Please use the .mtx extension for clarity.",
     )
+
+    parser.add_argument(
+        "--num-node-links",
+        required=False,
+        nargs="+",
+        type=int,
+        default=[16, 32],
+        help="Number of node links per node.",
+    )
+
+    parser.add_argument(
+        "--ef-construction",
+        required=False,
+        nargs="+",
+        type=int,
+        default=[100, 200, 300, 400, 500],
+        help="ef_construction parameter.",
+    )
+
+    parser.add_argument(
+        "--ef-search",
+        required=False,
+        nargs="+",
+        type=int,
+        default=[100, 200, 300, 400, 500, 1000, 2000, 3000, 4000],
+        help="ef_search parameter.",
+    )
+
     parser.add_argument(
         "--dataset",
         required=True,
@@ -300,11 +342,7 @@ if __name__ == "__main__":
 
     args = parse_arguments()
 
-    num_node_links = [32, 64]
-    ef_construction_params = [100, 200]
-    ef_search_params = [100, 200, 300]
-
-    train_data, queries, ground_truth = load_benchmark_dataset(
+    train_data, queries, ground_truth = load_sift_dataset(
         train_dataset_path=args.dataset,
         queries_path=args.queries,
         gtruth_path=args.gtruth,
@@ -313,9 +351,9 @@ if __name__ == "__main__":
         train_dataset=train_data,
         queries=queries,
         gtruth=ground_truth,
-        ef_cons_params=ef_construction_params,
-        ef_search_params=ef_search_params,
-        num_node_links=num_node_links,
+        ef_cons_params=args.ef_construction,
+        ef_search_params=args.ef_search,
+        num_node_links=args.num_node_links,
         distance_type=args.metric.lower(),
         use_hnsw_base_layer=args.use_hnsw_base_layer,
         hnsw_base_layer_filename=args.hnsw_base_layer_filename,

@@ -4,6 +4,7 @@
 #include <ostream>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,7 +26,8 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   const uint32_t NUM_LOG_STEPS = 10000;
 
 private:
-  int _dim, label_id;
+  int _dim;
+  label_t _label_id;
   bool _verbose;
   Index<dist_t, label_t> *_index;
 
@@ -34,7 +36,7 @@ public:
       DistancesLabelsPair;
 
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
-      : _dim(index->dataDimension()), label_id(0), _verbose(false),
+      : _dim(index->dataDimension()), _label_id(0), _verbose(false),
         _index(index.get()) {
 
     if (_verbose) {
@@ -42,9 +44,9 @@ public:
     }
   }
 
-  PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dim,
-          int dataset_size, int max_edges_per_node, bool verbose = false)
-      : _dim(dim), label_id(0), _verbose(verbose),
+  PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dataset_size,
+          int max_edges_per_node, bool verbose = false)
+      : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
@@ -57,7 +59,7 @@ public:
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
           const std::string &mtx_filename, bool verbose = false)
-      : _verbose(verbose),
+      : _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(/* dist = */ std::move(distance),
                                           /* mtx_filename = */ mtx_filename)) {
     _dim = _index->dataDimension();
@@ -83,10 +85,11 @@ public:
     }
     for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
       uint32_t new_node_id;
+
       this->_index->allocateNode(/* data = */ (void *)data.data(vec_index),
-                                 /* label = */ label_id,
+                                 /* label = */ _label_id,
                                  /* new_node_id = */ new_node_id);
-      label_id++;
+      _label_id++;
     }
     return this->shared_from_this();
   }
@@ -103,18 +106,27 @@ public:
     auto num_vectors = data.shape(0);
     auto data_dim = data.shape(1);
     if (data.ndim() != 2 || data_dim != _dim) {
-      throw std::invalid_argument("Data has incorrect dimensions.");
+      throw std::invalid_argument(
+          "Data has incorrect dimensions. data.ndim() = "
+          "`" +
+          std::to_string(data.ndim()) + "` and data_dim = `" +
+          std::to_string(data_dim) +
+          "`. Expected 2D "
+          "array with "
+          "dimensions "
+          "(num_vectors, "
+          "dim).");
     }
     if (labels.is_none()) {
       for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
         this->_index->add(/* data = */ (void *)data.data(vec_index),
-                          /* label = */ label_id,
+                          /* label = */ _label_id,
                           /* ef_construction = */ ef_construction,
                           /* num_initializations = */ num_initializations);
         if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
           std::clog << "." << std::flush;
         }
-        label_id++;
+        _label_id++;
       }
       std::clog << std::endl;
       return;
@@ -128,9 +140,9 @@ public:
     }
 
     for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
-      label_t label_id = *node_labels.data(vec_index);
+      label_t _label_id = *node_labels.data(vec_index);
       this->_index->add(/* data = */ (void *)data.data(vec_index),
-                        /* label = */ label_id,
+                        /* label = */ _label_id,
                         /* ef_construction = */ ef_construction,
                         /* num_initializations = */ num_initializations);
 
@@ -206,7 +218,7 @@ void bindIndexMethods(
       .def_static("load", &IndexType::loadIndex, py::arg("filename"),
                   "Load a FlatNav index from a given file location")
       .def("add", &IndexType::add, py::arg("data"), py::arg("ef_construction"),
-           py::arg("num_initializations"), py::arg("labels") = py::none(),
+           py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
            "Add vectors(data) to the index with the given `ef_construction` "
            "parameter and optional labels. `ef_construction` determines how "
            "many "
@@ -228,7 +240,7 @@ void bindIndexMethods(
            "for every query.")
       .def(
           "get_graph_outdegree_table",
-          [](IndexType &index_type) {
+          [](IndexType &index_type) -> std::vector<std::vector<uint32_t>> {
             auto index = index_type.getIndex();
             return index->getGraphOutdegreeTable();
           },

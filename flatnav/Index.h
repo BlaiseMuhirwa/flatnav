@@ -9,7 +9,7 @@
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/ExplicitSet.h>
-#include <flatnav/util/PreprocesorUtils.h>
+#include <flatnav/util/PreprocessorUtils.h>
 #include <flatnav/util/Reordering.h>
 #include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <fstream>
@@ -270,7 +270,6 @@ public:
 
   inline size_t maxNodeCount() const { return _max_node_count; }
 
-  inline char *indexMemory() const { return _index_memory; }
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
 
