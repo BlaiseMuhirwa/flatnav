@@ -36,7 +36,7 @@ public:
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {
     (void)asymmetric;
-    _distance_computer(x, y, _dimension);
+    return _distance_computer(x, y, _dimension);
   }
 
 private:
@@ -71,7 +71,7 @@ private:
 
   void getSummaryImpl() {
     std::cout << "\nInnerProductDistance Parameters" << std::flush;
-    std::cout << "-----------------------------"
+    std::cout << "\n-----------------------------"
               << "\n"
               << std::flush;
     std::cout << "Dimension: " << _dimension << "\n" << std::flush;

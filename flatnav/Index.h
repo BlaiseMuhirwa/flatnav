@@ -9,7 +9,7 @@
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/ExplicitSet.h>
-#include <flatnav/util/PreprocesorUtils.h>
+#include <flatnav/util/PreprocessorUtils.h>
 #include <flatnav/util/Reordering.h>
 #include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <fstream>

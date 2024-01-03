@@ -26,7 +26,8 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   const uint32_t NUM_LOG_STEPS = 10000;
 
 private:
-  int _dim, label_id;
+  int _dim;
+  label_t _label_id;
   bool _verbose;
   Index<dist_t, label_t> *_index;
 
@@ -35,7 +36,7 @@ public:
       DistancesLabelsPair;
 
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
-      : _dim(index->dataDimension()), label_id(0), _verbose(false),
+      : _dim(index->dataDimension()), _label_id(0), _verbose(false),
         _index(index.get()) {
 
     if (_verbose) {
@@ -45,7 +46,7 @@ public:
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dataset_size,
           int max_edges_per_node, bool verbose = false)
-      : _dim(distance->dimension()), label_id(0), _verbose(verbose),
+      : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
@@ -58,7 +59,7 @@ public:
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
           const std::string &mtx_filename, bool verbose = false)
-      : _verbose(verbose),
+      : _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(/* dist = */ std::move(distance),
                                           /* mtx_filename = */ mtx_filename)) {
     _dim = _index->dataDimension();
@@ -84,10 +85,11 @@ public:
     }
     for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
       uint32_t new_node_id;
+
       this->_index->allocateNode(/* data = */ (void *)data.data(vec_index),
-                                 /* label = */ label_id,
+                                 /* label = */ _label_id,
                                  /* new_node_id = */ new_node_id);
-      label_id++;
+      _label_id++;
     }
     return this->shared_from_this();
   }
@@ -118,13 +120,13 @@ public:
     if (labels.is_none()) {
       for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
         this->_index->add(/* data = */ (void *)data.data(vec_index),
-                          /* label = */ label_id,
+                          /* label = */ _label_id,
                           /* ef_construction = */ ef_construction,
                           /* num_initializations = */ num_initializations);
         if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
           std::clog << "." << std::flush;
         }
-        label_id++;
+        _label_id++;
       }
       std::clog << std::endl;
       return;
@@ -138,9 +140,9 @@ public:
     }
 
     for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
-      label_t label_id = *node_labels.data(vec_index);
+      label_t _label_id = *node_labels.data(vec_index);
       this->_index->add(/* data = */ (void *)data.data(vec_index),
-                        /* label = */ label_id,
+                        /* label = */ _label_id,
                         /* ef_construction = */ ef_construction,
                         /* num_initializations = */ num_initializations);
 

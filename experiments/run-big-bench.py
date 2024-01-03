@@ -27,37 +27,6 @@ ENVIRONMENT_INFO = {
 }
 
 
-def log_all_parameters_on_exception(func):
-    """Decorator to log all parameters on exception."""
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            # iterate through all arguments and log them. If one of them is index, then call
-            # index.get_parameters() to get the parameters.
-            parameters = []
-            for arg in args:
-                if isinstance(arg, flatnav.index.L2Index) or isinstance(
-                    arg, flatnav.index.IPIndex
-                ):
-                    parameters.append(arg.get_parameters())
-                else:
-                    parameters.append(arg)
-            for key, value in kwargs.items():
-                if isinstance(value, flatnav.index.L2Index) or isinstance(
-                    value, flatnav.index.IPIndex
-                ):
-                    parameters.append(value.get_parameters())
-                else:
-                    parameters.append(value)
-            logging.error(f"Exception occurred with parameters: {parameters}")
-
-            raise
-
-    return wrapper
-
 
 def load_sift_dataset(
     train_dataset_path: str, queries_path: str, gtruth_path: str
@@ -148,7 +117,6 @@ def load_benchmark_dataset(
     return train_dataset, queries_dataset, gtruth_dataset
 
 
-# @log_all_parameters_on_exception
 def compute_metrics(
     index: Union[flatnav.index.L2Index, flatnav.index.IPIndex],
     queries: np.ndarray,
@@ -173,7 +141,7 @@ def compute_metrics(
     start = time.time()
     _, top_k_indices = index.search(queries=queries, ef_search=ef_search, K=k)
     end = time.time()
-
+    
     querying_time = end - start
     qps = len(queries) / querying_time
 
@@ -193,7 +161,6 @@ def compute_metrics(
     return recall, qps
 
 
-# @log_all_parameters_on_exception
 def train_flatnav_index(
     train_dataset: np.ndarray,
     distance_type: str,
@@ -237,15 +204,6 @@ def train_flatnav_index(
         # using the HNSW base layer graph. We do not use the ef-construction parameter since
         # it's assumed to have been used when building the HNSW base layer.
         index.allocate_nodes(data=train_dataset).build_graph_links()
-        
-        # Extract the outdegree table 
-        outdegree_table: List[List[int]] = index.get_graph_outdegree_table()
-        
-        for j in range(len(outdegree_table[999643])):
-            #print out the nodes connected to node 0
-            print(outdegree_table[999643][j])
-            
-        exit(0)
 
     else:
         index = flatnav.index.index_factory(

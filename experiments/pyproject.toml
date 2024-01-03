@@ -11,8 +11,6 @@ dvclive = "^3.2.0"
 dvc = "^3.28.0"
 black = "^23.11.0"
 numpy = "^1.26.1"
-hnswlib = {path = "hnswlib-original/python_bindings/dist/hnswlib-0.8.0-cp310-cp310-linux_x86_64.whl"}
-flatnav = {path = "../flatnav_python/dist/flatnav-0.0.1-cp310-cp310-linux_x86_64.whl"}
 
 [build-system]
 requires = ["poetry-core"]
