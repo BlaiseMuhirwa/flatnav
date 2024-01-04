@@ -39,8 +39,6 @@ jobs:
             make help)
           echo "::set-output name=container_id::$container_id"
 
-        run: echo "::set-output name=container_id::$(./bin/docker-test.sh)"
-
       - name: Capture Docker logs on failure
         if: always()
         run: docker logs ${{ steps.docker_run.outputs.container_id }}
