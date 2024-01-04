@@ -7,6 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        # Add arm when we support it
         arch: [amd64] 
 
     steps:
@@ -23,8 +24,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install docker-ce
 
-      - name: Build and Run Docker Container
+      - name: Build Docker Image
+        run: docker build -t flatnav:latest -f Dockerfile .
+
+      - name: Run Docker Container
         id: docker_run
+        run: |
+          container_id=$(docker run -d \
+            --volume $(pwd)/data:/root/data \
+            --rm flatnav:latest \
+            make help)
+          echo "::set-output name=container_id::$container_id"
+
         run: echo "::set-output name=container_id::$(./bin/docker-test.sh)"
 
       - name: Capture Docker logs on failure
@@ -34,4 +45,3 @@ jobs:
       - name: Stop Docker Container
         if: always()
         run: docker stop ${{ steps.docker_run.outputs.container_id }}
-
