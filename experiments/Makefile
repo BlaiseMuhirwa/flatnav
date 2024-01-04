@@ -10,15 +10,15 @@ yandex-deep-bench:
 
 sift-bench: 
 	poetry run python run-big-bench.py \
-		--dataset ../data/sift-128-euclidean/sift-128-euclidean.train.npy \
-		--queries ../data/sift-128-euclidean/sift-128-euclidean.test.npy \
-		--gtruth ../data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
 		--use-hnsw-base-layer \
 		--hnsw-base-layer-filename sift.mtx \
 		--num-node-links 32 \
 		--ef-construction 100 200 \
 		--ef-search 100 200 300 \
-		--metric l2 > logs.txt 2>&1
+		--metric l2 
 
 setup: install-flatnav install-hnswlib
 
@@ -44,4 +44,17 @@ install-hnswlib:
 
 cleanup:
 	rm -rf hnswlib-original 
+
+# If passed an invalid argument, print help message
+%:
+	@echo "Invalid argument: $@"
+	@echo "Usage: make [target]"
+	@echo "Targets:"
+	@echo "  setup: install all dependencies including flatnav"
+	@echo "  install-flatnav: install flatnav"
+	@echo "  install-hnswlib: install hnswlib"
+	@echo "  cleanup: remove hnswlib-original"
+	@echo "  generate-wheel: generate wheel for flatnav"
+	@echo "  yandex-deep-bench: run yandex-deep benchmark"
+	@echo "  sift-bench: run sift benchmark"
 	

@@ -7,7 +7,7 @@
 
 namespace flatnav {
 
-enum class METRIC_TYPE { EUCLIDEAN, INNER_PRODUCT };
+enum class METRIC_TYPE { EUCLIDEAN, INNER_PRODUCT, QUANTIZED };
 
 // We use the CRTP to implement static polymorphism on the distance. This is
 // done to allow for metrics and distance functions that support arbitrary
@@ -31,6 +31,8 @@ public:
 
   // Returns the size, in bytes, of the transformed data representation.
   size_t dataSize() { return static_cast<T *>(this)->dataSizeImpl(); }
+
+  METRIC_TYPE metricType() { return static_cast<T *>(this)->metricType(); }
 
   // Prints the parameters of the distance function.
   void getSummary() { static_cast<T *>(this)->getSummaryImpl(); }

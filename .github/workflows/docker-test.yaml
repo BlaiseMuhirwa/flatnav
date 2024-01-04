@@ -1,0 +1,37 @@
+name: Docker Test
+
+on: [push, pull_request]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64] 
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install Docker
+        run: |
+          sudo apt-get update
+          sudo apt-get remove moby-runc
+          sudo apt-get install apt-transport-https ca-certificates curl software-properties-common
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+          sudo apt-get update
+          sudo apt-get install docker-ce
+
+      - name: Build and Run Docker Container
+        id: docker_run
+        run: echo "::set-output name=container_id::$(./bin/docker-test.sh)"
+
+      - name: Capture Docker logs on failure
+        if: always()
+        run: docker logs ${{ steps.docker_run.outputs.container_id }}
+
+      - name: Stop Docker Container
+        if: always()
+        run: docker stop ${{ steps.docker_run.outputs.container_id }}
+

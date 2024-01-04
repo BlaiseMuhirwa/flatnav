@@ -347,6 +347,8 @@ public:
 
   inline size_t dataSizeImpl() { return getCodeSize(); }
 
+  METRIC_TYPE metricType() const { return METRIC_TYPE::QUANTIZED; }
+
   void transformDataImpl(void *destination, const void *src) {
     uint8_t *code = new uint8_t[_code_size]();
     computePQCode(static_cast<const float *>(src), code);
