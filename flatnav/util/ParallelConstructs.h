@@ -14,13 +14,6 @@ namespace flatnav {
  * threading library. This is preferred in lieu of OpenMP only because it will
  * not require having logic for installing OpenMP on the host system while
  * installing the Python library.
- *
- * @tparam Function
- * @param start_index
- * @param end_index
- * @param num_threads
- * @param function
- * @param additional_args
  */
 template <typename Function, typename... Args>
 void executeInParallel(uint32_t start_index, uint32_t end_index,
