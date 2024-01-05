@@ -39,8 +39,6 @@ public:
     return _distance_computer(x, y, _dimension);
   }
 
-  METRIC_TYPE metricType() const { return METRIC_TYPE::INNER_PRODUCT; }
-
 private:
   size_t _dimension;
   size_t _data_size_bytes;

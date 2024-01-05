@@ -21,27 +21,6 @@ using flatnav::SquaredL2Distance;
 
 namespace py = pybind11;
 
-template <typename T>
-static void validateDataDimensions(
-    const py::array_t<T, py::array::c_style | py::array::forcecast> &data,
-    int expected_dim, int num_axes) {
-  auto num_vectors = data.shape(0);
-  auto data_dim = data.shape(1);
-
-  if (data.ndim() != num_axes || data_dim != expected_dim) {
-    throw std::invalid_argument(
-        "Data has incorrect dimensions. Num axes = "
-        "`" +
-        std::to_string(data.ndim()) + "` and dimension = `" +
-        std::to_string(data_dim) + "`. Expected " + std::to_string(num_axes) +
-        "D "
-        "array with "
-        "dimensions "
-        "(num_vectors, "
-        "dim).");
-  }
-}
-
 template <typename dist_t, typename label_t>
 class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   const uint32_t NUM_LOG_STEPS = 10000;
@@ -50,7 +29,6 @@ private:
   int _dim;
   label_t _label_id;
   bool _verbose;
-  flatnav::METRIC_TYPE _metric_type;
   Index<dist_t, label_t> *_index;
 
 public:
@@ -59,7 +37,8 @@ public:
 
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), _label_id(0), _verbose(false),
-        _metric_type(index->metricType()), _index(index.release()) {
+        _index(index.get()) {
+
     if (_verbose) {
       _index->getIndexSummary();
     }
@@ -68,7 +47,6 @@ public:
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dataset_size,
           int max_edges_per_node, bool verbose = false)
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
-        _metric_type(distance->metricType()),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
@@ -81,7 +59,7 @@ public:
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
           const std::string &mtx_filename, bool verbose = false)
-      : _label_id(0), _verbose(verbose), _metric_type(distance->metricType()),
+      : _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(/* dist = */ std::move(distance),
                                           /* mtx_filename = */ mtx_filename)) {
     _dim = _index->dataDimension();
@@ -97,32 +75,14 @@ public:
     return std::make_unique<PyIndex<dist_t, label_t>>(std::move(index));
   }
 
-  std::string repr() const {
-    std::stringstream ss;
-
-    auto total_bytes_allocated =
-        _index->nodeSizeBytes() * _index->maxNodeCount();
-    auto max_edges_per_node = _index->maxEdgesPerNode();
-
-    std::string distance = _metric_type == flatnav::METRIC_TYPE::EUCLIDEAN
-                               ? "L2"
-                               : "Inner Product";
-    ss << "FlatNavIndex("
-       << "distance=" << distance << ", "
-       << "dim=" << _dim << ", "
-       << "max_edges_per_node=" << max_edges_per_node << ", "
-       << "total_bytes_allocated=" << total_bytes_allocated << ")";
-
-    return ss.str();
-  }
-
   std::shared_ptr<PyIndex<dist_t, label_t>> allocateNodes(
       const py::array_t<float, py::array::c_style | py::array::forcecast>
           &data) {
-    validateDataDimensions(/* data = */ data, /* expected_dim = */ _dim,
-                           /* num_axes = */ 2);
     auto num_vectors = data.shape(0);
-
+    auto data_dim = data.shape(1);
+    if (data.ndim() != 2 || data_dim != _dim) {
+      throw std::invalid_argument("Data has incorrect dimensions.");
+    }
     for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
       uint32_t new_node_id;
 
@@ -143,10 +103,20 @@ public:
     // to that type. If the given type can't be casted, pybind11 will throw an
     // error.
 
-    validateDataDimensions(/* data = */ data, /* expected_dim = */ _dim,
-                           /* num_axes = */ 2);
     auto num_vectors = data.shape(0);
-
+    auto data_dim = data.shape(1);
+    if (data.ndim() != 2 || data_dim != _dim) {
+      throw std::invalid_argument(
+          "Data has incorrect dimensions. data.ndim() = "
+          "`" +
+          std::to_string(data.ndim()) + "` and data_dim = `" +
+          std::to_string(data_dim) +
+          "`. Expected 2D "
+          "array with "
+          "dimensions "
+          "(num_vectors, "
+          "dim).");
+    }
     if (labels.is_none()) {
       for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
         this->_index->add(/* data = */ (void *)data.data(vec_index),
@@ -187,10 +157,12 @@ public:
   search(const py::array_t<float, py::array::c_style | py::array::forcecast>
              queries,
          int K, int ef_search, int num_initializations = 100) {
-
-    validateDataDimensions(/* data = */ queries, /* expected_dim = */ _dim,
-                           /* num_axes = */ 2);
     size_t num_queries = queries.shape(0);
+    size_t queries_dim = queries.shape(1);
+
+    if (queries.ndim() != 2 || queries_dim != _dim) {
+      throw std::invalid_argument("Queries have incorrect dimensions.");
+    }
 
     label_t *results = new label_t[num_queries * K];
     float *distances = new float[num_queries * K];
@@ -310,8 +282,7 @@ void bindIndexMethods(
             return index_type.getIndex()->maxEdgesPerNode();
           },
           "Maximum number of edges(links) per node in the underlying NSW graph "
-          "data structure.")
-      .def("__repr__", &IndexType::repr);
+          "data structure.");
 }
 
 template <typename... Args>

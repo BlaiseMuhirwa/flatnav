@@ -273,12 +273,6 @@ public:
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
 
-  // Added this here for debugging convenience. It really should only be
-  // accessed through the distance interface (if at all).
-  inline flatnav::METRIC_TYPE metricType() const {
-    return _distance->metricType();
-  }
-
   void getIndexSummary() const {
     std::cout << "\nIndex Parameters\n" << std::flush;
     std::cout << "-----------------------------\n" << std::flush;
