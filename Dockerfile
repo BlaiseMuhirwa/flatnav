@@ -38,8 +38,8 @@ RUN apt-get update -y \
         liblzma-dev \
         # Install the rest
         git \
-        clang \
-        clang++ \
+        gcc \
+        g++ \
         apt-utils \
         wget \
     && apt-get clean \
