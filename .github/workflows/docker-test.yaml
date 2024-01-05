@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
 
       - name: Install Docker
         run: |
@@ -35,7 +37,7 @@ jobs:
         run: |
           container_id=$(docker run -d \
             --volume $(pwd)/data:/root/data \
-            --rm flatnav:latest \
+            flatnav:latest \
             make help)
           echo "::set-output name=container_id::$container_id"
 

@@ -1,4 +1,6 @@
 # Build arguments 
+# This is a relatively large image, so we might want to use a smaller base image, such as
+# alpine in the future if image size becomes an issue.
 ARG BASE_IMAGE=ubuntu:22.04
 
 # Base image
