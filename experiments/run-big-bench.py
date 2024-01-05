@@ -10,7 +10,6 @@ import os
 import logging
 import platform, socket, psutil
 import argparse
-import functools
 import flatnav
 
 
@@ -25,7 +24,6 @@ ENVIRONMENT_INFO = {
     "ram_gb": round(psutil.virtual_memory().total / (1024.0**3)),
     "num_cores": psutil.cpu_count(logical=True),
 }
-
 
 
 def load_sift_dataset(
@@ -116,7 +114,6 @@ def load_benchmark_dataset(
 
     return train_dataset, queries_dataset, gtruth_dataset
 
-
 def compute_metrics(
     index: Union[flatnav.index.L2Index, flatnav.index.IPIndex],
     queries: np.ndarray,
@@ -160,7 +157,6 @@ def compute_metrics(
 
     return recall, qps
 
-
 def train_flatnav_index(
     train_dataset: np.ndarray,
     distance_type: str,
@@ -174,7 +170,6 @@ def train_flatnav_index(
     if use_hnsw_base_layer:
         if not hnsw_base_layer_filename:
             raise ValueError("Must provide a filename for the HNSW base layer graph.")
-        logging.info("Using HNSW's base layer to build a FlatNav index.")
 
         # build the HNSW index to use as the base layer
         # We use "angular" instead of "ip", so here we are just converting.

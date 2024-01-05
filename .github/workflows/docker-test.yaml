@@ -1,0 +1,50 @@
+name: Docker Test
+
+on:
+  # For now run on every commit and PR
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Add arm when we support it
+        arch: [amd64] 
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+
+      - name: Install Docker
+        run: |
+          sudo apt-get update
+          sudo apt-get remove moby-runc
+          sudo apt-get install apt-transport-https ca-certificates curl software-properties-common
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+          sudo apt-get update
+          sudo apt-get install docker-ce
+
+      - name: Build Docker Image
+        run: docker build -t flatnav:latest -f Dockerfile .
+
+      - name: Run Docker Container
+        id: docker_run
+        run: |
+          container_id=$(docker run -d \
+            --volume $(pwd)/data:/root/data \
+            flatnav:latest \
+            make help)
+          echo "::set-output name=container_id::$container_id"
+
+      - name: Capture Docker logs on failure
+        if: always()
+        run: docker logs ${{ steps.docker_run.outputs.container_id }}
+
+      - name: Stop Docker Container
+        if: always()
+        run: docker stop ${{ steps.docker_run.outputs.container_id }}
