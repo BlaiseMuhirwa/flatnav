@@ -1,9 +1,6 @@
 name: Docker Test
 
-on:
-  # For now run on every commit and PR
-  push:
-  pull_request:
+on: [pull_request]
 
 jobs:
   build-and-test:
