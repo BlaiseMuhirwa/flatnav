@@ -1,7 +1,7 @@
 #!/bin/bash 
 
-# Print commands and exit on errors
-set -ex 
+
+set -ex
 
 # Make sure we are one level above this directory
 cd "$(dirname "$0")/.."
@@ -51,19 +51,38 @@ function get_tag_name() {
     fi
 }
 
+
+# We use docker buildx to build the image for multiple platforms. buildx comes
+# installed with Docker Engine when installed via Docker Desktop. If you're
+# on a Linux machine with an old version of Docker Engine, you may need to
+# install buildx manually. Follow these instructions to install docker-buildx-plugin:
+# https://docs.docker.com/engine/install/ubuntu/
+
+# Install QEMU, a generic and open-source machine emulator and virtualizer
+docker run --rm --privileged linuxkit/binfmt:af88a591f9cc896a52ce596b9cf7ca26a061ef97
+
+# Check if builder already exists
+if ! docker buildx ls | grep -q flatnavbuilder; then
+  # Prep for multiplatform build - the build is done INSIDE a docker container
+  docker buildx create --name flatnavbuilder --use
+else
+  # If builder exists, set it as the current builder
+  docker buildx use flatnavbuilder
+fi
+
+# Ensure that the builder container is running
+docker buildx inspect flatnavbuilder --bootstrap
+
 # Get the tag name
 TAG_NAME=$(get_tag_name)
 
 echo "Building docker image with tag name: $TAG_NAME"
 
-# Make sure the data/ directory exists
-mkdir -p data
+# Build the image for multiple platforms (i.e., x86 intel and amd chips, and ARM chips)
+# Use --load to load the image into the docker cache (by default, the image is not loaded.
+# It is only available in the buildx cache)
+docker buildx build --platform linux/amd64 -t flatnav:$TAG_NAME -f Dockerfile . --load 
 
-docker build --tag flatnav:$TAG_NAME -f Dockerfile .
-
-# Check if the first argument is set. If it is, then run docker container with the 
-# first argument as the make target. If not, then run the container with the default
-# make target
 if [ -z "$1" ]
 then
     # This will build the image and run the container with the default make target
@@ -76,3 +95,4 @@ fi
 # Run the container and mount the data/ directory as volume to /root/data
 # Pass the make target as argument to the container. 
 docker run -it --volume $(pwd)/data:/root/data --rm flatnav:$TAG_NAME make $1
+

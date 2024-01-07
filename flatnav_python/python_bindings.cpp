@@ -26,7 +26,7 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   const uint32_t NUM_LOG_STEPS = 10000;
 
 private:
-  int _dim;
+  size_t _dim;
   label_t _label_id;
   bool _verbose;
   Index<dist_t, label_t> *_index;

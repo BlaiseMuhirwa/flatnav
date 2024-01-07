@@ -41,7 +41,6 @@ RUN apt-get update -y \
         gcc \
         g++ \
         apt-utils \
-        wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/*

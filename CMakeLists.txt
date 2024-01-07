@@ -18,10 +18,6 @@ include_directories(${CMAKE_SOURCE_DIR}/external/cereal/include/)
 # namespaces (c++17)
 set(CMAKE_CXX_STANDARD 17)
 
-# I added compiler flags for ASan (address sanitizer). It is supposed to be very
-# fast, but if we find it slow, we can remove it for good or use compiler
-# directives to skip analyzing functions __attribute__((no_sanitize_address))
-# https://clang.llvm.org/docs/AddressSanitizer.html Compiler flags
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} \
     -std=c++17 \
@@ -32,15 +28,41 @@ set(CMAKE_CXX_FLAGS
     -fpic \
     -w \
     -ffast-math \
-    -funroll-loops \
-    -mavx \
-    -mavx512f")
+    -funroll-loops")
+
+include(CheckCXXCompilerFlag)
+
+# Build SSE/AVX/AVX512 code only on x86-64 processors.
+if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "(x86_64)|(AMD64|amd64)|(^i.86$)")
+  check_cxx_compiler_flag(-mavx512f CXX_AVX512F)
+  check_cxx_compiler_flag(-mavx CXX_AVX)
+  check_cxx_compiler_flag(-msse CXX_SSE)
+
+  if(CXX_AVX512F)
+    add_compile_options(-mavx512f)
+    message(STATUS "Building with AVX512")
+  endif()
+
+  if(CXX_AVX)
+    add_compile_options(-mavx)
+    message(STATUS "Building with AVX")
+  endif()
+
+  if(CXX_SSE)
+    add_compile_options(-msse)
+    message(STATUS "Building with SSE")
+  endif()
+endif()
 
 option(CMAKE_BUILD_TYPE "Build type" Release)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   # Add debug compile flags
   message(STATUS "Building in Debug mode")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fsanitize=address")
+  # For more on address sanitizer:
+  # https://clang.llvm.org/docs/AddressSanitizer.html ASan is supposed to be
+  # very fast, but if we find it slow, we can remove it or use compiler
+  # directives to skip analyzing functions: __attribute__((no_sanitize_address))
+  add_compile_options(-g -Wall -fsanitize=address)
 endif()
 
 include(ExternalProject)

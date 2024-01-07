@@ -1,8 +1,14 @@
 #!/bin/bash 
 
-PYTHON="poetry run python"
+PYTHON=$(which python3)
 
-# Make sure we are in this directory before runnin
+if [[ -z "${PYTHON}" ]]; then
+    echo "Python 3 not found. Please install Python 3 and try again."
+    exit 1
+fi
+
+# Make sure we are at the root of the repository.
+cd "$(dirname "$0")/.."
 
 
 # Create a list of ANNS benchmark datasets to download.
@@ -28,37 +34,6 @@ function print_help() {
     exit 1
 }
 
-function check_poetry_install() {
-    # check if poetry is already in PATH
-    if ! command -v poetry &> /dev/null; then 
-        echo "Poetry not found. Installing it now..."
-
-        curl -sSL https://install.python-poetry.org | python3 -
-
-        # Check the shell and append to poetry to PATH 
-        SHELL_NAME=$(basename "$SHELL")
-        # For newer poetry versions, this might be different. 
-        # On ubuntu x86-64, for instance, I found this to be instead
-        # $HOME/.local/share/pypoetry/venv/bin 
-        POETRY_PATH="$HOME/.poetry/bin"
-
-        if [[ "$SHELL_NAME" == "zsh" ]]; then 
-            echo "Detected zsh shell."
-            echo "export PATH=\"$POETRY_PATH:\$PATH\"" >> $HOME/.zshrc
-            source $HOME/.zshrc
-
-        elif [[ "$SHELL_NAME" == "bash" ]]; then 
-            echo "Detected bash shell."
-            echo "export PATH=\"$POETRY_PATH:\$PATH\"" >> $HOME/.bashrc
-            source $HOME/.bashrc 
-
-        else 
-            echo "Unsupported shell for poetry installation. $SHELL_NAME"
-            exit 1
-        fi 
-    fi
-}
-
 
 function download_dataset() {
     # Downloads a single benchmark dataset for Approximate Nearest Neighbor
@@ -76,12 +51,8 @@ function download_dataset() {
         exit 0
     fi
 
-    if [ -f "${dataset}.hdf5" ]; then
-        echo "${dataset}.hdf5 already exists. Skipping download."
-    else
-        echo "Downloading ${dataset}..."
-        curl -L -o ${dataset}.hdf5 http://ann-benchmarks.com/${dataset}.hdf5
-    fi
+    echo "Downloading ${dataset}..."
+    curl -L -o ${dataset}.hdf5 http://ann-benchmarks.com/${dataset}.hdf5
 
     # Create directory and move dataset to data/dataset_name.
     mkdir -p data/${dataset}
@@ -103,10 +74,6 @@ function download_dataset() {
 if [[ $1 == "-h" || $1 == "--help" ]]; then
     print_help
 fi
-
-
-# Ensure we have poetry before running `download_dataset`
-check_poetry_install
 
 
 # Check if a user ran the script like this: ./download_anns_datasets.sh <dataset> --normalize 

@@ -214,6 +214,7 @@ bool platform_supports_avx512() {
 static float distanceImplInnerProductSIMD16ExtAVX512(const void *x,
                                                      const void *y,
                                                      const size_t &dimension) {
+  std::cout << "[info] Using AVX512 implementation\n" << std::flush;
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
 
@@ -270,6 +271,7 @@ static float distanceImplSquaredL2SIMD16ExtAVX512(const void *x, const void *y,
 #if defined(USE_AVX)
 static float distanceImplInnerProductSIMD4ExtAVX(const void *x, const void *y,
                                                  const size_t &dimension) {
+  std::cout << "[info] Using AVX implementation (simd4extavx)\n" << std::flush;
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
   float PORTABLE_ALIGN32 temp_res[8];
@@ -315,6 +317,7 @@ static float distanceImplInnerProductSIMD4ExtAVX(const void *x, const void *y,
 
 static float distanceImplInnerProductSIMD16ExtAVX(const void *x, const void *y,
                                                   const size_t &dimension) {
+  std::cout << "[info] Using AVX implementation\n" << std::flush;
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
 
@@ -382,6 +385,7 @@ static float distanceImplSquaredL2SIMD16ExtAVX(const void *x, const void *y,
 
 static float distanceImplInnerProductSIMD16ExtSSE(const void *x, const void *y,
                                                   const size_t &dimension) {
+  // std::cout << "[info] Using SSE implementation\n" << std::flush;
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
 
@@ -418,12 +422,12 @@ static float distanceImplInnerProductSIMD16ExtSSE(const void *x, const void *y,
   }
 
   _mm_store_ps(temp_res, sum);
-  float total = temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3];
-  return 1.0f - total;
+  return temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3];
 }
 
 static float distanceImplInnerProductSIMD4ExtSSE(const void *x, const void *y,
                                                  const size_t &dimension) {
+  std::cout << "[info] Using SSE implementation (simd4extsse)\n" << std::flush;
   float *p_x = (float *)(x);
   float *p_y = (float *)(y);
   float PORTABLE_ALIGN32 temp_res[8];
@@ -471,8 +475,7 @@ static float distanceImplInnerProductSIMD4ExtSSE(const void *x, const void *y,
   }
 
   _mm_store_ps(temp_res, sum_prod);
-  float sum = temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3];
-  return 1.0f - sum;
+  return temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3];
 }
 
 static float distanceImplSquaredL2SIMD16ExtSSE(const void *x, const void *y,
@@ -575,6 +578,8 @@ static float distanceImplSquaredL2SIMD4ExtResiduals(const void *x,
 static float
 distanceImplInnerProductSIMD16ExtResiduals(const void *x, const void *y,
                                            const size_t &dimension) {
+  // std::cout << "[info] Using SSE implementation (simd16extresiduals)\n"
+  //           << std::flush;
   size_t dimension16 = dimension >> 4 << 4;
   float res = distanceImplInnerProductSIMD16ExtSSE(x, y, dimension16);
   size_t residual = dimension - dimension16;
@@ -583,9 +588,7 @@ distanceImplInnerProductSIMD16ExtResiduals(const void *x, const void *y,
   float *p_y = (float *)(y) + dimension16;
   float sum_res = 0;
   for (size_t i = 0; i < residual; i++) {
-    sum_res += *p_x * *p_y;
-    p_x++;
-    p_y++;
+    sum_res += p_x[i] * p_y[i];
   }
   return 1.0f - (res + sum_res);
 }
