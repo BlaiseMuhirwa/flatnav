@@ -109,7 +109,6 @@ private:
                             const size_t &dimension) const {
     // Default implementation of squared-L2 distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
-    std::cout << "Using default distance implementation" << std::endl;
     float *p_x = (float *)x;
     float *p_y = (float *)y;
     float squared_distance = 0;
