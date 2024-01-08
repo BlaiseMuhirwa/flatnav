@@ -29,6 +29,9 @@ set(CMAKE_CXX_FLAGS
     -ffast-math \
     -funroll-loops")
 
+
+# Code adapted from PyTorch:
+# https://github.com/pytorch/pytorch/blob/main/cmake/Modules/FindAVX.cmake
 include(CheckCXXSourceRuns)
 set(AVX_CODE
     "
