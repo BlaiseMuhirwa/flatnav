@@ -20,7 +20,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} \
-    -std=c++17 \
     -Ofast \
     -DHAVE_CXX0X \
     -DNDEBUG \
@@ -30,26 +29,70 @@ set(CMAKE_CXX_FLAGS
     -ffast-math \
     -funroll-loops")
 
+include(CheckCXXSourceRuns)
+set(AVX_CODE
+    "
+      #include <immintrin.h>
+      int main() {
+        __m256 a;
+        a = _mm256_set1_ps(0);
+        return 0;
+      }
+    ")
+
+set(AVX512_CODE
+    "
+    #include <immintrin.h>
+    int main() {
+      __m512 a = _mm512_set_epi8(0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0);
+      __m512i b = a;
+      __mmask64 equality_mask = _mm512_cmp_epi8_mask(a, b, _MM_CMPINT_EQ);
+      return 0;
+      )
+    }
+    ")
+
 include(CheckCXXCompilerFlag)
+
+# Function to check compiler support and hardware capability for a given flag
+function(check_compiler_and_hardware_support FLAG CODE_VAR EXTENSION_NAME)
+  check_cxx_compiler_flag(${FLAG} COMPILER_SUPPORTS_${EXTENSION_NAME})
+  if(COMPILER_SUPPORTS_${EXTENSION_NAME})
+    set(CMAKE_REQUIRED_FLAGS_SAVE ${CMAKE_REQUIRED_FLAGS})
+    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${FLAG}")
+
+    check_cxx_source_runs("${${CODE_VAR}}"
+                          SYSTEM_SUPPORTS_${EXTENSION_NAME}_EXTENSIONS)
+    set(CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS_SAVE})
+
+    if(SYSTEM_SUPPORTS_${EXTENSION_NAME}_EXTENSIONS)
+      set(CMAKE_CXX_FLAGS
+          "${CMAKE_CXX_FLAGS} ${FLAG}"
+          PARENT_SCOPE)
+      message(STATUS "Building with ${EXTENSION_NAME}")
+    else()
+      message(
+        STATUS "Compiler supports ${FLAG} flag but the target machine does not "
+               "support ${EXTENSION_NAME} instructions")
+    endif()
+  endif()
+endfunction()
 
 # Build SSE/AVX/AVX512 code only on x86-64 processors.
 if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "(x86_64)|(AMD64|amd64)|(^i.86$)")
-  check_cxx_compiler_flag(-mavx512f CXX_AVX512F)
-  check_cxx_compiler_flag(-mavx CXX_AVX)
-  check_cxx_compiler_flag(-msse CXX_SSE)
+  check_compiler_and_hardware_support("-mavx512f" "AVX512_CODE" "AVX512")
+  check_compiler_and_hardware_support("-mavx" "AVX_CODE" "AVX")
 
-  if(CXX_AVX512F)
-    add_compile_options(-mavx512f)
-    message(STATUS "Building with AVX512")
-  endif()
-
-  if(CXX_AVX)
-    add_compile_options(-mavx)
-    message(STATUS "Building with AVX")
-  endif()
-
+  check_cxx_compiler_flag("-msse" CXX_SSE)
   if(CXX_SSE)
-    add_compile_options(-msse)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse")
     message(STATUS "Building with SSE")
   endif()
 endif()
@@ -62,7 +105,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   # https://clang.llvm.org/docs/AddressSanitizer.html ASan is supposed to be
   # very fast, but if we find it slow, we can remove it or use compiler
   # directives to skip analyzing functions: __attribute__((no_sanitize_address))
-  add_compile_options(-g -Wall -fsanitize=address)
+  # add_compile_options(-g -Wall -fsanitize=address)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fsanitize=address")
 endif()
 
 include(ExternalProject)

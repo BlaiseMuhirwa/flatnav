@@ -24,17 +24,18 @@ public:
   SquaredL2Distance() = default;
   explicit SquaredL2Distance(size_t dim)
       : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
-        _distance_computer(std::bind(&SquaredL2Distance::defaultDistanceImpl,
-                                     this, std::placeholders::_1,
-                                     std::placeholders::_2,
-                                     std::placeholders::_3)) {
+        _distance_computer(
+            [this](const void *x, const void *y, const size_t &dimension) {
+              return this->defaultDistanceImpl(x, y, dimension);
+            }) {
     setDistanceFunction();
   }
 
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {
     (void)asymmetric;
-    return _distance_computer(x, y, _dimension);
+    auto distance = _distance_computer(x, y, _dimension);
+    return distance;
   }
 
 private:
@@ -51,10 +52,10 @@ private:
     // If loading, we need to set the data size bytes
     if (Archive::is_loading::value) {
       _data_size_bytes = _dimension * sizeof(float);
-      _distance_computer = std::bind(
-          &SquaredL2Distance::defaultDistanceImpl, this, std::placeholders::_1,
-          std::placeholders::_2, std::placeholders::_3);
-
+      _distance_computer = [this](const void *x, const void *y,
+                                  const size_t &dimension) {
+        return this->defaultDistanceImpl(x, y, dimension);
+      };
       setDistanceFunction();
     }
   }
@@ -108,6 +109,7 @@ private:
                             const size_t &dimension) const {
     // Default implementation of squared-L2 distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
+    std::cout << "Using default distance implementation" << std::endl;
     float *p_x = (float *)x;
     float *p_y = (float *)y;
     float squared_distance = 0;

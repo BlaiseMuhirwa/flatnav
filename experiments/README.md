@@ -70,7 +70,5 @@ sift-bench:
 
 You may want to log the experiment logs to a file on disk. You can do so by running 
 ```
-> ./bin/docker-test.sh sift-bench > logs.txt 2>& 1
+> ./bin/docker-test.sh sift-bench > logs.txt 2>&1
 ```
-
-

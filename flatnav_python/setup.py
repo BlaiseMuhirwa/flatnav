@@ -48,7 +48,7 @@ EXTRA_COMPILE_ARGS = [
     "-ffast-math",  # Enable fast math optimizations
     "-funroll-loops",  # Unroll loops
     "-mavx",  # Enable AVX instructions
-    "-mavx512f",  # Enable AVX-512 instructions
+    # "-mavx512f",  # Enable AVX-512 instructions
 ]
 
 if not platform_has_avx_support():
