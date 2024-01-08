@@ -28,7 +28,7 @@ public:
             [this](const void *x, const void *y, const size_t &dimension) {
               return this->defaultDistanceImpl(x, y, dimension);
             }) {
-    setDistanceFunction();
+    // setDistanceFunction();
   }
 
   float distanceImpl(const void *x, const void *y,
@@ -56,7 +56,7 @@ private:
                                   const size_t &dimension) {
         return this->defaultDistanceImpl(x, y, dimension);
       };
-      setDistanceFunction();
+      // setDistanceFunction();
     }
   }
 
