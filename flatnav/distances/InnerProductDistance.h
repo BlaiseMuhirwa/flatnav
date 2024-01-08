@@ -79,9 +79,6 @@ private:
   }
 
   void setDistanceFunction() {
-    std::cout << "[info] Setting distance function for inner product distance"
-              << std::endl;
-
 #ifndef NO_MANUAL_VECTORIZATION
 #if defined(USE_AVX512) || defined(USE_AVX) || defined(USE_SSE)
     _distance_computer = distanceImplInnerProductSIMD16ExtSSE;
