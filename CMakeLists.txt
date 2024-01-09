@@ -299,7 +299,7 @@ set_target_properties(FLAT_NAV_LIB PROPERTIES LINKER_LANGUAGE CXX)
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples for Flatnav")
-  foreach(CONSTRUCT_EXEC construct_npy query_npy cereal_tests)
+  foreach(CONSTRUCT_EXEC construct_npy query_npy cereal_tests load_mtx)
     add_executable(${CONSTRUCT_EXEC}
                    ${PROJECT_SOURCE_DIR}/tools/${CONSTRUCT_EXEC}.cpp ${HEADERS})
     add_dependencies(${CONSTRUCT_EXEC} FLAT_NAV_LIB)
