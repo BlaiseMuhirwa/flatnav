@@ -84,7 +84,7 @@ public:
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(std::move(dist)),
+        _cur_num_nodes(0), _distance(dist),
         _num_threads(std::thread::hardware_concurrency()),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
@@ -123,6 +123,8 @@ public:
     _visited_set_pool = new VisitedSetPool(
         /* initial_pool_size = */ 1,
         /* num_elements = */ _max_node_count);
+
+    _node_links_mutexes = std::vector<std::mutex>(_max_node_count);
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =

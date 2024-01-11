@@ -14,23 +14,23 @@ namespace flatnav {
 
 class VisitedSet {
 private:
-  uint32_t _mark;
-  uint32_t *_table;
+  uint8_t _mark;
+  uint8_t *_table;
   uint32_t _table_size;
 
 public:
   VisitedSet(const uint32_t size) : _mark(0), _table_size(size) {
     // initialize values to 0
-    _table = new uint32_t[_table_size]();
+    _table = new uint8_t[_table_size]();
   }
 
   inline void prefetch(const uint32_t num) const {
 #ifdef USE_SSE
-    _mm_prefetch((char *)(_table[num]), _MM_HINT_T0);
+    _mm_prefetch(static_cast<char>(_table[num]), _MM_HINT_T0);
 #endif
   }
 
-  inline uint32_t getMark() const { return _mark; }
+  inline uint8_t getMark() const { return _mark; }
 
   inline void insert(const uint32_t num) { _table[num] = _mark; }
 
@@ -48,8 +48,8 @@ public:
   VisitedSet(const VisitedSet &other)
       : _table_size(other._table_size), _mark(other._mark) {
 
-    _table = new uint32_t[_table_size];
-    std::memcpy(_table, other._table, _table_size * sizeof(uint32_t));
+    _table = new uint8_t[_table_size];
+    std::memcpy(_table, other._table, _table_size);
   }
 
   // move constructor
@@ -67,8 +67,8 @@ public:
       delete[] _table;
       _table_size = other._table_size;
       _mark = other._mark;
-      _table = new uint32_t[_table_size];
-      std::memcpy(_table, other._table, _table_size * sizeof(uint32_t));
+      _table = new uint8_t[_table_size];
+      std::memcpy(_table, other._table, _table_size);
     }
     return *this;
   }

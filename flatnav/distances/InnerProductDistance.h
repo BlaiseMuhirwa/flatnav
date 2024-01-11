@@ -25,10 +25,10 @@ public:
   InnerProductDistance() = default;
   explicit InnerProductDistance(size_t dim)
       : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
-        _distance_computer(std::bind(&InnerProductDistance::defaultDistanceImpl,
-                                     this, std::placeholders::_1,
-                                     std::placeholders::_2,
-                                     std::placeholders::_3)) {
+        _distance_computer(
+            [this](const void *x, const void *y, const size_t &dimension) {
+              return defaultDistanceImpl(x, y, dimension);
+            }) {
     setDistanceFunction();
   }
 
@@ -52,9 +52,10 @@ private:
     // If loading, we need to set the data size bytes
     if (Archive::is_loading::value) {
       _data_size_bytes = _dimension * sizeof(float);
-      _distance_computer = std::bind(
-          &InnerProductDistance::defaultDistanceImpl, this,
-          std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+      _distance_computer = [this](const void *x, const void *y,
+                                  const size_t &dimension) {
+        return defaultDistanceImpl(x, y, dimension);
+      };
 
       setDistanceFunction();
     }

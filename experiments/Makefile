@@ -22,9 +22,9 @@ sift-bench:
 
 glove-bench:
 	poetry run python run-big-bench.py \
-		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
-		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
-		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
+		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
+		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
+		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
 		--use-hnsw-base-layer \
 		--hnsw-base-layer-filename glove.mtx \
 		--num-node-links 32 \
