@@ -26,7 +26,7 @@ public:
 
   inline void prefetch(const uint32_t num) const {
 #ifdef USE_SSE
-    _mm_prefetch(static_cast<char *>(_table[num]), _MM_HINT_T0);
+    _mm_prefetch((char *)(_table[num]), _MM_HINT_T0);
 #endif
   }
 
@@ -38,7 +38,9 @@ public:
 
   inline void clear() { _mark++; }
 
-  inline bool operator[](const uint32_t num) { return (_table[num] == _mark); }
+  inline bool isVisited(const uint32_t num) const {
+    return _table[num] == _mark;
+  }
 
   ~VisitedSet() { delete[] _table; }
 

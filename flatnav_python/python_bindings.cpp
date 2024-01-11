@@ -278,9 +278,12 @@ void bindIndexMethods(
            "many "
            "vertices are visited while inserting every vector in the "
            "underlying graph structure.")
-      .def("search", &IndexType::searchParallel, py::arg("queries"),
+      .def("searchParallel", &IndexType::searchParallel, py::arg("queries"),
            py::arg("K"), py::arg("ef_search"),
            py::arg("num_initializations") = 100,
+           "Perform KNN search in "
+           "parallel for the given "
+           "queries.")
       .def("allocate_nodes", &IndexType::allocateNodes, py::arg("data"),
            "Allocate nodes in the underlying graph structure for the given "
            "data. Unlike the add method, this method does not construct the "

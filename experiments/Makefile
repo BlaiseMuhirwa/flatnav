@@ -20,6 +20,18 @@ sift-bench:
 		--ef-search 100 200 300 \
 		--metric l2 
 
+glove-bench:
+	poetry run python run-big-bench.py \
+		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
+		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
+		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename glove.mtx \
+		--num-node-links 32 \
+		--ef-construction 100 200 \
+		--ef-search 100 200 300 \
+		--metric angular
+
 setup: install-flatnav install-hnswlib
 
 # Install all dependencies including flatnav

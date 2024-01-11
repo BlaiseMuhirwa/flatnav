@@ -60,8 +60,7 @@ template <typename dist_t, typename label_t> class Index {
   // Remembers which nodes we've visited, to avoid re-computing distances.
   VisitedSetPool *_visited_set_pool;
   std::vector<std::mutex> _node_links_mutexes;
-
-  friend class cereal::access;
+  std::optional<std::vector<std::vector<uint32_t>>> _outdegree_table;
 
   template <typename Archive> void serialize(Archive &archive) {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
@@ -85,7 +84,7 @@ public:
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(dist),
+        _cur_num_nodes(0), _distance(std::move(dist)),
         _num_threads(std::thread::hardware_concurrency()),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
@@ -113,14 +112,17 @@ public:
 
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
         const std::string &mtx_filename)
-      : _cur_num_nodes(0), _distance(dist) {
+      : _cur_num_nodes(0), _distance(std::move(dist)),
+        _num_threads(std::thread::hardware_concurrency()) {
     auto mtx_graph =
         flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
     _outdegree_table = std::move(mtx_graph.adjacency_list);
     _max_node_count = _outdegree_table.value().size();
     _M = mtx_graph.max_num_edges;
 
-    _visited_nodes = VisitedSet(_max_node_count);
+    _visited_set_pool = new VisitedSetPool(
+        /* initial_pool_size = */ 1,
+        /* num_elements = */ _max_node_count);
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
@@ -164,6 +166,29 @@ public:
       }
     }
     return outdegree_table;
+  }
+
+  /**
+   * @brief Store the new node in the global data structure. In a
+   * multi-threaded setting, the index data guard should be held by the caller
+   * with an exclusive lock.
+   *
+   * @param data The vector to add.
+   * @param label The label (meta-data) of the vector.
+   * @param new_node_id The id of the new node.
+   */
+  void allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
+
+    new_node_id = _cur_num_nodes;
+    _distance->transformData(
+        /* destination = */ (void *)getNodeData(new_node_id),
+        /* src = */ data);
+    *(getNodeLabel(new_node_id)) = label;
+
+    node_id_t *links = getNodeLinks(new_node_id);
+    // Initialize all edges to self
+    std::fill_n(links, _M, new_node_id);
+    _cur_num_nodes++;
   }
 
   /**
@@ -266,27 +291,6 @@ public:
     return results;
   }
 
-  // TODO: Add optional argument here for quantized data vector.
-  void allocateNode(void *data, label_t &label, uint32_t &new_node_id) {
-    if (_cur_num_nodes >= _max_node_count) {
-      throw std::runtime_error("Maximum number of nodes reached. Consider "
-                               "increasing the `max_node_count` parameter to "
-                               "create a larger index.");
-    }
-    new_node_id = _cur_num_nodes;
-
-    _distance->transformData(/* destination = */ getNodeData(new_node_id),
-                             /* src = */ data);
-    *(getNodeLabel(_cur_num_nodes)) = label;
-
-    node_id_t *links = getNodeLinks(_cur_num_nodes);
-    for (uint32_t i = 0; i < _M; i++) {
-      links[i] = _cur_num_nodes;
-    }
-
-    _cur_num_nodes++;
-  }
-
   void reorderGOrder(const int window_size = 5) {
     auto outdegree_table = getGraphOutdegreeTable();
     std::vector<node_id_t> P =
@@ -310,8 +314,7 @@ public:
     }
 
     cereal::BinaryInputArchive archive(stream);
-    std::unique_ptr<Index<dist_t, label_t>> index =
-        std::make_unique<Index<dist_t, label_t>>();
+    std::unique_ptr<Index<dist_t, label_t>> index(new Index<dist_t, label_t>());
 
     std::shared_ptr<DistanceInterface<dist_t>> dist =
         std::make_shared<dist_t>();
@@ -378,13 +381,15 @@ public:
     std::cout << "node_size_bytes: " << _node_size_bytes << "\n" << std::flush;
     std::cout << "max_node_count: " << _max_node_count << "\n" << std::flush;
     std::cout << "cur_num_nodes: " << _cur_num_nodes << "\n" << std::flush;
-    std::cout << "visited_nodes size: " << _visited_nodes.size() << "\n"
-              << std::flush;
 
     _distance->getSummary();
   }
 
 private:
+  friend class cereal::access;
+  // Default constructor for cereal
+  Index() = default;
+
   char *getNodeData(const node_id_t &n) const {
     char *location = _index_memory + (n * _node_size_bytes);
     if (location == nullptr) {
@@ -402,29 +407,6 @@ private:
     char *location = _index_memory + (n * _node_size_bytes) + _data_size_bytes +
                      (_M * sizeof(node_id_t));
     return reinterpret_cast<label_t *>(location);
-  }
-
-  /**
-   * @brief Store the new node in the global data structure. In a
-   * multi-threaded setting, the index data guard should be held by the caller
-   * with an exclusive lock.
-   *
-   * @param data The vector to add.
-   * @param label The label (meta-data) of the vector.
-   * @param new_node_id The id of the new node.
-   */
-  void allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
-
-    new_node_id = _cur_num_nodes;
-    _distance->transformData(
-        /* destination = */ (void *)getNodeData(new_node_id),
-        /* src = */ data);
-    *(getNodeLabel(new_node_id)) = label;
-
-    node_id_t *links = getNodeLinks(new_node_id);
-    // Initialize all edges to self
-    std::fill_n(links, _M, new_node_id);
-    _cur_num_nodes++;
   }
 
   inline void swapNodes(node_id_t a, node_id_t b, void *temp_data,
@@ -506,7 +488,7 @@ private:
     for (uint32_t i = 0; i < _M; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
       bool neighbor_is_visited =
-          visited_set->operator[](/* num = */ neighbor_node_id);
+          visited_set->isVisited(/* num = */ neighbor_node_id);
 
       if (neighbor_is_visited) {
         continue;
@@ -717,7 +699,7 @@ private:
     visited_set->clear();
 
     for (node_id_t n = 0; n < _cur_num_nodes; n++) {
-      if (visited_set->operator[](/* num = */ n)) {
+      if (visited_set->isVisited(/* num = */ n)) {
         continue;
       }
 
@@ -731,7 +713,7 @@ private:
       visited_set->insert(src);
 
       // recursively relocate the node from "dest"
-      while (!visited_set->operator[](/* num = */ dest)) {
+      while (!visited_set->isVisited(/* num = */ dest)) {
         // mark node as having been relocated
         visited_set->insert(dest);
         // the value of src remains the same. However, dest needs

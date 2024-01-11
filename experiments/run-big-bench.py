@@ -238,6 +238,7 @@ def main(
     for node_links in num_node_links:
         for ef_cons in ef_cons_params:
             for ef_search in ef_search_params:
+                logging.debug("Training Flatnav index...")
                 index = train_flatnav_index(
                     train_dataset=train_dataset,
                     max_edges_per_node=node_links,
@@ -248,6 +249,8 @@ def main(
                     use_hnsw_base_layer=use_hnsw_base_layer,
                     hnsw_base_layer_filename=hnsw_base_layer_filename,
                 )
+                
+                logging.debug("Evaluating Flatnav index...")
 
                 recall, qps = compute_metrics(
                     index=index,
