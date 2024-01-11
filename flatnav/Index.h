@@ -91,6 +91,14 @@ public:
             /* num_elements = */ dataset_size)),
         _node_links_mutexes(dataset_size) {
 
+    // Get the size in bytes of the _node_links_mutexes vector.
+    size_t mutexes_size_bytes = _node_links_mutexes.size() * sizeof(std::mutex);
+
+    std::cout << "[info] mutexes size = " << mutexes_size_bytes << " bytes\n"
+              << std::flush;
+
+    exit(0);
+
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
         _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
@@ -633,7 +641,7 @@ private:
         }
       }
 
-      // Unlock the current node we are iterating on
+      // Unlock the current node we are iterating over
       neighbor_lock.unlock();
 
       // loop increments:
