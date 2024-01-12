@@ -16,6 +16,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <thread>
 #include <vector>
 
 using flatnav::DistanceInterface;
@@ -34,12 +35,14 @@ void buildIndex(float *data,
       /* dist = */ std::move(distance), /* dataset_size = */ N,
       /* max_edges = */ M);
 
+  index->setNumThreads(std::thread::hardware_concurrency());
+
   auto start = std::chrono::high_resolution_clock::now();
 
   std::vector<int> labels(N);
   std::iota(labels.begin(), labels.end(), 0);
-  index->addParallel(/* data = */ (void *)data, /* labels = */ labels,
-                     /* ef_construction */ ef_construction);
+  index->addBatch(/* data = */ (void *)data, /* labels = */ labels,
+                  /* ef_construction */ ef_construction);
 
   auto stop = std::chrono::high_resolution_clock ::now();
   auto duration =

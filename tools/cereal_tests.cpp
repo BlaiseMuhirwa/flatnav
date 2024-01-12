@@ -22,7 +22,7 @@ void serializeIndex(
   std::vector<int> labels(N);
   std::iota(labels.begin(), labels.end(), 0);
 
-  index->addParallel(data, labels, ef_construction);
+  index->addBatch(data, labels, ef_construction);
 
   std::clog << "\nSaving index to " << save_file << std::endl;
   index->saveIndex(/* filename = */ save_file);

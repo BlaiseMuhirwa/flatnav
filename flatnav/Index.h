@@ -84,8 +84,7 @@ public:
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(dist),
-        _num_threads(1),
+        _cur_num_nodes(0), _distance(dist), _num_threads(1),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
@@ -115,8 +114,7 @@ public:
 
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
         const std::string &mtx_filename)
-      : _cur_num_nodes(0), _distance(std::move(dist)),
-        _num_threads(1) {
+      : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1) {
     auto mtx_graph =
         flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
     _outdegree_table = std::move(mtx_graph.adjacency_list);
@@ -186,7 +184,7 @@ public:
 
     new_node_id = _cur_num_nodes;
     _distance->transformData(
-        /* destination = */ (void *)getNodeData(new_node_id),
+        /* destination = */ getNodeData(new_node_id),
         /* src = */ data);
     *(getNodeLabel(new_node_id)) = label;
 
@@ -197,21 +195,33 @@ public:
   }
 
   /**
-   * @brief Add a new vector to the index.
-   * Initialization must happen before allocation due to a bug where
-   * initializeSearch chooses new_node_id as the initialization
-   * since new_node_id has distance 0 (but no links). The search is
-   * skipped because the "optimal" node seems to have been found.
+   * @brief Adds vectors to the index in batches.
    *
-   * @param data                 The vector to add.
-   * @param label                The label (meta-data) of the vector.
-   * @param ef_construction      The search beam width. This is the `ef`
-   * parameter in the HNSW paper.
-   * @param num_initializations  The number of random initializations to use.
-   * This determines the number of nodes to search before adding the new node.
+   * This method is responsible for adding vectors in batches, represented by
+   * `data`, to the underlying graph. Each vector is associated with a label
+   * provided in the `labels` vector. The method efficiently handles concurrent
+   * additions by dividing the workload among multiple threads, defined by
+   * `_num_threads`.
+   *
+   * The method ensures thread safety by employing locking mechanisms at the
+   * node level in the underlying `connectNeighbors` and `beamSearch` methods.
+   * This allows multiple threads to safely add vectors to the index without
+   * causing data races or inconsistencies in the graph structure.
+   *
+   * @param data Pointer to the array of vectors to be added.
+   * @param labels A vector of labels corresponding to each vector in `data`.
+   * @param ef_construction Parameter for controlling the size of the dynamic
+   * candidate list during the construction of the graph.
+   * @param num_initializations Number of initializations for the search
+   * algorithm. Must be greater than 0.
+   *
+   * @exception std::invalid_argument Thrown if `num_initializations` is less
+   * than or equal to 0.
+   * @exception std::runtime_error Thrown if the maximum number of nodes in the
+   * index is reached.
    */
-  void addParallel(void *data, std::vector<label_t> &labels,
-                   int ef_construction, int num_initializations = 100) {
+  void addBatch(void *data, std::vector<label_t> &labels, int ef_construction,
+                int num_initializations = 100) {
     if (num_initializations <= 0) {
       throw std::invalid_argument(
           "num_initializations must be greater than 0.");
@@ -224,7 +234,7 @@ public:
       for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
         void *vector = (float *)data + (row_id * data_dimension);
         label_t label = labels[row_id];
-        concurrentAdd(vector, label, ef_construction, num_initializations);
+        this->add(vector, label, ef_construction, num_initializations);
       }
       return;
     }
@@ -235,12 +245,34 @@ public:
         [&](uint32_t row_index) {
           void *vector = (float *)data + (row_index * data_dimension);
           label_t label = labels[row_index];
-          concurrentAdd(vector, label, ef_construction, num_initializations);
+          this->add(vector, label, ef_construction, num_initializations);
         });
   }
 
-  void concurrentAdd(void *data, label_t &label, int ef_construction,
-                     int num_initializations) {
+  /**
+   * @brief Adds a single vector to the index.
+   *
+   * This method is called internally by `addBatch` for each vector in the
+   * batch. The method ensures thread safety by using locking primitives,
+   * allowing it to be safely used in a multi-threaded environment.
+   *
+   * The method first checks if the current number of nodes has reached the
+   * maximum capacity. If so, it throws a runtime error. It then locks the index
+   * structure to prevent concurrent modifications while allocating a new node.
+   * After unlocking, it connects the new node to its neighbors in the graph.
+   *
+   * @param data Pointer to the vector data being added.
+   * @param label Label associated with the vector.
+   * @param ef_construction Parameter controlling the size of the dynamic
+   * candidate list during the construction of the graph.
+   * @param num_initializations Number of initializations for the search
+   * algorithm.
+   *
+   * @exception std::runtime_error Thrown if the maximum number of nodes is
+   * reached.
+   */
+  void add(void *data, label_t &label, int ef_construction,
+           int num_initializations) {
 
     if (_cur_num_nodes >= _max_node_count) {
       throw std::runtime_error("Maximum number of nodes reached. Consider "
@@ -279,11 +311,12 @@ public:
     PriorityQueue neighbors = beamSearch(/* query = */ query,
                                          /* entry_node = */ entry_node,
                                          /* buffer_size = */ ef_search);
+    auto size = neighbors.size();
     while (neighbors.size() > K) {
       neighbors.pop();
     }
     std::vector<dist_label_t> results;
-    results.reserve(K);
+    results.reserve(size);
     while (neighbors.size() > 0) {
       results.emplace_back(neighbors.top().first,
                            *getNodeLabel(neighbors.top().second));
@@ -396,11 +429,7 @@ private:
   Index() = default;
 
   char *getNodeData(const node_id_t &n) const {
-    char *location = _index_memory + (n * _node_size_bytes);
-    if (location == nullptr) {
-      throw std::runtime_error("getNodeData: pointer to node data is null.");
-    }
-    return location;
+    return _index_memory + (n * _node_size_bytes);
   }
 
   node_id_t *getNodeLinks(const node_id_t &n) const {
