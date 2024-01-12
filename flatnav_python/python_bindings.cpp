@@ -220,181 +220,180 @@ public:
 
     return {dists, labels};
   }
+};
 
-  using L2FlatNavIndex = PyIndex<SquaredL2Distance, int>;
-  using InnerProductFlatNavIndex = PyIndex<InnerProductDistance, int>;
+using L2FlatNavIndex = PyIndex<SquaredL2Distance, int>;
+using InnerProductFlatNavIndex = PyIndex<InnerProductDistance, int>;
 
-  template <typename IndexType>
-  void bindIndexMethods(
-      py::class_<IndexType, std::shared_ptr<IndexType>> &index_class) {
-    index_class
-        .def(
-            "save",
-            [](IndexType &index_type, const std::string &filename) {
-              auto index = index_type.getIndex();
-              index->saveIndex(/* filename = */ filename);
-            },
-            py::arg("filename"),
-            "Save a FlatNav index at the given file location.")
-        .def_static("load", &IndexType::loadIndex, py::arg("filename"),
-                    "Load a FlatNav index from a given file location")
-        .def("add", &IndexType::add, py::arg("data"),
-             py::arg("ef_construction"), py::arg("num_initializations") = 100,
-             py::arg("labels") = py::none(),
-             "Add vectors(data) to the index with the given `ef_construction` "
-             "parameter and optional labels. `ef_construction` determines how "
-             "many "
-             "vertices are visited while inserting every vector in the "
-             "underlying graph structure.")
-        .def(
-            "allocate_nodes", &IndexType::allocateNodes, py::arg("data"),
-            "Allocate nodes in the underlying graph structure for the given "
-            "data. Unlike the add method, this method does not construct the "
-            "edge connectivity. It only allocates memory for each node in the "
-            "grpah. When using this method, you should invoke "
-            "`build_graph_links` explicity. NOTE: In most cases you should not "
-            "need to use this method.")
-        .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
-             py::arg("ef_search"), py::arg("num_initializations") = 100,
-             "Return top `K` closest data points for every query in the "
-             "provided `queries`. The results are returned as a Tuple of "
-             "distances and label ID's. The `ef_search` parameter determines "
-             "how "
-             "many neighbors are visited while finding the closest neighbors "
-             "for every query.")
-        .def(
-            "get_graph_outdegree_table",
-            [](IndexType &index_type) -> std::vector<std::vector<uint32_t>> {
-              auto index = index_type.getIndex();
-              return index->getGraphOutdegreeTable();
-            },
-            "Returns the outdegree table (adjacency list) representation of "
-            "the "
-            "underlying graph.")
-        .def(
-            "build_graph_links",
-            [](IndexType &index_type) {
-              auto index = index_type.getIndex();
-              index->buildGraphLinks();
-            },
-            "Construct the edge connectivity of the underlying graph. This "
-            "method "
-            "should be invoked after allocating nodes using the "
-            "`allocate_nodes` "
-            "method.")
-        .def(
-            "reorder",
-            [](IndexType &index_type,
-               const std::vector<std::string> &strategies) {
-              auto index = index_type.getIndex();
-              // validate the given strategies
-              for (auto &strategy : strategies) {
-                auto alg = strategy;
-                std::transform(alg.begin(), alg.end(), alg.begin(),
-                               [](unsigned char c) { return std::tolower(c); });
-                if (alg != "gorder" && alg != "rcm") {
-                  throw std::invalid_argument(
-                      "`" + strategy +
-                      "` is not a supported graph re-ordering strategy.");
-                }
+template <typename IndexType>
+void bindIndexMethods(
+    py::class_<IndexType, std::shared_ptr<IndexType>> &index_class) {
+  index_class
+      .def(
+          "save",
+          [](IndexType &index_type, const std::string &filename) {
+            auto index = index_type.getIndex();
+            index->saveIndex(/* filename = */ filename);
+          },
+          py::arg("filename"),
+          "Save a FlatNav index at the given file location.")
+      .def_static("load", &IndexType::loadIndex, py::arg("filename"),
+                  "Load a FlatNav index from a given file location")
+      .def("add", &IndexType::add, py::arg("data"), py::arg("ef_construction"),
+           py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
+           "Add vectors(data) to the index with the given `ef_construction` "
+           "parameter and optional labels. `ef_construction` determines how "
+           "many "
+           "vertices are visited while inserting every vector in the "
+           "underlying graph structure.")
+      .def("allocate_nodes", &IndexType::allocateNodes, py::arg("data"),
+           "Allocate nodes in the underlying graph structure for the given "
+           "data. Unlike the add method, this method does not construct the "
+           "edge connectivity. It only allocates memory for each node in the "
+           "grpah. When using this method, you should invoke "
+           "`build_graph_links` explicity. NOTE: In most cases you should not "
+           "need to use this method.")
+      .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
+           py::arg("ef_search"), py::arg("num_initializations") = 100,
+           "Return top `K` closest data points for every query in the "
+           "provided `queries`. The results are returned as a Tuple of "
+           "distances and label ID's. The `ef_search` parameter determines "
+           "how "
+           "many neighbors are visited while finding the closest neighbors "
+           "for every query.")
+      .def(
+          "get_graph_outdegree_table",
+          [](IndexType &index_type) -> std::vector<std::vector<uint32_t>> {
+            auto index = index_type.getIndex();
+            return index->getGraphOutdegreeTable();
+          },
+          "Returns the outdegree table (adjacency list) representation of "
+          "the "
+          "underlying graph.")
+      .def(
+          "build_graph_links",
+          [](IndexType &index_type) {
+            auto index = index_type.getIndex();
+            index->buildGraphLinks();
+          },
+          "Construct the edge connectivity of the underlying graph. This "
+          "method "
+          "should be invoked after allocating nodes using the "
+          "`allocate_nodes` "
+          "method.")
+      .def(
+          "reorder",
+          [](IndexType &index_type,
+             const std::vector<std::string> &strategies) {
+            auto index = index_type.getIndex();
+            // validate the given strategies
+            for (auto &strategy : strategies) {
+              auto alg = strategy;
+              std::transform(alg.begin(), alg.end(), alg.begin(),
+                             [](unsigned char c) { return std::tolower(c); });
+              if (alg != "gorder" && alg != "rcm") {
+                throw std::invalid_argument(
+                    "`" + strategy +
+                    "` is not a supported graph re-ordering strategy.");
               }
-              for (auto &strategy : strategies) {
-                auto alg = strategy;
-                std::transform(alg.begin(), alg.end(), alg.begin(),
-                               [](unsigned char c) { return std::tolower(c); });
-                if (alg == "gorder") {
-                  index->reorderGOrder();
-                } else if (alg == "rcm") {
-                  index->reorderRCM();
-                }
+            }
+            for (auto &strategy : strategies) {
+              auto alg = strategy;
+              std::transform(alg.begin(), alg.end(), alg.begin(),
+                             [](unsigned char c) { return std::tolower(c); });
+              if (alg == "gorder") {
+                index->reorderGOrder();
+              } else if (alg == "rcm") {
+                index->reorderRCM();
               }
-            },
-            py::arg("strategy"),
-            "Perform graph re-ordering based on the given sequence of "
-            "re-ordering strategies. "
-            "Supported re-ordering strategies include `gorder` and `rcm`.")
-        .def_property(
-            "num_threads",
-            [](IndexType &index_type) -> uint32_t {
-              return index_type.getIndex()->getNumThreads();
-            },
-            [](IndexType &index_type, uint32_t num_threads) {
-              index_type.getIndex()->setNumThreads(
-                  /* num_threads = */ num_threads);
-            },
-            "Configure the desired number of threads. This is useful for "
-            "constructing the graph or performing KNN search in parallel.")
-        .def_property_readonly(
-            "max_edges_per_node",
-            [](IndexType &index_type) {
-              return index_type.getIndex()->maxEdgesPerNode();
-            },
-            "Maximum number of edges(links) per node in the underlying NSW "
-            "graph "
-            "data structure.");
+            }
+          },
+          py::arg("strategy"),
+          "Perform graph re-ordering based on the given sequence of "
+          "re-ordering strategies. "
+          "Supported re-ordering strategies include `gorder` and `rcm`.")
+      .def_property(
+          "num_threads",
+          [](IndexType &index_type) -> uint32_t {
+            return index_type.getIndex()->getNumThreads();
+          },
+          [](IndexType &index_type, uint32_t num_threads) {
+            index_type.getIndex()->setNumThreads(
+                /* num_threads = */ num_threads);
+          },
+          "Configure the desired number of threads. This is useful for "
+          "constructing the graph or performing KNN search in parallel.")
+      .def_property_readonly(
+          "max_edges_per_node",
+          [](IndexType &index_type) {
+            return index_type.getIndex()->maxEdgesPerNode();
+          },
+          "Maximum number of edges(links) per node in the underlying NSW "
+          "graph "
+          "data structure.");
+}
+
+template <typename... Args>
+py::object createIndex(const std::string &distance_type, int dim,
+                       Args &&...args) {
+  auto dist_type = distance_type;
+  std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+
+  if (dist_type == "l2") {
+    auto distance = std::make_shared<SquaredL2Distance>(/* dim = */ dim);
+    return py::cast(std::make_shared<L2FlatNavIndex>(
+        std::move(distance), std::forward<Args>(args)...));
+  } else if (dist_type == "angular") {
+    auto distance = std::make_shared<InnerProductDistance>(/* dim = */ dim);
+    return py::cast(std::make_shared<InnerProductFlatNavIndex>(
+        std::move(distance), std::forward<Args>(args)...));
   }
+  throw std::invalid_argument("Invalid distance type: `" + dist_type +
+                              "` during index construction. Valid options "
+                              "include `l2` and `angular`.");
+}
 
-  template <typename... Args>
-  py::object createIndex(const std::string &distance_type, int dim,
-                         Args &&...args) {
-    auto dist_type = distance_type;
-    std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+void defineIndexSubmodule(py::module_ &index_submodule) {
+  index_submodule.def(
+      "index_factory",
+      [](const std::string &distance_type, int dim, int dataset_size,
+         int max_edges_per_node, bool verbose = false) {
+        return createIndex(distance_type, dim, dataset_size, max_edges_per_node,
+                           verbose);
+      },
+      py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
+      py::arg("max_edges_per_node"), py::arg("verbose") = false,
+      "Creates a FlatNav index given the corresponding "
+      "parameters. The `distance_type` argument determines the "
+      "kind of index created (either L2Index or IPIndex)");
 
-    if (dist_type == "l2") {
-      auto distance = std::make_shared<SquaredL2Distance>(/* dim = */ dim);
-      return py::cast(std::make_shared<L2FlatNavIndex>(
-          std::move(distance), std::forward<Args>(args)...));
-    } else if (dist_type == "angular") {
-      auto distance = std::make_shared<InnerProductDistance>(/* dim = */ dim);
-      return py::cast(std::make_shared<InnerProductFlatNavIndex>(
-          std::move(distance), std::forward<Args>(args)...));
-    }
-    throw std::invalid_argument("Invalid distance type: `" + dist_type +
-                                "` during index construction. Valid options "
-                                "include `l2` and `angular`.");
-  }
+  index_submodule.def(
+      "index_factory",
+      [](const std::string &distance_type, int dim,
+         const std::string &mtx_filename, bool verbose = false) {
+        return createIndex(distance_type, dim, mtx_filename, verbose);
+      },
+      py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
+      py::arg("verbose") = false,
+      "Creates a FlatNav index given the corresponding "
+      "parameters. The `distance_type` argument determines the "
+      "kind of index created (either L2Index or IPIndex). The "
+      "mtx_filename argument is the path to a Matrix Market "
+      "file representing the underlying graph's edge connectivity.");
 
-  void defineIndexSubmodule(py::module_ &index_submodule) {
-    index_submodule.def(
-        "index_factory",
-        [](const std::string &distance_type, int dim, int dataset_size,
-           int max_edges_per_node, bool verbose = false) {
-          return createIndex(distance_type, dim, dataset_size,
-                             max_edges_per_node, verbose);
-        },
-        py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
-        py::arg("max_edges_per_node"), py::arg("verbose") = false,
-        "Creates a FlatNav index given the corresponding "
-        "parameters. The `distance_type` argument determines the "
-        "kind of index created (either L2Index or IPIndex)");
+  py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
+      index_submodule, "L2Index");
+  bindIndexMethods(l2_index_class);
 
-    index_submodule.def(
-        "index_factory",
-        [](const std::string &distance_type, int dim,
-           const std::string &mtx_filename, bool verbose = false) {
-          return createIndex(distance_type, dim, mtx_filename, verbose);
-        },
-        py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
-        py::arg("verbose") = false,
-        "Creates a FlatNav index given the corresponding "
-        "parameters. The `distance_type` argument determines the "
-        "kind of index created (either L2Index or IPIndex). The "
-        "mtx_filename argument is the path to a Matrix Market "
-        "file representing the underlying graph's edge connectivity.");
+  py::class_<InnerProductFlatNavIndex,
+             std::shared_ptr<InnerProductFlatNavIndex>>
+      ip_index_class(index_submodule, "IPIndex");
+  bindIndexMethods(ip_index_class);
+}
 
-    py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
-        index_submodule, "L2Index");
-    bindIndexMethods(l2_index_class);
+PYBIND11_MODULE(flatnav, module) {
+  auto index_submodule = module.def_submodule("index");
 
-    py::class_<InnerProductFlatNavIndex,
-               std::shared_ptr<InnerProductFlatNavIndex>>
-        ip_index_class(index_submodule, "IPIndex");
-    bindIndexMethods(ip_index_class);
-  }
-
-  PYBIND11_MODULE(flatnav, module) {
-    auto index_submodule = module.def_submodule("index");
-
-    defineIndexSubmodule(index_submodule);
-  }
+  defineIndexSubmodule(index_submodule);
+}
