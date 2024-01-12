@@ -18,7 +18,10 @@ sift-bench:
 		--num-node-links 32 \
 		--ef-construction 100 200 \
 		--ef-search 100 200 300 \
-		--metric l2 
+		--metric l2 \
+		--num-build-threads max \
+		--num-search-threads 1 \
+		--reordering-strategies gorder rcm 
 
 glove-bench:
 	poetry run python run-big-bench.py \

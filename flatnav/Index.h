@@ -85,7 +85,7 @@ public:
         int max_edges_per_node)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
         _cur_num_nodes(0), _distance(dist),
-        _num_threads(std::thread::hardware_concurrency()),
+        _num_threads(1),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
@@ -93,11 +93,6 @@ public:
 
     // Get the size in bytes of the _node_links_mutexes vector.
     size_t mutexes_size_bytes = _node_links_mutexes.size() * sizeof(std::mutex);
-
-    std::cout << "[info] mutexes size = " << mutexes_size_bytes << " bytes\n"
-              << std::flush;
-
-    exit(0);
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
@@ -121,7 +116,7 @@ public:
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
         const std::string &mtx_filename)
       : _cur_num_nodes(0), _distance(std::move(dist)),
-        _num_threads(std::thread::hardware_concurrency()) {
+        _num_threads(1) {
     auto mtx_graph =
         flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
     _outdegree_table = std::move(mtx_graph.adjacency_list);

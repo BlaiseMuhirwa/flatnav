@@ -154,7 +154,7 @@ public:
     }
   }
 
-  DistancesLabelsPair searchParallel(
+  DistancesLabelsPair search(
       const py::array_t<float, py::array::c_style | py::array::forcecast>
           queries,
       int K, int ef_search, int num_initializations = 100) {
@@ -167,70 +167,38 @@ public:
     }
 
     auto num_threads = _index->getNumThreads();
+    label_t *results = new label_t[num_queries * K];
+    float *distances = new float[num_queries * K];
 
     // No need to spawn any threads if we are in a single-threaded environment
     if (num_threads == 1) {
-      return search(/* queries = */ queries, /* K = */ K,
-                    /* ef_search = */ ef_search,
-                    /* num_initializations = */ num_initializations);
-    }
+      for (size_t query_index = 0; query_index < num_queries; query_index++) {
+        std::vector<std::pair<float, label_t>> top_k = this->_index->search(
+            /* query = */ (const void *)queries.data(query_index), /* K = */ K,
+            /* ef_search = */ ef_search,
+            /* num_initializations = */ num_initializations);
 
-    label_t *results = new label_t[num_queries * K];
-    float *distances = new float[num_queries * K];
-
-    flatnav::executeInParallel(
-        /* start_index = */ 0, /* end_index = */ num_queries,
-        /* num_threads = */ num_threads,
-        /* function = */ [&](uint32_t row_index) {
-          auto *query = (const void *)queries.data(row_index);
-          std::vector<std::pair<float, label_t>> top_k = this->_index->search(
-              /* query = */ query, /* K = */ K, /* ef_search = */ ef_search,
-              /* num_initializations = */ num_initializations);
-
-          for (uint32_t result_id = 0; result_id < K; result_id++) {
-            distances[(row_index * K) + result_id] = top_k[result_id].first;
-            results[(row_index * K) + result_id] = top_k[result_id].second;
-          }
-        });
-    // Allows to transfer ownership to Python
-    py::capsule free_results_when_done(
-        results, [](void *ptr) { delete (label_t *)ptr; });
-    py::capsule free_distances_when_done(
-        distances, [](void *ptr) { delete (float *)ptr; });
-
-    py::array_t<label_t> labels =
-        py::array_t<label_t>({num_queries, (size_t)K}, // shape of the array
-                             {K * sizeof(label_t), sizeof(label_t)}, // strides
-                             results,               // data pointer
-                             free_results_when_done // capsule
-        );
-
-    py::array_t<float> dists = py::array_t<float>(
-        {num_queries, (size_t)K}, {K * sizeof(float), sizeof(float)}, distances,
-        free_distances_when_done);
-
-    return {dists, labels};
-  }
-
-  DistancesLabelsPair
-  search(const py::array_t<float, py::array::c_style | py::array::forcecast>
-             queries,
-         int K, int ef_search, int num_initializations = 100) {
-    size_t num_queries = queries.shape(0);
-    size_t queries_dim = queries.shape(1);
-    label_t *results = new label_t[num_queries * K];
-    float *distances = new float[num_queries * K];
-
-    for (size_t query_index = 0; query_index < num_queries; query_index++) {
-      std::vector<std::pair<float, label_t>> top_k = this->_index->search(
-          /* query = */ (const void *)queries.data(query_index), /* K = */ K,
-          /* ef_search = */ ef_search,
-          /* num_initializations = */ num_initializations);
-
-      for (size_t i = 0; i < top_k.size(); i++) {
-        distances[query_index * K + i] = top_k[i].first;
-        results[query_index * K + i] = top_k[i].second;
+        for (size_t i = 0; i < top_k.size(); i++) {
+          distances[query_index * K + i] = top_k[i].first;
+          results[query_index * K + i] = top_k[i].second;
+        }
       }
+    } else {
+      // Parallelize the search
+      flatnav::executeInParallel(
+          /* start_index = */ 0, /* end_index = */ num_queries,
+          /* num_threads = */ num_threads,
+          /* function = */ [&](uint32_t row_index) {
+            auto *query = (const void *)queries.data(row_index);
+            std::vector<std::pair<float, label_t>> top_k = this->_index->search(
+                /* query = */ query, /* K = */ K, /* ef_search = */ ef_search,
+                /* num_initializations = */ num_initializations);
+
+            for (uint32_t result_id = 0; result_id < K; result_id++) {
+              distances[(row_index * K) + result_id] = top_k[result_id].first;
+              results[(row_index * K) + result_id] = top_k[result_id].second;
+            }
+          });
     }
 
     // Allows to transfer ownership to Python
@@ -252,7 +220,6 @@ public:
 
     return {dists, labels};
   }
-};
 
 using L2FlatNavIndex = PyIndex<SquaredL2Distance, int>;
 using InnerProductFlatNavIndex = PyIndex<InnerProductDistance, int>;
@@ -278,12 +245,6 @@ void bindIndexMethods(
            "many "
            "vertices are visited while inserting every vector in the "
            "underlying graph structure.")
-      .def("searchParallel", &IndexType::searchParallel, py::arg("queries"),
-           py::arg("K"), py::arg("ef_search"),
-           py::arg("num_initializations") = 100,
-           "Perform KNN search in "
-           "parallel for the given "
-           "queries.")
       .def("allocate_nodes", &IndexType::allocateNodes, py::arg("data"),
            "Allocate nodes in the underlying graph structure for the given "
            "data. Unlike the add method, this method does not construct the "
@@ -319,27 +280,34 @@ void bindIndexMethods(
       .def(
           "reorder",
           [](IndexType &index_type,
-             const std::vector<std::string> &algorithms) {
+             const std::vector<std::string> &strategies) {
             auto index = index_type.getIndex();
-            for (auto &algorithm : algorithms) {
-              auto alg = algorithm;
+            // validate the given strategies
+            for (auto& strategy: strategies) {
+              auto alg = strategy;
+              std::transform(alg.begin(), alg.end(), alg.begin(),
+                             [](unsigned char c) { return std::tolower(c); });
+              if (alg != "gorder" && alg != "rcm") {
+                throw std::invalid_argument(
+                    "`" + strategy +
+                    "` is not a supported graph re-ordering strategy.");
+              }
+            }
+            for (auto &strategy : strategies) {
+              auto alg = strategy;
               std::transform(alg.begin(), alg.end(), alg.begin(),
                              [](unsigned char c) { return std::tolower(c); });
               if (alg == "gorder") {
                 index->reorderGOrder();
               } else if (alg == "rcm") {
                 index->reorderRCM();
-              } else {
-                throw std::invalid_argument(
-                    "`" + algorithm +
-                    "` is not a supported graph re-ordering algorithm.");
-              }
+              } 
             }
           },
-          py::arg("algorithms"),
+          py::arg("strategy"),
           "Perform graph re-ordering based on the given sequence of "
           "re-ordering strategies. "
-          "Supported re-ordering algorithms include `gorder` and `rcm`.")
+          "Supported re-ordering strategies include `gorder` and `rcm`.")
       .def_property(
           "num_threads",
           [](IndexType &index_type) -> uint32_t {

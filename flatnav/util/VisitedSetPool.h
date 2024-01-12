@@ -26,7 +26,7 @@ public:
 
   inline void prefetch(const uint32_t num) const {
 #ifdef USE_SSE
-    _mm_prefetch(static_cast<char>(_table[num]), _MM_HINT_T0);
+    _mm_prefetch(static_cast<const char*>(&_table[num]), _MM_HINT_T0);
 #endif
   }
 

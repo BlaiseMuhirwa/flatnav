@@ -1,8 +1,5 @@
 import math
 import time
-import flatnav
-from flatnav.index import index_factory
-from flatnav.index import L2Index
 from .test_utils import generate_random_data, compute_recall, create_index
 import os
 import numpy as np
@@ -28,8 +25,9 @@ def test_parallel_insertions_yield_similar_recall():
 
     assert index.max_edges_per_node == 16
 
-    # This is not necessary. By default, FlatNav will use all available cores
     index.num_threads = os.cpu_count()
+
+    print(f"Using {index.num_threads} threads for parallel index construction.")
 
     start = time.time()
     index.add(data=training_set, ef_construction=100)
@@ -38,13 +36,14 @@ def test_parallel_insertions_yield_similar_recall():
     parallel_construction_time = end - start
     print(
         f"\nIndex construction time (parallel): = {parallel_construction_time} seconds."
-        f"Num-threads = {index.num_threads}"
+        f" Num-threads = {index.num_threads}"
     )
 
     recall_with_parallel_construction = compute_recall(
         index=index, queries=queries, ground_truth=ground_truth, ef_search=100
     )
 
+    # This is not necessary since by default FlatNav uses a single thread.
     single_threaded_index.num_threads = 1
 
     start = time.time()
