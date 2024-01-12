@@ -19,7 +19,7 @@ sift-bench:
 		--ef-construction 100 200 \
 		--ef-search 100 200 300 \
 		--metric l2 \
-		--num-build-threads max \
+		--num-build-threads 16 \
 		--num-search-threads 1 \
 		--reordering-strategies gorder rcm 
 
