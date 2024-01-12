@@ -6,7 +6,7 @@ env:
   POETRY_VERSION: "1.6.1"
 
 jobs:
-  build-and-test:
+  test-python-library:
     strategy:
       # Ensure that failure for one test does not cancel other actions
       fail-fast: false
