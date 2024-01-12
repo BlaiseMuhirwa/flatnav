@@ -9,13 +9,14 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <omp.h>
+#include <numeric>
 #include <optional>
 #include <quantization/ProductQuantization.h>
 #include <random>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <thread>
 #include <vector>
 
 using flatnav::DistanceInterface;
@@ -34,16 +35,14 @@ void buildIndex(float *data,
       /* dist = */ std::move(distance), /* dataset_size = */ N,
       /* max_edges = */ M);
 
+  index->setNumThreads(std::thread::hardware_concurrency());
+
   auto start = std::chrono::high_resolution_clock::now();
 
-  for (int label = 0; label < N; label++) {
-    float *element = data + (dim * label);
-    index->add(/* data = */ (void *)element, /* label = */ label,
-               /* ef_construction */ ef_construction);
-    if (label % 10000 == 0)
-      std::clog << "." << std::flush;
-  }
-  std::clog << std::endl;
+  std::vector<int> labels(N);
+  std::iota(labels.begin(), labels.end(), 0);
+  index->addBatch(/* data = */ (void *)data, /* labels = */ labels,
+                  /* ef_construction */ ef_construction);
 
   auto stop = std::chrono::high_resolution_clock ::now();
   auto duration =

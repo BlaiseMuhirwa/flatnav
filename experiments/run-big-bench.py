@@ -114,6 +114,7 @@ def load_benchmark_dataset(
 
     return train_dataset, queries_dataset, gtruth_dataset
 
+
 def compute_metrics(
     index: Union[flatnav.index.L2Index, flatnav.index.IPIndex],
     queries: np.ndarray,
@@ -138,7 +139,7 @@ def compute_metrics(
     start = time.time()
     _, top_k_indices = index.search(queries=queries, ef_search=ef_search, K=k)
     end = time.time()
-    
+
     querying_time = end - start
     qps = len(queries) / querying_time
 
@@ -166,6 +167,7 @@ def train_flatnav_index(
     ef_construction: int,
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
+    num_build_threads: int = 1,
 ) -> Union[flatnav.index.L2Index, flatnav.index.IPIndex]:
     if use_hnsw_base_layer:
         if not hnsw_base_layer_filename:
@@ -208,12 +210,11 @@ def train_flatnav_index(
             max_edges_per_node=max_edges_per_node,
             verbose=True,
         )
+        index.num_threads = num_build_threads
 
         # Train the index.
         start = time.time()
-        index.add(
-            data=train_dataset, ef_construction=ef_construction
-        )
+        index.add(data=train_dataset, ef_construction=ef_construction)
         end = time.time()
 
         logging.info(f"Indexing time = {end - start} seconds")
@@ -231,6 +232,9 @@ def main(
     distance_type: str,
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
+    reordering_strategies: List[str] | None = None,
+    num_build_threads: int = 1,
+    num_search_threads: int = 1,
 ):
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
@@ -247,7 +251,14 @@ def main(
                     distance_type=distance_type,
                     use_hnsw_base_layer=use_hnsw_base_layer,
                     hnsw_base_layer_filename=hnsw_base_layer_filename,
+                    num_build_threads=num_build_threads,
                 )
+
+                if reordering_strategies is not None:
+                    index.reorder(strategies=reordering_strategies)
+                    
+                if num_search_threads > 1:
+                    index.num_threads = num_search_threads
 
                 recall, qps = compute_metrics(
                     index=index,
@@ -325,6 +336,31 @@ def parse_arguments() -> argparse.Namespace:
         default="l2",
         help="Distance tye. Options include `l2` and `angular`.",
     )
+
+    parser.add_argument(
+        "--reordering-strategies",
+        required=False,
+        nargs="+",
+        type=str,
+        default=None,
+        help="A sequence of graph re-ordering strategies(only applies to FlatNav index)."
+                "Options include `gorder` and `rcm`.",
+    )
+
+    parser.add_argument(
+        "--num-build-threads",
+        required=False,
+        default=1,
+        help="Number of threads to use during index construction.",
+    )
+
+    parser.add_argument(
+        "--num-search-threads",
+        required=False,
+        default=1,
+        help="Number of threads to use during search.",
+    )
+
     parser.add_argument(
         "--log_metrics", required=False, default=False, help="Log metrics to DVC."
     )
@@ -352,4 +388,6 @@ if __name__ == "__main__":
         distance_type=args.metric.lower(),
         use_hnsw_base_layer=args.use_hnsw_base_layer,
         hnsw_base_layer_filename=args.hnsw_base_layer_filename,
+        reordering_strategies=args.reordering_strategies,
+        
     )

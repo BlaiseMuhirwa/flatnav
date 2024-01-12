@@ -59,6 +59,9 @@ echo "Building docker image with tag name: $TAG_NAME"
 # Make sure the data/ directory exists
 mkdir -p data
 
+# Clean up existing docker images matching "flatnav" if any 
+docker rmi -f $(docker images --filter=reference="flatnav" -q) &> /dev/null || true
+
 docker build --tag flatnav:$TAG_NAME -f Dockerfile .
 
 # Check if the first argument is set. If it is, then run docker container with the 

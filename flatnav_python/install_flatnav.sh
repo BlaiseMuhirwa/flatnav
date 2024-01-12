@@ -11,9 +11,6 @@ rm -rf build dist *.egg-info
 
 poetry lock && poetry install --no-root
 
-# Activate the poetry environment 
-POETRY_ENV=$(poetry env info --path)
-
 # Generate wheel file
 poetry run python setup.py bdist_wheel
 

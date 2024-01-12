@@ -19,14 +19,10 @@ void serializeIndex(
           /* max_edges = */ M);
 
   float *element = new float[dim];
-  for (int label = 0; label < N; label++) {
-    float *element = data + (dim * label);
-    index->add(/* data = */ (void *)element, /* label = */ label,
-               /* ef_construction = */ ef_construction);
-    if (label % 100000 == 0) {
-      std::clog << "." << std::flush;
-    }
-  }
+  std::vector<int> labels(N);
+  std::iota(labels.begin(), labels.end(), 0);
+
+  index->addBatch(data, labels, ef_construction);
 
   std::clog << "\nSaving index to " << save_file << std::endl;
   index->saveIndex(/* filename = */ save_file);

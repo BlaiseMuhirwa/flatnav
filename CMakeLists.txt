@@ -18,13 +18,8 @@ include_directories(${CMAKE_SOURCE_DIR}/external/cereal/include/)
 # namespaces (c++17)
 set(CMAKE_CXX_STANDARD 17)
 
-# I added compiler flags for ASan (address sanitizer). It is supposed to be very
-# fast, but if we find it slow, we can remove it for good or use compiler
-# directives to skip analyzing functions __attribute__((no_sanitize_address))
-# https://clang.llvm.org/docs/AddressSanitizer.html Compiler flags
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} \
-    -std=c++17 \
     -Ofast \
     -DHAVE_CXX0X \
     -DNDEBUG \
@@ -32,14 +27,87 @@ set(CMAKE_CXX_FLAGS
     -fpic \
     -w \
     -ffast-math \
-    -funroll-loops \
-    -mavx \
-    -mavx512f")
+    -funroll-loops")
+
+# Code adapted from PyTorch:
+# https://github.com/pytorch/pytorch/blob/main/cmake/Modules/FindAVX.cmake
+include(CheckCXXSourceRuns)
+set(AVX_CODE
+    "
+      #include <immintrin.h>
+      int main() {
+        __m256 a;
+        a = _mm256_set1_ps(0);
+        return 0;
+      }
+    ")
+
+set(AVX512_CODE
+    "
+    #include <immintrin.h>
+    int main() {
+      __m512 a = _mm512_set_epi8(0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0,
+                                  0, 0, 0, 0, 0, 0, 0, 0);
+      __m512i b = a;
+      __mmask64 equality_mask = _mm512_cmp_epi8_mask(a, b, _MM_CMPINT_EQ);
+      return 0;
+      )
+    }
+    ")
+
+include(CheckCXXCompilerFlag)
+
+# Function to check compiler support and hardware capability for a given flag
+function(check_compiler_and_hardware_support FLAG CODE_VAR EXTENSION_NAME)
+  check_cxx_compiler_flag(${FLAG} COMPILER_SUPPORTS_${EXTENSION_NAME})
+  if(COMPILER_SUPPORTS_${EXTENSION_NAME})
+    set(CMAKE_REQUIRED_FLAGS_SAVE ${CMAKE_REQUIRED_FLAGS})
+    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${FLAG}")
+
+    check_cxx_source_runs("${${CODE_VAR}}"
+                          SYSTEM_SUPPORTS_${EXTENSION_NAME}_EXTENSIONS)
+    set(CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS_SAVE})
+
+    if(SYSTEM_SUPPORTS_${EXTENSION_NAME}_EXTENSIONS)
+      set(CMAKE_CXX_FLAGS
+          "${CMAKE_CXX_FLAGS} ${FLAG}"
+          PARENT_SCOPE)
+      message(STATUS "Building with ${EXTENSION_NAME}")
+    else()
+      message(
+        STATUS "Compiler supports ${FLAG} flag but the target machine does not "
+               "support ${EXTENSION_NAME} instructions")
+    endif()
+  endif()
+endfunction()
+
+# Build SSE/AVX/AVX512 code only on x86-64 processors.
+if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "(x86_64)|(AMD64|amd64)|(^i.86$)")
+  check_compiler_and_hardware_support("-mavx512f" "AVX512_CODE" "AVX512")
+  check_compiler_and_hardware_support("-mavx" "AVX_CODE" "AVX")
+
+  check_cxx_compiler_flag("-msse" CXX_SSE)
+  if(CXX_SSE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse")
+    message(STATUS "Building with SSE")
+  endif()
+endif()
 
 option(CMAKE_BUILD_TYPE "Build type" Release)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   # Add debug compile flags
   message(STATUS "Building in Debug mode")
+  # For more on address sanitizer:
+  # https://clang.llvm.org/docs/AddressSanitizer.html ASan is supposed to be
+  # very fast, but if we find it slow, we can remove it or use compiler
+  # directives to skip analyzing functions: __attribute__((no_sanitize_address))
+  # add_compile_options(-g -Wall -fsanitize=address)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fsanitize=address")
 endif()
 
@@ -124,28 +192,6 @@ else()
   )
 endif(OpenMP_FOUND)
 
-# find_package(OpenMP) if(NOT OpenMP_FOUND) message("OpenMP Not Found. Building
-# the Package using LLVM's OpenMP.") set(LLVM_OPENMP_VERSION "16.0.0")
-# set(LLVM_OPENMP_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/openmp")
-
-# if(NOT EXISTS ${LLVM_OPENMP_SOURCE_DIR}) message("Downloading
-# openmp-${LLVM_OPENMP_VERSION} into ${LLVM_OPENMP_SOURCE_DIR}")
-# set(LLVM_OPENMP_DOWNLOAD_URL
-# "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_OPENMP_VERSION}/openmp-${LLVM_OPENMP_VERSION}.src.tar.xz")
-
-# file( DOWNLOAD ${LLVM_OPENMP_DOWNLOAD_URL}
-# "${CMAKE_CURRENT_BINARY_DIR}/openmp-${LLVM_OPENMP_VERSION}.tar.bz2" )
-# file(ARCHIVE_EXTRACT INPUT
-# "${CMAKE_CURRENT_BINARY_DIR}/openmp-${LLVM_OPENMP_VERSION}.tar.bz2"
-# DESTINATION ${CMAKE_CURRENT_BINARY_DIR} ) file(RENAME
-# "${CMAKE_CURRENT_BINARY_DIR}/openmp-${LLVM_OPENMP_VERSION}.src"
-# "${LLVM_OPENMP_SOURCE_DIR}" ) endif() set(OPENMP_STANDALONE_BUILD ON)
-# add_subdirectory(${LLVM_OPENMP_SOURCE_DIR} EXCLUDE_FROM_ALL)
-# add_library(OpenMP::OpenMP_CXX ALIAS omp)
-
-# else() message(STATUS "OpenMP Found. Building the Package using the system
-# OpenMP.") endif(NOT OpenMP_FOUND)
-
 option(BUILD_TESTS "Build all tests")
 option(BUIL_EXAMPLES "Build examples")
 option(BUILD_BENCHMARKS "Build ANNS benchmarks")
@@ -210,10 +256,11 @@ endif()
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/ExplicitSet.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/VisitedSetPool.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/SIMDDistanceSpecializations.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/ParallelConstructs.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/PreprocessorUtils.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h

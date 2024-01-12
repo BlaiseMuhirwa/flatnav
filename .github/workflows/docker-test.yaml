@@ -3,7 +3,7 @@ name: Docker Test
 on: [pull_request]
 
 jobs:
-  build-and-test:
+  build-docker-image:
     runs-on: ubuntu-latest
     strategy:
       matrix:

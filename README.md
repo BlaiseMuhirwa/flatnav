@@ -43,12 +43,16 @@ Available Options:
 Example Usage:
   ./build.sh -t -e -v
 ```
-
 To build the Python bindings, follow instructions [here](/flatnav_python/README.md). There are also examples for how to use the library to build an index and run queries on top of it [here](/flatnav_python/test_index.py).
 
+### Support for SIMD Extensions 
 
-1. `$ cd flatnav`
-2. `$ ./bin/build.sh `
+We currently support SIMD extensions for certain platforms as detailed below. 
+
+| Operation | x86_64 | arm64v8 | Apple silicone |
+|-----------|--------|---------|-----------------|
+| FP32 Inner product |SSE, AVX, AVX512 | No SIMD support | No SIMD support |
+| FP32 L2 distance |SSE, AVX, AVX512| No SIMD support | No SIMD support |
 
 
 ### Datasets from ANN-Benchmarks

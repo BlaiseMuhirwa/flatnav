@@ -1,4 +1,9 @@
 #include <algorithm>
+#include <flatnav/DistanceInterface.h>
+#include <flatnav/Index.h>
+#include <flatnav/distances/InnerProductDistance.h>
+#include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/util/ParallelConstructs.h>
 #include <iostream>
 #include <memory>
 #include <ostream>
@@ -6,13 +11,9 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
-
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/Index.h>
-#include <flatnav/distances/InnerProductDistance.h>
-#include <flatnav/distances/SquaredL2Distance.h>
 
 using flatnav::DistanceInterface;
 using flatnav::Index;
@@ -117,46 +118,47 @@ public:
           "(num_vectors, "
           "dim).");
     }
+
     if (labels.is_none()) {
-      for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
-        this->_index->add(/* data = */ (void *)data.data(vec_index),
-                          /* label = */ _label_id,
-                          /* ef_construction = */ ef_construction,
-                          /* num_initializations = */ num_initializations);
-        if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
-          std::clog << "." << std::flush;
-        }
-        _label_id++;
+      std::vector<label_t> vec_labels(num_vectors);
+      std::iota(vec_labels.begin(), vec_labels.end(), 0);
+
+      {
+        // Release python GIL while threads are running
+        py::gil_scoped_release gil;
+        this->_index->addBatch(
+            /* data = */ (void *)data.data(0),
+            /* labels = */ vec_labels,
+            /* ef_construction = */ ef_construction,
+            /* num_initializations = */ num_initializations);
       }
-      std::clog << std::endl;
       return;
     }
 
     // Use the provided labels now
-    py::array_t<label_t, py::array::c_style | py::array::forcecast> node_labels(
-        labels);
-    if (node_labels.ndim() != 1 || node_labels.shape(0) != num_vectors) {
-      throw std::invalid_argument("Labels have incorrect dimensions.");
-    }
-
-    for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
-      label_t _label_id = *node_labels.data(vec_index);
-      this->_index->add(/* data = */ (void *)data.data(vec_index),
-                        /* label = */ _label_id,
-                        /* ef_construction = */ ef_construction,
-                        /* num_initializations = */ num_initializations);
-
-      if (_verbose && vec_index % NUM_LOG_STEPS == 0) {
-        std::clog << "." << std::flush;
+    try {
+      auto vec_labels = py::cast<std::vector<label_t>>(labels);
+      if (vec_labels.size() != num_vectors) {
+        throw std::invalid_argument("Incorrect number of labels.");
       }
+      {
+        // Relase python GIL while threads are running
+        py::gil_scoped_release gil;
+        this->_index->addBatch(
+            /* data = */ (void *)data.data(0), /* labels = */ vec_labels,
+            /* ef_construction = */ ef_construction,
+            /* num_initializations = */ num_initializations);
+      }
+    } catch (const py::cast_error &error) {
+      throw std::invalid_argument("Invalid labels provided.");
     }
-    std::clog << std::endl;
   }
 
   DistancesLabelsPair
   search(const py::array_t<float, py::array::c_style | py::array::forcecast>
              queries,
          int K, int ef_search, int num_initializations = 100) {
+
     size_t num_queries = queries.shape(0);
     size_t queries_dim = queries.shape(1);
 
@@ -164,19 +166,39 @@ public:
       throw std::invalid_argument("Queries have incorrect dimensions.");
     }
 
+    auto num_threads = _index->getNumThreads();
     label_t *results = new label_t[num_queries * K];
     float *distances = new float[num_queries * K];
 
-    for (size_t query_index = 0; query_index < num_queries; query_index++) {
-      std::vector<std::pair<float, label_t>> top_k = this->_index->search(
-          /* query = */ (const void *)queries.data(query_index), /* K = */ K,
-          /* ef_search = */ ef_search,
-          /* num_initializations = */ num_initializations);
+    // No need to spawn any threads if we are in a single-threaded environment
+    if (num_threads == 1) {
+      for (size_t query_index = 0; query_index < num_queries; query_index++) {
+        std::vector<std::pair<float, label_t>> top_k = this->_index->search(
+            /* query = */ (const void *)queries.data(query_index), /* K = */ K,
+            /* ef_search = */ ef_search,
+            /* num_initializations = */ num_initializations);
 
-      for (size_t i = 0; i < top_k.size(); i++) {
-        distances[query_index * K + i] = top_k[i].first;
-        results[query_index * K + i] = top_k[i].second;
+        for (size_t i = 0; i < top_k.size(); i++) {
+          distances[query_index * K + i] = top_k[i].first;
+          results[query_index * K + i] = top_k[i].second;
+        }
       }
+    } else {
+      // Parallelize the search
+      flatnav::executeInParallel(
+          /* start_index = */ 0, /* end_index = */ num_queries,
+          /* num_threads = */ num_threads,
+          /* function = */ [&](uint32_t row_index) {
+            auto *query = (const void *)queries.data(row_index);
+            std::vector<std::pair<float, label_t>> top_k = this->_index->search(
+                /* query = */ query, /* K = */ K, /* ef_search = */ ef_search,
+                /* num_initializations = */ num_initializations);
+
+            for (uint32_t result_id = 0; result_id < K; result_id++) {
+              distances[(row_index * K) + result_id] = top_k[result_id].first;
+              results[(row_index * K) + result_id] = top_k[result_id].second;
+            }
+          });
     }
 
     // Allows to transfer ownership to Python
@@ -235,7 +257,8 @@ void bindIndexMethods(
            py::arg("ef_search"), py::arg("num_initializations") = 100,
            "Return top `K` closest data points for every query in the "
            "provided `queries`. The results are returned as a Tuple of "
-           "distances and label ID's. The `ef_search` parameter determines how "
+           "distances and label ID's. The `ef_search` parameter determines "
+           "how "
            "many neighbors are visited while finding the closest neighbors "
            "for every query.")
       .def(
@@ -244,7 +267,8 @@ void bindIndexMethods(
             auto index = index_type.getIndex();
             return index->getGraphOutdegreeTable();
           },
-          "Returns the outdegree table (adjacency list) representation of the "
+          "Returns the outdegree table (adjacency list) representation of "
+          "the "
           "underlying graph.")
       .def(
           "build_graph_links",
@@ -254,34 +278,58 @@ void bindIndexMethods(
           },
           "Construct the edge connectivity of the underlying graph. This "
           "method "
-          "should be invoked after allocating nodes using the `allocate_nodes` "
+          "should be invoked after allocating nodes using the "
+          "`allocate_nodes` "
           "method.")
       .def(
           "reorder",
-          [](IndexType &index_type, const std::string &algorithm) {
+          [](IndexType &index_type,
+             const std::vector<std::string> &strategies) {
             auto index = index_type.getIndex();
-            auto alg = algorithm;
-            std::transform(alg.begin(), alg.end(), alg.begin(),
-                           [](unsigned char c) { return std::tolower(c); });
-            if (alg == "gorder") {
-              index->reorderGOrder();
-            } else if (alg == "rcm") {
-              index->reorderRCM();
-            } else {
-              throw std::invalid_argument(
-                  "`" + algorithm +
-                  "` is not a supported graph re-ordering algorithm.");
+            // validate the given strategies
+            for (auto &strategy : strategies) {
+              auto alg = strategy;
+              std::transform(alg.begin(), alg.end(), alg.begin(),
+                             [](unsigned char c) { return std::tolower(c); });
+              if (alg != "gorder" && alg != "rcm") {
+                throw std::invalid_argument(
+                    "`" + strategy +
+                    "` is not a supported graph re-ordering strategy.");
+              }
+            }
+            for (auto &strategy : strategies) {
+              auto alg = strategy;
+              std::transform(alg.begin(), alg.end(), alg.begin(),
+                             [](unsigned char c) { return std::tolower(c); });
+              if (alg == "gorder") {
+                index->reorderGOrder();
+              } else if (alg == "rcm") {
+                index->reorderRCM();
+              }
             }
           },
-          py::arg("algorithm"),
-          "Perform graph re-ordering based on the given re-ordering strategy. "
-          "Supported re-ordering algorithms include `gorder` and `rcm`.")
+          py::arg("strategy"),
+          "Perform graph re-ordering based on the given sequence of "
+          "re-ordering strategies. "
+          "Supported re-ordering strategies include `gorder` and `rcm`.")
+      .def_property(
+          "num_threads",
+          [](IndexType &index_type) -> uint32_t {
+            return index_type.getIndex()->getNumThreads();
+          },
+          [](IndexType &index_type, uint32_t num_threads) {
+            index_type.getIndex()->setNumThreads(
+                /* num_threads = */ num_threads);
+          },
+          "Configure the desired number of threads. This is useful for "
+          "constructing the graph or performing KNN search in parallel.")
       .def_property_readonly(
           "max_edges_per_node",
           [](IndexType &index_type) {
             return index_type.getIndex()->maxEdgesPerNode();
           },
-          "Maximum number of edges(links) per node in the underlying NSW graph "
+          "Maximum number of edges(links) per node in the underlying NSW "
+          "graph "
           "data structure.");
 }
 
