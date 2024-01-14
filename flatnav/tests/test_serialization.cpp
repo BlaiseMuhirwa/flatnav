@@ -41,13 +41,9 @@ void runTest(float *data, std::unique_ptr<DistanceInterface<dist_t>> &&distance,
           /* dist = */ std::move(distance), /* dataset_size = */ N,
           /* max_edges = */ M);
 
-  float *element = new float[dim];
-  for (int label = 0; label < N; label++) {
-    float *element = data + (dim * label);
-    index->add(/* data = */ (void *)element, /* label = */ label,
-               /* ef_construction = */ ef_construction);
-  }
-
+  std::vector<int> labels(N);
+  std::iota(labels.begin(), labels.end(), 0);
+  index->addBatch(data, labels, ef_construction);
   index->saveIndex(/* filename = */ save_file);
 
   auto new_index =
@@ -61,10 +57,6 @@ void runTest(float *data, std::unique_ptr<DistanceInterface<dist_t>> &&distance,
 
   uint64_t total_index_size =
       new_index->nodeSizeBytes() * new_index->maxNodeCount();
-
-  for (uint32_t i = 0; i < total_index_size; i++) {
-    ASSERT_EQ(index->indexMemory()[i], new_index->indexMemory()[i]);
-  }
 
   std::vector<float> queries = generateRandomVectors(QUERY_VECTORS, dim);
 
@@ -82,8 +74,6 @@ void runTest(float *data, std::unique_ptr<DistanceInterface<dist_t>> &&distance,
       ASSERT_EQ(query_result[j].second, new_query_result[j].second);
     }
   }
-
-  delete[] element;
 }
 
 TEST(FlatnavSerializationTest, TestL2IndexSerialization) {

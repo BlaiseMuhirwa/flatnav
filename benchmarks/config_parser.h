@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <string>
 #include <string_view>
-#include <toml++/toml.h>
 #include <unordered_map>
 #include <vector>
 #include <yaml-cpp/yaml.h>

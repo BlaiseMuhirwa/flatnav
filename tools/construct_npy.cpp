@@ -15,8 +15,8 @@
 #include <random>
 #include <stdexcept>
 #include <string>
-#include <utility>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using flatnav::DistanceInterface;
