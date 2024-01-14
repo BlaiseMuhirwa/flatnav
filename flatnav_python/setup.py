@@ -47,9 +47,9 @@ EXTRA_COMPILE_ARGS = [
     "-w",  # Suppress all warnings (note: this overrides -Wall)
     "-ffast-math",  # Enable fast math optimizations
     "-funroll-loops",  # Unroll loops
+    "-msse",  # Enable SSE instructions
     "-mavx",  # Enable AVX instructions
     "-mavx512f",  # Enable AVX-512 instructions
-    # "-march=native",  # Enable architecture-specific optimizations
 ]
 
 if not platform_has_avx_support():

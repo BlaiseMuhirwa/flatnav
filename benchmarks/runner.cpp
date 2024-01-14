@@ -32,11 +32,9 @@ std::unordered_map<uint32_t, std::string> dataset_id_to_filepath;
 template <typename dist_t>
 void buildIndex(std::shared_ptr<Index<dist_t, int>> index, float *data, int N,
                 int M, int dim, int ef_construction) {
-  for (int label = 0; label < N; label++) {
-    float *element = data + (dim * label);
-    index->add(/* data = */ (void *)element, /* label = */ label,
-               /* ef_construction */ ef_construction);
-  }
+  std::vector<int> labels(N);
+  std::iota(labels.begin(), labels.end(), 0);
+  index->addBatch(data, labels, ef_construction);
 }
 
 template <typename dist_t> struct BenchmarkFixture : public benchmark::Fixture {
