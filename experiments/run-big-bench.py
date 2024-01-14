@@ -158,6 +158,7 @@ def compute_metrics(
 
     return recall, qps
 
+
 def train_flatnav_index(
     train_dataset: np.ndarray,
     distance_type: str,
@@ -208,9 +209,11 @@ def train_flatnav_index(
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
-            verbose=True,
+            verbose=False,
         )
         index.num_threads = num_build_threads
+
+        logging.info(f"Using {index.num_threads} threads for index construction.")
 
         # Train the index.
         start = time.time()
@@ -255,8 +258,15 @@ def main(
                 )
 
                 if reordering_strategies is not None:
+                    if type(index) not in (
+                        flatnav.index.L2Index,
+                        flatnav.index.IPIndex,
+                    ):
+                        raise ValueError(
+                            "Reordering strategies only apply to FlatNav index."
+                        )
                     index.reorder(strategies=reordering_strategies)
-                    
+
                 if num_search_threads > 1:
                     index.num_threads = num_search_threads
 
@@ -344,13 +354,14 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default=None,
         help="A sequence of graph re-ordering strategies(only applies to FlatNav index)."
-                "Options include `gorder` and `rcm`.",
+        "Options include `gorder` and `rcm`.",
     )
 
     parser.add_argument(
         "--num-build-threads",
         required=False,
         default=1,
+        type=int,
         help="Number of threads to use during index construction.",
     )
 
@@ -358,6 +369,7 @@ def parse_arguments() -> argparse.Namespace:
         "--num-search-threads",
         required=False,
         default=1,
+        type=int,
         help="Number of threads to use during search.",
     )
 
@@ -389,5 +401,6 @@ if __name__ == "__main__":
         use_hnsw_base_layer=args.use_hnsw_base_layer,
         hnsw_base_layer_filename=args.hnsw_base_layer_filename,
         reordering_strategies=args.reordering_strategies,
-        
+        num_build_threads=args.num_build_threads,
+        num_search_threads=args.num_search_threads,
     )

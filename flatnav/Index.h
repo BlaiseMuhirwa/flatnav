@@ -392,9 +392,10 @@ public:
   }
 
   inline void setNumThreads(uint32_t num_threads) {
-    if (!num_threads) {
-      _num_threads = std::thread::hardware_concurrency();
-      return;
+    if (num_threads == 0 || num_threads > std::thread::hardware_concurrency()) {
+      throw std::invalid_argument(
+          "Number of threads must be greater than 0 and less than or equal to "
+          "the number of hardware threads.");
     }
     _num_threads = num_threads;
   }
