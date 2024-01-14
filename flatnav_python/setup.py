@@ -47,7 +47,7 @@ EXTRA_COMPILE_ARGS = [
     "-w",  # Suppress all warnings (note: this overrides -Wall)
     "-ffast-math",  # Enable fast math optimizations
     "-funroll-loops",  # Unroll loops
-    "-sse",  # Enable SSE instructions
+    "-msse",  # Enable SSE instructions
     "-mavx",  # Enable AVX instructions
     "-mavx512f",  # Enable AVX-512 instructions
 ]
