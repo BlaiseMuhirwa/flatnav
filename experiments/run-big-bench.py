@@ -116,14 +116,14 @@ def load_benchmark_dataset(
 
 
 def compute_metrics(
-    index: Union[flatnav.index.L2Index, flatnav.index.IPIndex],
+    index: Union[flatnav.index.L2Index, flatnav.index.IPIndex, hnswlib.Index],
     queries: np.ndarray,
     ground_truth: np.ndarray,
     ef_search: int,
     k=100,
 ) -> Tuple[float, float]:
     """
-    Compute recall and QPS for given queries, ground truth, and a FlaNav index.
+    Compute recall and QPS for given queries, ground truth for the given index(FlatNav or HNSW).
 
     Args:
         - index: A FlatNav index to search.
@@ -136,9 +136,18 @@ def compute_metrics(
         QPS over all queries
 
     """
-    start = time.time()
-    _, top_k_indices = index.search(queries=queries, ef_search=ef_search, K=k)
-    end = time.time()
+    if type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex):
+        start = time.time()
+        _, top_k_indices = index.search(
+            queries=queries, ef_search=ef_search, K=k, num_initializations=300
+        )
+        end = time.time()
+    else:
+        index.set_ef(ef_search)
+        start = time.time()
+        # Search for HNSW return (ids, distances) instead of (distances, ids)
+        top_k_indices, _ = index.knn_query(data=queries, k=k)
+        end = time.time()
 
     querying_time = end - start
     qps = len(queries) / querying_time
@@ -159,34 +168,72 @@ def compute_metrics(
     return recall, qps
 
 
-def train_flatnav_index(
+def create_and_train_hnsw_index(
+    data: np.ndarray,
+    space: str,
+    dim: int,
+    dataset_size: int,
+    ef_construction: int,
+    max_edges_per_node: int,
+    num_threads,
+) -> hnswlib.Index:
+    hnsw_index = hnswlib.Index(space=space, dim=dim)
+    hnsw_index.init_index(
+        max_elements=dataset_size, ef_construction=ef_construction, M=max_edges_per_node
+    )
+    hnsw_index.set_num_threads(num_threads)
+
+    start = time.time()
+    hnsw_index.add_items(data=data, ids=np.arange(dataset_size))
+    end = time.time()
+    logging.info(f"Indexing time = {end - start} seconds")
+
+    return hnsw_index
+
+
+def train_index(
     train_dataset: np.ndarray,
     distance_type: str,
     dim: int,
     dataset_size: int,
     max_edges_per_node: int,
     ef_construction: int,
+    index_type: str = "flatnav",
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
     num_build_threads: int = 1,
-) -> Union[flatnav.index.L2Index, flatnav.index.IPIndex]:
+) -> Union[flatnav.index.L2Index, flatnav.index.IPIndex, hnswlib.Index]:
+    if index_type == "hnsw":
+        # We use "angular" instead of "ip", so here we are just converting.
+        _distance_type = distance_type if distance_type == "l2" else "ip"
+        # HNSWlib will have M * 2 edges in the base layer.
+        # So if we want to use M=32, we need to set M=16 here.
+        hnsw_index = create_and_train_hnsw_index(
+            data=train_dataset,
+            space=_distance_type,
+            dim=dim,
+            dataset_size=dataset_size,
+            ef_construction=ef_construction,
+            max_edges_per_node=max_edges_per_node // 2,
+            num_threads=num_build_threads,
+        )
+
+        return hnsw_index
+
     if use_hnsw_base_layer:
         if not hnsw_base_layer_filename:
             raise ValueError("Must provide a filename for the HNSW base layer graph.")
 
-        # build the HNSW index to use as the base layer
-        # We use "angular" instead of "ip", so here we are just converting.
         _distance_type = distance_type if distance_type == "l2" else "ip"
-        hnsw_index = hnswlib.Index(space=_distance_type, dim=dim)
-
-        # HNSWlib will have M * 2 edges in the base layer.
-        # So if we want to use M=32, we need to set M=16 here.
-        hnsw_index.init_index(
-            max_elements=dataset_size,
+        hnsw_index = create_and_train_hnsw_index(
+            data=train_dataset,
+            space=_distance_type,
+            dim=dim,
+            dataset_size=dataset_size,
             ef_construction=ef_construction,
-            M=max_edges_per_node // 2,
+            max_edges_per_node=max_edges_per_node // 2,
+            num_threads=num_build_threads,
         )
-        hnsw_index.add_items(data=train_dataset, ids=np.arange(dataset_size))
 
         # Now extract the base layer's graph and save it to a file.
         # This will be a Matrix Market file that we use to construct the Flatnav index.
@@ -211,13 +258,13 @@ def train_flatnav_index(
             max_edges_per_node=max_edges_per_node,
             verbose=False,
         )
-        index.num_threads = num_build_threads
-
-        logging.info(f"Using {index.num_threads} threads for index construction.")
+        index.set_num_threads(num_build_threads)
 
         # Train the index.
         start = time.time()
-        index.add(data=train_dataset, ef_construction=ef_construction)
+        index.add(
+            data=train_dataset, ef_construction=ef_construction, num_initializations=300
+        )
         end = time.time()
 
         logging.info(f"Indexing time = {end - start} seconds")
@@ -233,6 +280,7 @@ def main(
     ef_search_params: List[int],
     num_node_links: List[int],
     distance_type: str,
+    index_type: str = "flatnav",
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
     reordering_strategies: List[str] | None = None,
@@ -245,7 +293,8 @@ def main(
     for node_links in num_node_links:
         for ef_cons in ef_cons_params:
             for ef_search in ef_search_params:
-                index = train_flatnav_index(
+                index = train_index(
+                    index_type=index_type,
                     train_dataset=train_dataset,
                     max_edges_per_node=node_links,
                     ef_construction=ef_cons,
@@ -268,7 +317,7 @@ def main(
                     index.reorder(strategies=reordering_strategies)
 
                 if num_search_threads > 1:
-                    index.num_threads = num_search_threads
+                    index.set_num_threads(num_search_threads)
 
                 recall, qps = compute_metrics(
                     index=index,
@@ -286,6 +335,13 @@ def main(
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Benchmark Flatnav on Big ANN datasets."
+    )
+
+    parser.add_argument(
+        "--index-type",
+        required=False,
+        default="flatnav",
+        help="Type of index to benchmark. Options include `flatnav` and `hnsw`.",
     )
 
     parser.add_argument(
@@ -398,6 +454,7 @@ if __name__ == "__main__":
         ef_search_params=args.ef_search,
         num_node_links=args.num_node_links,
         distance_type=args.metric.lower(),
+        index_type=args.index_type.lower(),
         use_hnsw_base_layer=args.use_hnsw_base_layer,
         hnsw_base_layer_filename=args.hnsw_base_layer_filename,
         reordering_strategies=args.reordering_strategies,

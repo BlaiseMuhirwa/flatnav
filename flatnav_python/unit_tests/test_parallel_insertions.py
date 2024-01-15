@@ -25,7 +25,7 @@ def test_parallel_insertions_yield_similar_recall():
 
     assert index.max_edges_per_node == 16
 
-    index.num_threads = os.cpu_count()
+    index.set_num_threads(os.cpu_count())
 
     print(f"Using {index.num_threads} threads for parallel index construction.")
 
@@ -44,7 +44,7 @@ def test_parallel_insertions_yield_similar_recall():
     )
 
     # This is not necessary since by default FlatNav uses a single thread.
-    single_threaded_index.num_threads = 1
+    single_threaded_index.set_num_threads(1)
 
     start = time.time()
     single_threaded_index.add(data=training_set, ef_construction=100)
