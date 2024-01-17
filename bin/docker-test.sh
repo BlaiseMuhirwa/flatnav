@@ -1,5 +1,14 @@
 #!/bin/bash 
 
+# Use this script to build and run the docker container.
+# Optionally, you can set the environment variable INCLUDE_HNSWLIB to false to build
+# the docker image without hnswlib. This is useful for experiments that only require 
+# FlatNav. 
+# Example usage:
+# export INLCUDE_HNSWLIB=false
+# ./bin/docker-test.sh sift-bench 
+
+
 # Print commands and exit on errors
 set -ex 
 
@@ -54,6 +63,8 @@ function get_tag_name() {
 # Get the tag name
 TAG_NAME=$(get_tag_name)
 
+INCLUDE_HNSWLIB=${INCLUDE_HNSWLIB:-true}
+
 echo "Building docker image with tag name: $TAG_NAME"
 
 # Make sure the data/ directory exists
@@ -62,7 +73,8 @@ mkdir -p data
 # Clean up existing docker images matching "flatnav" if any 
 docker rmi -f $(docker images --filter=reference="flatnav" -q) &> /dev/null || true
 
-docker build --tag flatnav:$TAG_NAME -f Dockerfile .
+docker build --build-arg INCLUDE_HNSWLIB=$INCLUDE_HNSWLIB \
+             --tag flatnav:$TAG_NAME -f Dockerfile .
 
 # Check if the first argument is set. If it is, then run docker container with the 
 # first argument as the make target. If not, then run the container with the default

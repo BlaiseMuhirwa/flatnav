@@ -14,27 +14,21 @@ sift-bench:
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
-		--use-hnsw-base-layer \
-		--hnsw-base-layer-filename sift.mtx \
 		--num-node-links 32 \
 		--ef-construction 100 200 \
 		--ef-search 100 200 300 \
 		--metric l2 \
 		--num-build-threads 16 \
-		--num-search-threads 1 \
-		--reordering-strategies gorder rcm 
+		--num-search-threads 16 
 
-glove-bench:
-	poetry run python run-big-bench.py \
-		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
-		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
-		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
-		--use-hnsw-base-layer \
-		--hnsw-base-layer-filename glove.mtx \
-		--num-node-links 32 \
-		--ef-construction 100 200 \
-		--ef-search 100 200 300 \
-		--metric angular
+hubness-test:
+	poetry run python hubness.py \
+		--datasets mnist-784-euclidean cauchy-10-euclidean cauchy-256-euclidean cauchy-1024-euclidean sift-128-euclidean \
+		--k 100 \
+		--metric l2 \
+		--ef-construction 100 \
+		--ef-search 200 \
+		--num-node-links 32
 
 setup: install-flatnav install-hnswlib
 

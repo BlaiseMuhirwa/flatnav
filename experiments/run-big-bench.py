@@ -137,6 +137,7 @@ def compute_metrics(
 
     """
     if type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex):
+        print(f"searching with num-threads = {index.num_threads}")
         start = time.time()
         _, top_k_indices = index.search(
             queries=queries, ef_search=ef_search, K=k, num_initializations=300
