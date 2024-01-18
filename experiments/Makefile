@@ -8,6 +8,7 @@ yandex-deep-bench:
 		--gtruth /media/scratch/yandex-deep/ground_truth.10K.bin \
 		--metric l2 > logs.txt 2>&1
 
+# Other available options include: --index-type (hnsw, flatnav)
 sift-bench: 
 	poetry run python run-big-bench.py \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \

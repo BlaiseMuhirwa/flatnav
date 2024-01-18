@@ -312,22 +312,24 @@ void bindIndexMethods(
           "Perform graph re-ordering based on the given sequence of "
           "re-ordering strategies. "
           "Supported re-ordering strategies include `gorder` and `rcm`.")
-      .def_property(
-          "num_threads",
-          [](IndexType &index_type) -> uint32_t {
-            auto *index = index_type.getIndex();
-            return index->getNumThreads();
-          },
+      .def(
+          "set_num_threads",
           [](IndexType &index_type, uint32_t num_threads) {
-            if (num_threads == 0 ||
-                num_threads > std::thread::hardware_concurrency()) {
-              throw std::invalid_argument("Invalid number of threads.");
-            }
             auto *index = index_type.getIndex();
             index->setNumThreads(num_threads);
           },
-          "Configure the desired number of threads. This is useful for "
-          "constructing the graph or performing KNN search in parallel.")
+          py::arg("num_threads"),
+          "Set the number of threads to use for constructing the graph and/or "
+          "performing KNN search.")
+      .def_property_readonly(
+          "num_threads",
+          [](IndexType &index_type) {
+            auto *index = index_type.getIndex();
+            return index->getNumThreads();
+          },
+          "Returns the number of threads used for "
+          "constructing the graph and/or performing KNN "
+          "search.")
       .def_property_readonly(
           "max_edges_per_node",
           [](IndexType &index_type) {
