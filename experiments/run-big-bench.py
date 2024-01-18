@@ -136,8 +136,8 @@ def compute_metrics(
         QPS over all queries
 
     """
-    if type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex):
-        print(f"searching with num-threads = {index.num_threads}")
+    is_flatnav_index = type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex)
+    if is_flatnav_index:
         start = time.time()
         _, top_k_indices = index.search(
             queries=queries, ef_search=ef_search, K=k, num_initializations=300
@@ -340,7 +340,6 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument(
         "--index-type",
-        required=False,
         default="flatnav",
         help="Type of index to benchmark. Options include `flatnav` and `hnsw`.",
     )
@@ -352,14 +351,12 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--hnsw-base-layer-filename",
-        required=False,
         default=None,
         help="Filename to save the HNSW base layer graph to. Please use the .mtx extension for clarity.",
     )
 
     parser.add_argument(
         "--num-node-links",
-        required=False,
         nargs="+",
         type=int,
         default=[16, 32],
@@ -368,7 +365,6 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument(
         "--ef-construction",
-        required=False,
         nargs="+",
         type=int,
         default=[100, 200, 300, 400, 500],
@@ -377,7 +373,6 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument(
         "--ef-search",
-        required=False,
         nargs="+",
         type=int,
         default=[100, 200, 300, 400, 500, 1000, 2000, 3000, 4000],
