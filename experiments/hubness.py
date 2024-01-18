@@ -11,6 +11,7 @@ from sklearn.neighbors import NearestNeighbors
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+import plotly.express as px
 from utils import compute_metrics
 
 logging.basicConfig(level=logging.INFO)
@@ -271,7 +272,7 @@ def plot_metrics_seaborn(metrics: dict, k: int):
 
     sns.scatterplot(
         x="Skewness",
-        y=f"Recall@{k}",
+        y="Recall",
         hue="Algorithm",
         style="Algorithm",
         data=df,
@@ -282,21 +283,62 @@ def plot_metrics_seaborn(metrics: dict, k: int):
     # Annotate each point with dataset name
     for i in range(len(df)):
         ax.text(
-            df["Skewness"][i],
-            df["Recall"][i],
+            df["Skewness"][i] + 0.5,
+            df["Recall"][i] + 0.01,
             df["Dataset"][i],
             horizontalalignment="center",
-            size="medium",
+            size="small",
             color="black",
-            weight="semibold",
+            weight="normal",
         )
 
     sns.despine(trim=True, left=True)
-    ax.set_title(f"Comparison of Skewness and Recall@{k} between HNSW and FlatNav")
-    ax.legend(frameon=True)
+    ax.set_title(f"Recall vs Hubness score(skewness)")
+    ax.legend()
 
     # Save the figure
     plt.savefig("hubness_seaborn.png")
+
+
+def plot_metrics_plotly(metrics: dict, k: int):
+    df_hnsw = pd.DataFrame(
+        {
+            "Skewness": metrics["skewness_hnsw"],
+            "Recall": metrics["recall_hnsw"],
+            "Algorithm": "HNSW",
+            "Dataset": metrics["dataset_names"],
+        }
+    )
+    df_flatnav = pd.DataFrame(
+        {
+            "Skewness": metrics["skewness_flatnav"],
+            "Recall": metrics["recall_flatnav"],
+            "Algorithm": "FlatNav",
+            "Dataset": metrics["dataset_names"],
+        }
+    )
+    df = pd.concat([df_hnsw, df_flatnav], ignore_index=True)
+
+    # Create the scatter plot
+    fig = px.scatter(
+        df,
+        x="Skewness",
+        y="Recall",
+        color="Algorithm",
+        symbol="Algorithm",
+        size_max=15,
+        hover_name="Dataset",  # Shows dataset name on hover
+        title=f"Recall vs Hubness Score (Skewness of N_k)",
+    )
+    fig.update_layout(
+        legend_title_text="Algorithm",
+        xaxis_title="Skewness",
+        yaxis_title="Recall",
+        legend=dict(orientation="h", yanchor="bottom", y=0.01, xanchor="left", x=0.01),
+    )
+    fig.show()
+    fig.write_html("hubness.html")
+    fig.write_image("hubness.png")
 
 
 if __name__ == "__main__":
@@ -344,4 +386,5 @@ if __name__ == "__main__":
     with open("hubness.json", "w") as f:
         json.dump(metrics, f)
 
-    plot_metrics_seaborn(metrics=metrics, k=args.k)
+    # Plot the metrics using seaborn
+    plot_metrics_plotly(metrics=metrics, k=100)
