@@ -362,7 +362,7 @@ void bindIndexMethods(
 
 template <typename... Args>
 py::object createIndex(const std::string &distance_type, int dim,
-                       Args &&...args) {
+                       Args &&... args) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });
@@ -393,6 +393,8 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
       py::arg("max_edges_per_node"), py::arg("verbose") = false,
+      py::arg("use_random_initialization") = false,
+      py::arg("random_seed") = std::nullopt,
       "Creates a FlatNav index given the corresponding "
       "parameters. The `distance_type` argument determines the "
       "kind of index created (either L2Index or IPIndex)");
@@ -407,7 +409,8 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
                            use_random_initialization, random_seed);
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
-      py::arg("verbose") = false,
+      py::arg("verbose") = false, py::arg("use_random_initialization") = false,
+      py::arg("random_seed") = std::nullopt,
       "Creates a FlatNav index given the corresponding "
       "parameters. The `distance_type` argument determines the "
       "kind of index created (either L2Index or IPIndex). The "
