@@ -21,7 +21,9 @@
 #include <mutex>
 #include <optional>
 #include <queue>
+#include <random>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -62,6 +64,16 @@ template <typename dist_t, typename label_t> class Index {
   std::vector<std::mutex> _node_links_mutexes;
   std::optional<std::vector<std::vector<uint32_t>>> _outdegree_table;
 
+  // Tracking metrics for node access patterns. This unordered map is used to
+  // record how many times each node is visited during search. The key is the
+  // node id and the value is the number of times the node is visited.
+  std::unordered_map<uint32_t, uint32_t> _node_access_counts;
+
+  // Randomization parameters
+  bool _use_random_initialization = false;
+  std::mt19937 _generator;
+  std::uniform_int_distribution<> _distribution;
+
   template <typename Archive> void serialize(Archive &archive) {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
             _cur_num_nodes, *_distance);
@@ -82,23 +94,16 @@ public:
    * @param max_edges_per_node  The maximum number of links per node.
    */
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
-        int max_edges_per_node)
+        int max_edges_per_node, bool use_random_initialization = false,
+        std::optional<size_t> random_seed = std::nullopt)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
         _cur_num_nodes(0), _distance(dist), _num_threads(1),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
-        _node_links_mutexes(dataset_size) {
-
-    // Get the size in bytes of the _node_links_mutexes vector.
-    size_t mutexes_size_bytes = _node_links_mutexes.size() * sizeof(std::mutex);
-
-    _data_size_bytes = _distance->dataSize();
-    _node_size_bytes =
-        _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
-    size_t index_memory_size = _node_size_bytes * _max_node_count;
-
-    _index_memory = new char[index_memory_size];
+        _node_links_mutexes(dataset_size),
+        _use_random_initialization(use_random_initialization) {
+    setParameters(random_seed);
   }
 
   /**
@@ -113,8 +118,10 @@ public:
    */
 
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
-        const std::string &mtx_filename)
-      : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1) {
+        const std::string &mtx_filename, bool use_random_initialization = false,
+        std::optional<size_t> random_seed = std::nullopt)
+      : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1),
+        _use_random_initialization(use_random_initialization) {
     auto mtx_graph =
         flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
     _outdegree_table = std::move(mtx_graph.adjacency_list);
@@ -126,6 +133,18 @@ public:
         /* num_elements = */ _max_node_count);
 
     _node_links_mutexes = std::vector<std::mutex>(_max_node_count);
+    setParameters(random_seed);
+  }
+
+  void setParameters(std::optional<size_t> random_seed = std::nullopt) {
+    if (_use_random_initialization) {
+      if (!random_seed.has_value()) {
+        throw std::invalid_argument(
+            "Random seed must be provided if random initialization is used.");
+      }
+      _generator = std::mt19937(random_seed.value());
+      _distribution = std::uniform_int_distribution<>(0, _max_node_count - 1);
+    }
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
@@ -307,7 +326,12 @@ public:
   std::vector<dist_label_t> search(const void *query, const int K,
                                    int ef_search,
                                    int num_initializations = 100) {
-    node_id_t entry_node = initializeSearch(query, num_initializations);
+    node_id_t entry_node;
+    if (_use_random_initialization) {
+      entry_node = initializeSearchWithRandomness(query, num_initializations);
+    } else {
+      entry_node = initializeSearch(query, num_initializations);
+    }
     PriorityQueue neighbors = beamSearch(/* query = */ query,
                                          /* entry_node = */ entry_node,
                                          /* buffer_size = */ ef_search);
@@ -411,6 +435,11 @@ public:
 
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
+
+  // Return a reference to the node access counts
+  inline std::unordered_map<uint32_t, uint32_t> &getNodeAccessCounts() {
+    return _node_access_counts;
+  }
 
   void getIndexSummary() const {
     std::cout << "\nIndex Parameters\n" << std::flush;
@@ -530,6 +559,10 @@ private:
       }
 
       visited_set->insert(/* num = */ neighbor_node_id);
+
+      // Increment the counter in the visited map
+      _node_access_counts[neighbor_node_id]++;
+
       dist = _distance->distance(/* x = */ query,
                                  /* y = */ getNodeData(neighbor_node_id),
                                  /* asymmetric = */ true);
@@ -687,8 +720,7 @@ private:
    * @param num_initializations
    * @return node_id_t
    */
-  inline node_id_t initializeSearch(const void *query,
-                                    int num_initializations) {
+  node_id_t initializeSearch(const void *query, int num_initializations) {
     // select entry_node from a set of random entry point options
     if (num_initializations <= 0) {
       throw std::invalid_argument(
@@ -702,6 +734,31 @@ private:
     node_id_t entry_node = 0;
 
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
+      float dist =
+          _distance->distance(/* x = */ query, /* y = */ getNodeData(node),
+                              /* asymmetric = */ true);
+      if (dist < min_dist) {
+        min_dist = dist;
+        entry_node = node;
+      }
+    }
+    return entry_node;
+  }
+
+  // Use this during search to select a random entry point
+  node_id_t initializeSearchWithRandomness(const void *query,
+                                           int num_initializations) {
+    // select entry_node from a set of random entry point options
+    if (num_initializations <= 0) {
+      throw std::invalid_argument(
+          "num_initializations must be greater than 0.");
+    }
+
+    float min_dist = std::numeric_limits<float>::max();
+    node_id_t entry_node = 0;
+
+    for (int i = 0; i < num_initializations; i++) {
+      node_id_t node = _distribution(_generator);
       float dist =
           _distance->distance(/* x = */ query, /* y = */ getNodeData(node),
                               /* asymmetric = */ true);

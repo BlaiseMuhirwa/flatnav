@@ -17,6 +17,7 @@ matplotlib = "^3.8.2"
 seaborn = "^0.13.1"
 pandas = "^2.1.4"
 hnswlib = "^0.8.0"
+plotly = "^5.18.0"
 flatnav = {path = "../flatnav_python/dist/flatnav-0.0.1-cp310-cp310-linux_x86_64.whl"}
 
 [build-system]

@@ -8,6 +8,18 @@ yandex-deep-bench:
 		--gtruth /media/scratch/yandex-deep/ground_truth.10K.bin \
 		--metric l2 > logs.txt 2>&1
 
+glove-bench:
+	poetry run python run-big-bench.py \
+		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
+		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
+		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename glove.mtx \
+		--num-node-links 32 \
+		--ef-construction 100 200 \
+		--ef-search 100 200 300 \
+		--metric angular
+
 # Other available options include: --index-type (hnsw, flatnav)
 sift-bench: 
 	poetry run python run-big-bench.py \
@@ -23,9 +35,9 @@ sift-bench:
 
 hubness-test:
 	poetry run python hubness.py \
-		--datasets mnist-784-euclidean cauchy-10-euclidean cauchy-256-euclidean cauchy-1024-euclidean sift-128-euclidean \
+		--datasets normal-10-angular normal-256-angular normal-1024-angular normal-10-euclidean normal-256-euclidean normal-1024-euclidean \
 		--k 100 \
-		--metric l2 \
+		--metrics angular angular angular l2 l2 l2 \
 		--ef-construction 100 \
 		--ef-search 200 \
 		--num-node-links 32
