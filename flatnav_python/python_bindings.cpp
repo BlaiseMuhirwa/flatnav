@@ -6,6 +6,7 @@
 #include <flatnav/util/ParallelConstructs.h>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -36,9 +37,11 @@ public:
   typedef std::pair<py::array_t<float>, py::array_t<label_t>>
       DistancesLabelsPair;
 
+  // Initialize the index with a pre-constructed index and release the previous
+  // index object
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), _label_id(0), _verbose(false),
-        _index(index.get()) {
+        _index(index.release()) {
 
     if (_verbose) {
       _index->getIndexSummary();
@@ -46,12 +49,16 @@ public:
   }
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dataset_size,
-          int max_edges_per_node, bool verbose = false)
+          int max_edges_per_node, bool verbose = false,
+          bool use_random_initialization = false,
+          std::optional<size_t> random_seed = std::nullopt)
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
-            /* max_edges_per_node = */ max_edges_per_node)) {
+            /* max_edges_per_node = */ max_edges_per_node,
+            /* use_random_initialization = */ use_random_initialization,
+            /* random_seed = */ random_seed)) {
 
     if (_verbose) {
       _index->getIndexSummary();
@@ -59,10 +66,15 @@ public:
   }
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
-          const std::string &mtx_filename, bool verbose = false)
+          const std::string &mtx_filename, bool verbose = false,
+          bool use_random_initialization = false,
+          std::optional<size_t> random_seed = std::nullopt)
       : _label_id(0), _verbose(verbose),
-        _index(new Index<dist_t, label_t>(/* dist = */ std::move(distance),
-                                          /* mtx_filename = */ mtx_filename)) {
+        _index(new Index<dist_t, label_t>(
+            /* dist = */ std::move(distance),
+            /* mtx_filename = */ mtx_filename,
+            /* use_random_initialization = */ use_random_initialization,
+            /* random_seed = */ random_seed)) {
     _dim = _index->dataDimension();
   }
 
@@ -262,6 +274,14 @@ void bindIndexMethods(
            "many neighbors are visited while finding the closest neighbors "
            "for every query.")
       .def(
+          "get_node_access_counts",
+          [](IndexType &index_type) {
+            auto index = index_type.getIndex();
+            return index->getNodeAccessCounts();
+          },
+          "Returns a dictionary mapping node ID's to the number of times they "
+          "were accessed during the last search operation.")
+      .def(
           "get_graph_outdegree_table",
           [](IndexType &index_type) -> std::vector<std::vector<uint32_t>> {
             auto index = index_type.getIndex();
@@ -365,9 +385,11 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   index_submodule.def(
       "index_factory",
       [](const std::string &distance_type, int dim, int dataset_size,
-         int max_edges_per_node, bool verbose = false) {
+         int max_edges_per_node, bool verbose = false,
+         bool use_random_initialization = false,
+         std::optional<size_t> random_seed = std::nullopt) {
         return createIndex(distance_type, dim, dataset_size, max_edges_per_node,
-                           verbose);
+                           verbose, use_random_initialization, random_seed);
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
       py::arg("max_edges_per_node"), py::arg("verbose") = false,
@@ -378,8 +400,11 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   index_submodule.def(
       "index_factory",
       [](const std::string &distance_type, int dim,
-         const std::string &mtx_filename, bool verbose = false) {
-        return createIndex(distance_type, dim, mtx_filename, verbose);
+         const std::string &mtx_filename, bool verbose = false,
+         bool use_random_initialization = false,
+         std::optional<size_t> random_seed = std::nullopt) {
+        return createIndex(distance_type, dim, mtx_filename, verbose,
+                           use_random_initialization, random_seed);
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
       py::arg("verbose") = false,
