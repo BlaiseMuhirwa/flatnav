@@ -42,6 +42,13 @@ hubness-test:
 		--ef-search 200 \
 		--num-node-links 32
 
+generate-hubness-scores:
+	poetry run python generate-hubness-scores.py \
+		--base-path ../data \
+		--dataset-names normal-256-angular normal-256-euclidean \
+		--k 100 \
+		--save-file hubness-scores.json 
+
 setup: install-flatnav install-hnswlib
 
 # Install all dependencies including flatnav
