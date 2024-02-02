@@ -49,6 +49,27 @@ generate-hubness-scores:
 		--k 100 \
 		--save-file hubness-scores.json 
 
+# sift-128-euclidean glove-100-angular normal-10-angular normal-10-euclidean normal-256-angular normal-256-euclidean normal-1024-angular normal-1024-euclidean
+# l2 angular angular l2 angular l2 angular l2
+generate-distributions:
+	poetry run python generate-distributions.py \
+		--datasets mnist-784-euclidean \
+		--k 100 \
+		--metrics l2 \
+		--ef-construction 100 \
+		--ef-search 200 \
+		--num-node-links 32 \
+		--distribution-type node-access
+
+get-index-sizes:
+	poetry run python index-sizes.py \
+		--datasets sift-128-euclidean \
+		--metrics l2 \
+		--ef-construction 100 \
+		--num-node-links 32 \
+		--index-type hnsw
+
+
 setup: install-flatnav install-hnswlib
 
 # Install all dependencies including flatnav

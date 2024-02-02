@@ -16,6 +16,7 @@
 #include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <flatnav/util/VisitedSetPool.h>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -68,6 +69,17 @@ template <typename dist_t, typename label_t> class Index {
   // record how many times each node is visited during search. The key is the
   // node id and the value is the number of times the node is visited.
   std::unordered_map<uint32_t, uint32_t> _node_access_counts;
+  std::mutex _node_access_counts_guard;
+
+  // Tracking metrics for the edge length distribution. This unordered map is
+  // used to record the length of each edge in the graph. The key is the hash of
+  // the sum of the two node IDs and the value is the length of the edge
+  // connecting them.
+  std::unordered_map<size_t, float> _edge_length_distribution;
+
+  // Hasher for the node ID's. We add two node IDs and compute their hashes
+  // and use the hash as the key in the edge length distribution map.
+  std::hash<uint64_t> _hasher;
 
   // Randomization parameters
   bool _use_random_initialization = false;
@@ -188,6 +200,36 @@ public:
       }
     }
     return outdegree_table;
+  }
+
+  void computeEdgeLengthDistribution() {
+    // #pragma omp parallel for default(none)                                         \
+//     shared(_edge_length_distribution, _cur_num_nodes, _M, _hasher, _distance)
+    for (node_id_t node = 0; node < _cur_num_nodes; node++) {
+      node_id_t *links = getNodeLinks(node);
+      for (size_t i = 0; i < _M; i++) {
+        if (links[i] == node) {
+          continue;
+        }
+        size_t hash = _hasher(node + links[i]);
+
+        // #pragma omp critical {
+        bool item_exists = _edge_length_distribution.find(hash) !=
+                           _edge_length_distribution.end();
+        if (item_exists) {
+          continue;
+        }
+        // }
+
+        // compute the distance between the two nodes
+        float distance = _distance->distance(/* x = */ getNodeData(node),
+                                             /* y = */ getNodeData(links[i]));
+
+        // #pragma omp critical
+        _edge_length_distribution[hash] = distance;
+        // }
+      }
+    }
   }
 
   /**
@@ -441,6 +483,10 @@ public:
     return _node_access_counts;
   }
 
+  inline std::unordered_map<size_t, float> &getEdgeLengthDistribution() {
+    return _edge_length_distribution;
+  }
+
   void getIndexSummary() const {
     std::cout << "\nIndex Parameters\n" << std::flush;
     std::cout << "-----------------------------\n" << std::flush;
@@ -560,8 +606,10 @@ private:
 
       visited_set->insert(/* num = */ neighbor_node_id);
 
+      _node_access_counts_guard.lock();
       // Increment the counter in the visited map
       _node_access_counts[neighbor_node_id]++;
+      _node_access_counts_guard.unlock();
 
       dist = _distance->distance(/* x = */ query,
                                  /* y = */ getNodeData(neighbor_node_id),
@@ -825,6 +873,6 @@ private:
     delete[] temp_links;
     delete temp_label;
   }
-};
+}; // namespace flatnav
 
 } // namespace flatnav

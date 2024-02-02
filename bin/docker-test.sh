@@ -90,4 +90,6 @@ fi
 
 # Run the container and mount the data/ directory as volume to /root/data
 # Pass the make target as argument to the container. 
-docker run -it --volume $(pwd)/data:/root/data --rm flatnav:$TAG_NAME make $1
+ARG1=$1
+docker run -it --volume $(pwd)/data:/root/data flatnav:$TAG_NAME /bin/bash \
+                -c "make ${ARG1}; tail -f /dev/null"

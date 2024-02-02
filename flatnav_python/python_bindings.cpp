@@ -282,6 +282,14 @@ void bindIndexMethods(
           "Returns a dictionary mapping node ID's to the number of times they "
           "were accessed during the last search operation.")
       .def(
+          "get_edge_length_distribution",
+          [](IndexType &index_type) {
+            auto index = index_type.getIndex();
+            index->computeEdgeLengthDistribution();
+            return index->getEdgeLengthDistribution();
+          },
+          "")
+      .def(
           "get_graph_outdegree_table",
           [](IndexType &index_type) -> std::vector<std::vector<uint32_t>> {
             auto index = index_type.getIndex();
