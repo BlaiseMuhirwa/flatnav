@@ -64,6 +64,8 @@ function get_tag_name() {
 TAG_NAME=$(get_tag_name)
 
 INCLUDE_HNSWLIB=${INCLUDE_HNSWLIB:-true}
+DATA_DIR=${DATA_DIR:-$(pwd)/data}
+
 
 echo "Building docker image with tag name: $TAG_NAME"
 
@@ -83,11 +85,13 @@ if [ -z "$1" ]
 then
     # This will build the image and run the container with the default make target
     # (i.e., print help message)
-    docker run -it --volume $(pwd)/data:/root/data --rm flatnav:$TAG_NAME make help
+    docker run -it --volume ${DATA_DIR}:/root/data --rm flatnav:$TAG_NAME make help
     exit 0
 fi
 
 
 # Run the container and mount the data/ directory as volume to /root/data
 # Pass the make target as argument to the container. 
-docker run -it --volume $(pwd)/data:/root/data --rm flatnav:$TAG_NAME make $1
+ARG1=$1
+docker run -it --volume ${DATA_DIR}:/root/data flatnav:$TAG_NAME /bin/bash \
+                -c "make ${ARG1}; tail -f /dev/null"

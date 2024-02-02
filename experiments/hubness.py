@@ -3,7 +3,7 @@ import flatnav.index
 import numpy as np
 import argparse
 import os
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional
 import logging
 import hnswlib
 import time
@@ -14,118 +14,14 @@ import seaborn as sns
 import plotly.express as px
 from utils import compute_metrics
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 # ROOT_DATASET_PATH = "/root/data/"
 ROOT_DATASET_PATH = os.path.join(os.getcwd(), "..", "data")
 
-DATASET_NAMES = {
-    "mnist-784-euclidean": "mnist",
-    "sift-128-euclidean": "sift",
-    "cauchy-10-euclidean": "cauchy10",
-    "cauchy-256-euclidean": "cauchy256",
-    "cauchy-1024-euclidean": "cauchy1024",
-}
 
-
-def generate_cauchy_dataset(
-    num_samples: int,
-    num_dimensions: int,
-    num_queries: int,
-    k: int,
-    base_path: str,
-    metric: str = "minkowski",
-    p: int = 2,
-):
-    """
-    Generates a dataset with the specified number of samples and dimensions using
-    the Cauchy distribution.
-    Separates a subset for queries and computes their true k nearest neighbors.
-
-    :param num_samples: Number of samples in the dataset.
-    :param num_dimensions: Number of dimensions for each sample.
-    :param num_queries: Number of queries to be separated from the dataset.
-    :param k: The number of nearest neighbors to find.
-    :param base_path: Base path to save the dataset, queries, and ground truth labels.
-    :param metric: Metric to use for computing nearest neighbors.
-    :param p: Parameter for the metric.
-
-    NOTE: metric="minkowski" and p=2 is equivalent to Euclidean distance.
-    See: https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.NearestNeighbors.html
-    """
-    # Generate the dataset
-    dataset = np.random.standard_cauchy(size=(num_samples, num_dimensions))
-
-    # Separate out a subset for queries
-    np.random.shuffle(dataset)
-    query_set = dataset[:num_queries]
-    dataset_without_queries = dataset[num_queries:]
-
-    # Compute the true k nearest neighbors for the query set
-    nbrs = NearestNeighbors(n_neighbors=k, algorithm="brute", p=p, metric=metric).fit(
-        dataset_without_queries
-    )
-    ground_truth_labels = nbrs.kneighbors(query_set, return_distance=False)
-
-    # Save the dataset without queries, the queries, and the ground truth labels
-    np.save(f"{base_path}/train.npy", dataset_without_queries.astype(np.float32))
-    np.save(f"{base_path}/test.npy", query_set.astype(np.float32))
-    np.save(f"{base_path}/ground_truth.npy", ground_truth_labels.astype(np.int32))
-
-
-def compute_k_occurence_distrubution(top_k_indices: np.ndarray) -> np.ndarray:
-    """
-    Computes the distribution of k-occurences for each node in the given array.
-    :param top_k_indices: array of shape (dataset_size, k) containing the indices of
-            the k nearest neighbors for each node.
-
-    :return: array of shape (dataset_size,) containing the k-occurence distribution for each node (N_k)
-    """
-
-    # validate indices. If any value is negative, throw an error
-    if np.any(top_k_indices < 0):
-        raise ValueError("Indices cannot be negative")
-
-    dataset_size = top_k_indices.shape[0]
-    k_occurence_distribution = np.zeros(dataset_size, dtype=int)
-
-    flattened_indices = top_k_indices.flatten()
-    unique_indices, counts = np.unique(flattened_indices, return_counts=True)
-    k_occurence_distribution[unique_indices] = counts
-
-    return k_occurence_distribution
-
-
-def compute_skewness(
-    index: Union[flatnav.index.L2Index, hnswlib.Index],
-    dataset: np.ndarray,
-    ef_search: int,
-    k: int,
-) -> float:
-    if type(index) == flatnav.index.L2Index:
-        _, top_k_indices = index.search(
-            queries=dataset,
-            ef_search=ef_search,
-            K=k,
-        )
-    elif type(index) == hnswlib.Index:
-        top_k_indices, _ = index.knn_query(dataset, k=k)
-    else:
-        raise ValueError("Invalid index")
-
-    k_occurence_distribution = compute_k_occurence_distrubution(
-        top_k_indices=top_k_indices
-    )
-    mean = np.mean(k_occurence_distribution)
-    std_dev = np.std(k_occurence_distribution)
-    denominator = len(k_occurence_distribution) * (std_dev**3)
-    skewness = (np.sum((k_occurence_distribution - mean) ** 3)) / denominator
-
-    return skewness
-
-
-def get_recall_and_dataset_skewness(
+def aggregate_metrics(
     train_dataset: np.ndarray,
     queries: np.ndarray,
     ground_truth: np.ndarray,
@@ -134,64 +30,93 @@ def get_recall_and_dataset_skewness(
     ef_construction: int,
     ef_search: int,
     k: int,
+    search_batch_size: Optional[int] = None,
     num_initializations: int = 100,
-):
+) -> Tuple[dict, dict]:
+    """
+    Computes the following metrics for FlatNav and HNSW:
+        - Recall@k
+        - Latency
+        - QPS
+        - Hubness score as measured by the skewness of the k-occurence distribution (N_k)
+
+    NOTE: Index construction is done in parallel, but search is single-threaded.
+
+    :param train_dataset: The dataset to compute the skewness for.
+    :param queries: The query vectors.
+    :param ground_truth: The ground truth indices for each query.
+    :param distance_type: The distance type to use for computing the skewness.
+    :param max_edges_per_node: The maximum number of edges per node.
+    :param ef_construction: The ef-construction parameter.
+    :param ef_search: The ef-search parameter.
+    :param k: The number of nearest neighbors to find.
+    :param num_initializations: The number of initializations for FlatNav.
+    """
+
     dataset_size, dim = train_dataset.shape
-    flatnav_index = flatnav.index.index_factory(
-        distance_type=distance_type,
-        dim=dim,
-        dataset_size=dataset_size,
-        max_edges_per_node=max_edges_per_node,
-        verbose=False,
+    hnsw_index = hnswlib.Index(
+        space=distance_type if distance_type == "l2" else "ip", dim=dim
     )
-    hnsw_index = hnswlib.Index(space=distance_type, dim=dim)
     hnsw_index.init_index(
         max_elements=dataset_size,
         ef_construction=ef_construction,
         M=max_edges_per_node // 2,
     )
 
-    flatnav_index.set_num_threads(os.cpu_count())
     hnsw_index.set_num_threads(os.cpu_count())
 
-    logging.debug(f"Building index...")
+    logging.info(f"Building index...")
+    hnsw_base_layer_filename = "hnsw_base_layer.mtx"
     hnsw_index.add_items(data=train_dataset, ids=np.arange(dataset_size))
-    flatnav_index.add(
-        data=train_dataset,
-        ef_construction=ef_construction,
-        num_initializations=num_initializations,
+    hnsw_index.save_base_layer_graph(filename=hnsw_base_layer_filename)
+
+    # Build FlatNav index
+    logging.info(f"Building FlatNav index...")
+    flatnav_index = flatnav.index.index_factory(
+        distance_type=distance_type,
+        dim=dim,
+        mtx_filename=hnsw_base_layer_filename,
     )
 
-    # We currently have a bufferoverlow issue during FlatNav's multithreaded search, so
-    # I'm setting the number of threads to 1 for now until it's fixed.
+    logging.info(f"Allocating nodes and building graph links...")
+    # Here we will first allocate memory for the index and then build edge connectivity
+    # using the HNSW base layer graph. We do not use the ef-construction parameter since
+    # it's assumed to have been used when building the HNSW base layer.
+    flatnav_index.allocate_nodes(data=train_dataset).build_graph_links()
+
+    # Now delete the HNSW base layer graph since we don't need it anymore
+    os.remove(hnsw_base_layer_filename)
+
     flatnav_index.set_num_threads(num_threads=1)
+    hnsw_index.set_num_threads(num_threads=1)
 
-    skewness_flatnav = compute_skewness(
-        dataset=train_dataset, index=flatnav_index, ef_search=ef_search, k=k
-    )
-    skewness_hnsw = compute_skewness(
-        dataset=train_dataset, index=hnsw_index, ef_search=ef_search, k=k
-    )
+    requested_metrics = [f"recall@{k}", "latency", "qps"]
 
-    logging.info(f"Skewness: Flatnav: {skewness_flatnav}, HNSW: {skewness_hnsw}")
-
-    recall_flatnav, _ = compute_metrics(
+    logging.info(f"Computing FlatNav metrics...")
+    flatnav_metrics: dict = compute_metrics(
+        requested_metrics=requested_metrics,
         index=flatnav_index,
         queries=queries,
         ground_truth=ground_truth,
         ef_search=ef_search,
         k=k,
+        batch_size=search_batch_size,
     )
-    recall_hnsw, _ = compute_metrics(
+
+    logging.info(f"Computing HNSW metrics...")
+    hnsw_metrics: dict = compute_metrics(
+        requested_metrics=requested_metrics,
         index=hnsw_index,
         queries=queries,
         ground_truth=ground_truth,
         ef_search=ef_search,
         k=k,
+        batch_size=search_batch_size,
     )
-    logging.info(f"Recall@{k}: Flatnav: {recall_flatnav}, HNSW: {recall_hnsw}")
 
-    return recall_flatnav, recall_hnsw, skewness_flatnav, skewness_hnsw
+    logging.info(f"Metrics: Flatnav: {flatnav_metrics}, \n HNSW: {hnsw_metrics}")
+
+    return flatnav_metrics, hnsw_metrics
 
 
 def parse_args() -> argparse.Namespace:
@@ -206,15 +131,20 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--hubness-scores",
+        type=str,
+        required=True,
+        help="JSON file containing hubness scores for each dataset",
+    )
+
+    parser.add_argument(
         "--k",
         type=int,
         required=False,
         default=100,
         help="Number of nearest neighbors to consider",
     )
-    parser.add_argument(
-        "--metric", type=str, required=True, help="Metric to use (l2 or angular)"
-    )
+
     parser.add_argument(
         "--ef-construction", type=int, required=True, help="ef-construction parameter."
     )
@@ -230,17 +160,24 @@ def parse_args() -> argparse.Namespace:
         help="max-edges-per-node parameter.",
     )
 
+    parser.add_argument(
+        "--search-batch-size",
+        type=int,
+        default=None,
+        required=False,
+        help="The number of queries to search in a batch.",
+    )
+
     return parser.parse_args()
 
 
 def load_dataset(base_path: str, dataset_name: str) -> Tuple[np.ndarray]:
     if not os.path.exists(base_path):
         raise FileNotFoundError(f"Dataset path not found at {base_path}")
-
     return (
-        np.load(f"{base_path}/{dataset_name}.train.npy").astype(np.float32),
-        np.load(f"{base_path}/{dataset_name}.test.npy").astype(np.float32),
-        np.load(f"{base_path}/{dataset_name}.gtruth.npy").astype(np.uint32),
+        np.load(f"{base_path}/{dataset_name}.train.npy").astype(copy=False),
+        np.load(f"{base_path}/{dataset_name}.test.npy").astype(copy=False),
+        np.load(f"{base_path}/{dataset_name}.gtruth.npy").astype(copy=False),
     )
 
 
@@ -248,7 +185,7 @@ def plot_metrics_seaborn(metrics: dict, k: int):
     df_hnsw = pd.DataFrame(
         {
             "Skewness": metrics["skewness_hnsw"],
-            "Recall": metrics["recall_hnsw"],
+            "Latency": metrics["latency_hnsw"],
             "Algorithm": "HNSW",
             "Dataset": metrics["dataset_names"],
         }
@@ -257,7 +194,7 @@ def plot_metrics_seaborn(metrics: dict, k: int):
     df_flatnav = pd.DataFrame(
         {
             "Skewness": metrics["skewness_flatnav"],
-            "Recall": metrics["recall_flatnav"],
+            "Latency": metrics["latency_flatnav"],
             "Algorithm": "FlatNav",
             "Dataset": metrics["dataset_names"],
         }
@@ -272,7 +209,7 @@ def plot_metrics_seaborn(metrics: dict, k: int):
 
     sns.scatterplot(
         x="Skewness",
-        y="Recall",
+        y="Latency",
         hue="Algorithm",
         style="Algorithm",
         data=df,
@@ -284,7 +221,7 @@ def plot_metrics_seaborn(metrics: dict, k: int):
     for i in range(len(df)):
         ax.text(
             df["Skewness"][i] + 0.5,
-            df["Recall"][i] + 0.01,
+            df["Latency"][i] + 0.01,
             df["Dataset"][i],
             horizontalalignment="center",
             size="small",
@@ -293,7 +230,7 @@ def plot_metrics_seaborn(metrics: dict, k: int):
         )
 
     sns.despine(trim=True, left=True)
-    ax.set_title(f"Recall vs Hubness score(skewness)")
+    ax.set_title(f"Mean Query Latency vs Hubness score(skewness)")
     ax.legend()
 
     # Save the figure
@@ -304,7 +241,7 @@ def plot_metrics_plotly(metrics: dict, k: int):
     df_hnsw = pd.DataFrame(
         {
             "Skewness": metrics["skewness_hnsw"],
-            "Recall": metrics["recall_hnsw"],
+            "Latency": metrics["latency_hnsw"],
             "Algorithm": "HNSW",
             "Dataset": metrics["dataset_names"],
         }
@@ -312,7 +249,7 @@ def plot_metrics_plotly(metrics: dict, k: int):
     df_flatnav = pd.DataFrame(
         {
             "Skewness": metrics["skewness_flatnav"],
-            "Recall": metrics["recall_flatnav"],
+            "Latency": metrics["latency_flatnav"],
             "Algorithm": "FlatNav",
             "Dataset": metrics["dataset_names"],
         }
@@ -323,22 +260,22 @@ def plot_metrics_plotly(metrics: dict, k: int):
     fig = px.scatter(
         df,
         x="Skewness",
-        y="Recall",
+        y="Latency",
         color="Algorithm",
         symbol="Algorithm",
         size_max=15,
         hover_name="Dataset",  # Shows dataset name on hover
-        title=f"Recall vs Hubness Score (Skewness of N_k)",
+        title="Mean query latency vs hubness score",
     )
     fig.update_layout(
         legend_title_text="Algorithm",
         xaxis_title="Skewness",
-        yaxis_title="Recall",
-        legend=dict(orientation="h", yanchor="bottom", y=0.01, xanchor="left", x=0.01),
+        yaxis_title="Latency",
+        legend=dict(orientation="h", yanchor="top", y=0.01, xanchor="left", x=0.01),
     )
     fig.show()
-    fig.write_html("hubness.html")
-    fig.write_image("hubness.png")
+    fig.write_html("hubness__.html")
+    # fig.write_image("hubness.png")
 
 
 if __name__ == "__main__":
@@ -346,45 +283,73 @@ if __name__ == "__main__":
 
     # Initialize a metrics dictionary to contain recall values for FlatNav and HNSW and the skewness values for FlatNav and HNSW
     metrics = {
-        "recall_flatnav": [],
-        "recall_hnsw": [],
-        "skewness_flatnav": [],
-        "skewness_hnsw": [],
+        "latency_flatnav": [],
+        "latency_hnsw": [],
         "dataset_names": [],
     }
 
+    # replace every instance of "euclidean" with "l2" and "angular" with "cosine" in the
+    # dataset names list and form a dictionary of dataset names
+    DATASET_NAMES = {}
+    for dataset_name in args.datasets:
+        name, dimension, metric = dataset_name.split("-")
+        if metric == "euclidean":
+            metric = "l2"
+        elif metric == "angular":
+            metric = "cosine"
+        else:
+            raise ValueError(f"Invalid metric: {metric}")
+        DATASET_NAMES[dataset_name] = f"{name}{dimension}-{metric}"
+
+    hubness_scores = os.getcwd() + "/" + args.hubness_scores
+    if not os.path.exists(hubness_scores):
+        raise FileNotFoundError(f"Hubness scores file not found at {hubness_scores}")
+    
     dataset_names = args.datasets
-    for dataset_name in dataset_names:
+
+    for index, dataset_name in enumerate(dataset_names):
+        print(f"Processing dataset {dataset_name} ({index + 1}/{len(dataset_names)})")
+        _, dimension, metric = dataset_name.split("-")
         base_path = os.path.join(ROOT_DATASET_PATH, dataset_name)
+
+        if not os.path.exists(base_path):
+            raise FileNotFoundError(f"Dataset path not found at {base_path}")
+
+        print(f"Loading dataset {dataset_name}...")
         train_dataset, queries, ground_truth = load_dataset(
             base_path=base_path, dataset_name=dataset_name
         )
-        (
-            recall_flatnav,
-            recall_hnsw,
-            skewness_flatnav,
-            skewness_hnsw,
-        ) = get_recall_and_dataset_skewness(
+
+        flatnav_metrics, hnsw_metrics = aggregate_metrics(
             train_dataset=train_dataset,
             queries=queries,
             ground_truth=ground_truth,
-            distance_type=args.metric,
+            distance_type=metric,
             max_edges_per_node=args.num_node_links,
             ef_construction=args.ef_construction,
             ef_search=args.ef_search,
             k=args.k,
+            search_batch_size=args.search_batch_size,
         )
 
-        # Aggregate metrics
-        metrics["recall_flatnav"].append(recall_flatnav)
-        metrics["recall_hnsw"].append(recall_hnsw)
-        metrics["skewness_flatnav"].append(skewness_flatnav)
-        metrics["skewness_hnsw"].append(skewness_hnsw)
+        metrics["latency_flatnav"].append(flatnav_metrics["latency"])
+        metrics["latency_hnsw"].append(hnsw_metrics["latency"])
         metrics["dataset_names"].append(DATASET_NAMES[dataset_name])
 
-    # Serialize metrics as JSON
-    with open("hubness.json", "w") as f:
+    # Add hubness scores to the metrics dictionary
+    with open(hubness_scores, "r") as f:
+        hubness_scores = json.load(f)
+    metrics["skewness_flatnav"] = [
+        hubness_scores[dataset_name] for dataset_name in dataset_names
+    ]
+    metrics["skewness_hnsw"] = [
+        hubness_scores[dataset_name] for dataset_name in dataset_names
+    ]
+
+    # Save metrics to a JSON file called metrics.json
+    with open("metrics.json", "w") as f:
         json.dump(metrics, f)
 
     # Plot the metrics using seaborn
-    plot_metrics_plotly(metrics=metrics, k=100)
+    plot_metrics_plotly(metrics=metrics, k=args.k)
+    # plot_metrics_seaborn(metrics=metrics, k=args.k)
