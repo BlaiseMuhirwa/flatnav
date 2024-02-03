@@ -317,8 +317,7 @@ def main(
                         )
                     index.reorder(strategies=reordering_strategies)
 
-                if num_search_threads > 1:
-                    index.set_num_threads(num_search_threads)
+                index.set_num_threads(num_search_threads)
 
                 recall, qps = compute_metrics(
                     index=index,
@@ -437,7 +436,7 @@ if __name__ == "__main__":
 
     args = parse_arguments()
 
-    train_data, queries, ground_truth = load_sift_dataset(
+    train_data, queries, ground_truth = load_benchmark_dataset(
         train_dataset_path=args.dataset,
         queries_path=args.queries,
         gtruth_path=args.gtruth,
