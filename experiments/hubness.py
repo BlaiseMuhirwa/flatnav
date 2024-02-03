@@ -17,8 +17,8 @@ from utils import compute_metrics
 logging.basicConfig(level=logging.DEBUG)
 
 
-# ROOT_DATASET_PATH = "/root/data/"
-ROOT_DATASET_PATH = os.path.join(os.getcwd(), "..", "data")
+ROOT_DATASET_PATH = "/root/data/"
+# ROOT_DATASET_PATH = os.path.join(os.getcwd(), "..", "data")
 
 
 def aggregate_metrics(
@@ -175,9 +175,9 @@ def load_dataset(base_path: str, dataset_name: str) -> Tuple[np.ndarray]:
     if not os.path.exists(base_path):
         raise FileNotFoundError(f"Dataset path not found at {base_path}")
     return (
-        np.load(f"{base_path}/{dataset_name}.train.npy").astype(copy=False),
-        np.load(f"{base_path}/{dataset_name}.test.npy").astype(copy=False),
-        np.load(f"{base_path}/{dataset_name}.gtruth.npy").astype(copy=False),
+        np.load(f"{base_path}/{dataset_name}.train.npy").astype(np.float32, copy=False),
+        np.load(f"{base_path}/{dataset_name}.test.npy").astype(np.float32, copy=False),
+        np.load(f"{base_path}/{dataset_name}.gtruth.npy").astype(np.int32, copy=False),
     )
 
 
@@ -237,44 +237,7 @@ def plot_metrics_seaborn(metrics: dict, k: int):
     plt.savefig("hubness_seaborn.png")
 
 
-def plot_metrics_plotly(metrics: dict, k: int):
-    df_hnsw = pd.DataFrame(
-        {
-            "Skewness": metrics["skewness_hnsw"],
-            "Latency": metrics["latency_hnsw"],
-            "Algorithm": "HNSW",
-            "Dataset": metrics["dataset_names"],
-        }
-    )
-    df_flatnav = pd.DataFrame(
-        {
-            "Skewness": metrics["skewness_flatnav"],
-            "Latency": metrics["latency_flatnav"],
-            "Algorithm": "FlatNav",
-            "Dataset": metrics["dataset_names"],
-        }
-    )
-    df = pd.concat([df_hnsw, df_flatnav], ignore_index=True)
 
-    # Create the scatter plot
-    fig = px.scatter(
-        df,
-        x="Skewness",
-        y="Latency",
-        color="Algorithm",
-        symbol="Algorithm",
-        size_max=15,
-        hover_name="Dataset",  # Shows dataset name on hover
-        title="Mean query latency vs hubness score",
-    )
-    fig.update_layout(
-        legend_title_text="Algorithm",
-        xaxis_title="Skewness",
-        yaxis_title="Latency",
-        legend=dict(orientation="h", yanchor="top", y=0.01, xanchor="left", x=0.01),
-    )
-    fig.show()
-    fig.write_html("hubness__.html")
     # fig.write_image("hubness.png")
 
 
@@ -301,15 +264,19 @@ if __name__ == "__main__":
             raise ValueError(f"Invalid metric: {metric}")
         DATASET_NAMES[dataset_name] = f"{name}{dimension}-{metric}"
 
-    hubness_scores = os.getcwd() + "/" + args.hubness_scores
-    if not os.path.exists(hubness_scores):
-        raise FileNotFoundError(f"Hubness scores file not found at {hubness_scores}")
+    hubness_scores_path = os.getcwd() + "/" + args.hubness_scores
+    if not os.path.exists(hubness_scores_path):
+        raise FileNotFoundError(f"Hubness scores file not found at {hubness_scores_path}")
+    
+    with open(hubness_scores_path, "r") as f:
+        hubness_scores = json.load(f)
     
     dataset_names = args.datasets
 
     for index, dataset_name in enumerate(dataset_names):
         print(f"Processing dataset {dataset_name} ({index + 1}/{len(dataset_names)})")
         _, dimension, metric = dataset_name.split("-")
+        metric = metric if metric == "angular" else "l2"
         base_path = os.path.join(ROOT_DATASET_PATH, dataset_name)
 
         if not os.path.exists(base_path):
@@ -337,19 +304,16 @@ if __name__ == "__main__":
         metrics["dataset_names"].append(DATASET_NAMES[dataset_name])
 
     # Add hubness scores to the metrics dictionary
-    with open(hubness_scores, "r") as f:
-        hubness_scores = json.load(f)
     metrics["skewness_flatnav"] = [
         hubness_scores[dataset_name] for dataset_name in dataset_names
     ]
     metrics["skewness_hnsw"] = [
         hubness_scores[dataset_name] for dataset_name in dataset_names
     ]
-
     # Save metrics to a JSON file called metrics.json
     with open("metrics.json", "w") as f:
         json.dump(metrics, f)
 
     # Plot the metrics using seaborn
-    plot_metrics_plotly(metrics=metrics, k=args.k)
+    # plot_metrics_plotly(metrics=metrics, k=args.k)
     # plot_metrics_seaborn(metrics=metrics, k=args.k)
