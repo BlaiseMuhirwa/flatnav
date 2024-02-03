@@ -137,7 +137,6 @@ def compute_metrics(
 
     """
     is_flatnav_index = type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex)
-    index.set_num_threads(1)
     if is_flatnav_index:
         start = time.time()
         _, top_k_indices = index.search(
@@ -318,8 +317,7 @@ def main(
                         )
                     index.reorder(strategies=reordering_strategies)
 
-                if num_search_threads > 1:
-                    index.set_num_threads(num_search_threads)
+                index.set_num_threads(num_search_threads)
 
                 recall, qps = compute_metrics(
                     index=index,
