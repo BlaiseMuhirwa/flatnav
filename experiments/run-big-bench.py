@@ -138,12 +138,14 @@ def compute_metrics(
     """
     is_flatnav_index = type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex)
     if is_flatnav_index:
+        index.set_num_threads(1)
         start = time.time()
         _, top_k_indices = index.search(
             queries=queries, ef_search=ef_search, K=k, num_initializations=300
         )
         end = time.time()
     else:
+        index.set_num_threads(1)
         index.set_ef(ef_search)
         start = time.time()
         # Search for HNSW return (ids, distances) instead of (distances, ids)
@@ -437,7 +439,7 @@ if __name__ == "__main__":
 
     args = parse_arguments()
 
-    train_data, queries, ground_truth = load_sift_dataset(
+    train_data, queries, ground_truth = load_benchmark_dataset(
         train_dataset_path=args.dataset,
         queries_path=args.queries,
         gtruth_path=args.gtruth,
