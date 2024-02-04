@@ -181,66 +181,6 @@ def load_dataset(base_path: str, dataset_name: str) -> Tuple[np.ndarray]:
     )
 
 
-def plot_metrics_seaborn(metrics: dict, k: int):
-    df_hnsw = pd.DataFrame(
-        {
-            "Skewness": metrics["skewness_hnsw"],
-            "Latency": metrics["latency_hnsw"],
-            "Algorithm": "HNSW",
-            "Dataset": metrics["dataset_names"],
-        }
-    )
-
-    df_flatnav = pd.DataFrame(
-        {
-            "Skewness": metrics["skewness_flatnav"],
-            "Latency": metrics["latency_flatnav"],
-            "Algorithm": "FlatNav",
-            "Dataset": metrics["dataset_names"],
-        }
-    )
-
-    # Combine both DataFrames into one for plotting
-    df = pd.concat([df_hnsw, df_flatnav], ignore_index=True)
-
-    # Set the style and context for the plot
-    sns.set(style="whitegrid", context="talk")
-    f, ax = plt.subplots(figsize=(10, 6))
-
-    sns.scatterplot(
-        x="Skewness",
-        y="Latency",
-        hue="Algorithm",
-        style="Algorithm",
-        data=df,
-        s=100,
-        ax=ax,
-    )
-
-    # Annotate each point with dataset name
-    for i in range(len(df)):
-        ax.text(
-            df["Skewness"][i] + 0.5,
-            df["Latency"][i] + 0.01,
-            df["Dataset"][i],
-            horizontalalignment="center",
-            size="small",
-            color="black",
-            weight="normal",
-        )
-
-    sns.despine(trim=True, left=True)
-    ax.set_title(f"Mean Query Latency vs Hubness score(skewness)")
-    ax.legend()
-
-    # Save the figure
-    plt.savefig("hubness_seaborn.png")
-
-
-
-    # fig.write_image("hubness.png")
-
-
 if __name__ == "__main__":
     args = parse_args()
 
@@ -315,5 +255,4 @@ if __name__ == "__main__":
         json.dump(metrics, f)
 
     # Plot the metrics using seaborn
-    # plot_metrics_plotly(metrics=metrics, k=args.k)
-    # plot_metrics_seaborn(metrics=metrics, k=args.k)
+    plot_metrics_plotly(metrics=metrics, k=args.k)

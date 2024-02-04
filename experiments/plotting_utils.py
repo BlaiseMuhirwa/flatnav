@@ -3,26 +3,11 @@ import plotly.express as px
 import pandas as pd
 import json
 import matplotlib.pyplot as plt
+import plotly.graph_objs as go
 import re
+import seaborn as sns 
 
-# def plot_bubble_chart(metrics: dict):
-#     # Adding a placeholder for the size of the datasets
-#     df["DataSize"] = pd.Series(
-#         [1 for _ in range(len(df))]
-#     )  # Replace with actual data size values
-
-#     fig = px.scatter(
-#         df,
-#         x="Skewness",
-#         y="Latency",
-#         size="DataSize",  # This is the third variable encoded as bubble size
-#         color="Algorithm",
-#         hover_name="Dataset",
-#     )
-#     fig.show()
-
-
-def plot_heatmap(metrics: dict):
+def plot_metrics_seaborn(metrics: dict, k: int):
     df_hnsw = pd.DataFrame(
         {
             "Skewness": metrics["skewness_hnsw"],
@@ -31,6 +16,7 @@ def plot_heatmap(metrics: dict):
             "Dataset": metrics["dataset_names"],
         }
     )
+
     df_flatnav = pd.DataFrame(
         {
             "Skewness": metrics["skewness_flatnav"],
@@ -39,20 +25,112 @@ def plot_heatmap(metrics: dict):
             "Dataset": metrics["dataset_names"],
         }
     )
-    df = pd.concat([df_hnsw, df_flatnav])
 
-    # Pivot for heatmap
-    heatmap_data = df.pivot_table(
-        values="Latency", index="Dataset", columns="Algorithm", aggfunc="mean"
+    # Combine both DataFrames into one for plotting
+    df = pd.concat([df_hnsw, df_flatnav], ignore_index=True)
+
+    # Set the style and context for the plot
+    sns.set(style="whitegrid", context="talk")
+    f, ax = plt.subplots(figsize=(10, 6))
+
+    sns.scatterplot(
+        x="Skewness",
+        y="Latency",
+        hue="Algorithm",
+        style="Algorithm",
+        data=df,
+        s=100,
+        ax=ax,
     )
 
-    fig = px.imshow(
-        heatmap_data,
-        labels=dict(x="Algorithm", y="Dataset", color="Latency"),
-        x=["HNSW", "FlatNav"],
+    # Annotate each point with dataset name
+    for i in range(len(df)):
+        ax.text(
+            df["Skewness"][i] + 0.5,
+            df["Latency"][i] + 0.01,
+            df["Dataset"][i],
+            horizontalalignment="center",
+            size="small",
+            color="black",
+            weight="normal",
+        )
+
+    sns.despine(trim=True, left=True)
+    ax.set_title(f"Mean Query Latency vs Hubness score(skewness)")
+    ax.legend()
+
+    # Save the figure
+    plt.savefig("hubness_seaborn.png")
+    
+    
+def plot_metrics_by_similarity(metrics: dict, similarity: str):
+    # Filter the datasets based on the similarity type (cosine or l2)
+    filter_cosine = [name.endswith(similarity) for name in metrics["dataset_names"]]
+    df_hnsw = pd.DataFrame({
+        "Skewness": [skew for skew, f in zip(metrics["skewness_hnsw"], filter_cosine) if f],
+        "Latency": [lat for lat, f in zip(metrics["latency_hnsw"], filter_cosine) if f],
+        "Algorithm": "HNSW",
+        "Dataset": [name for name, f in zip(metrics["dataset_names"], filter_cosine) if f],
+    })
+    df_flatnav = pd.DataFrame({
+        "Skewness": [skew for skew, f in zip(metrics["skewness_flatnav"], filter_cosine) if f],
+        "Latency": [lat for lat, f in zip(metrics["latency_flatnav"], filter_cosine) if f],
+        "Algorithm": "FlatNav",
+        "Dataset": [name for name, f in zip(metrics["dataset_names"], filter_cosine) if f],
+    })
+    df = pd.concat([df_hnsw, df_flatnav], ignore_index=True)
+    
+    # Create the scatter plot with larger marker size and line width
+    fig = px.scatter(
+        df,
+        x="Skewness",
+        y="Latency",
+        color="Algorithm",
+        symbol="Algorithm",
+        size_max=15,
+        hover_name="Dataset",
+        title=f"Mean query latency vs hubness score ({similarity})",
+        width=1200,  # Width of the figure in pixels
+        height=800,  # Height of the figure in pixels
+    )
+
+    # Get colors for each algorithm from the scatter plot
+    colors = {alg: fig.data[idx].marker.color for idx, alg in enumerate(df['Algorithm'].unique())}
+
+    # Add line traces for each algorithm with increased line width
+    for algorithm, color in colors.items():
+        df_alg = df[df["Algorithm"] == algorithm].sort_values(by="Skewness")
+        fig.add_trace(
+            go.Scatter(
+                x=df_alg['Skewness'],
+                y=df_alg['Latency'],
+                mode='lines+markers',
+                name=algorithm,
+                line=dict(color=color, width=4),  # Increase the width of the line
+                marker=dict(size=10),  # Increase marker size
+                showlegend=False
+            )
+        )
+    
+    # Update layout to increase font size and adjust legend position
+    fig.update_layout(
+        legend_title_text="Algorithm",
+        xaxis_title="Hubness Score",
+        yaxis_title="Latency (ms)",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=0.95,  # Adjust the vertical position
+            xanchor="left",
+            x=0.01   # Adjust the horizontal position
+        ),
+        title_font_size=30,  # Increase title font size
+        font=dict(size=20),  # Increase font size for axis titles and ticks
     )
     fig.show()
-    
+    html_file_name = f"hubness_{similarity}.html"
+    fig.write_html(html_file_name)
+
 def plot_metrics_plotly(metrics: dict, k: int):
     df_hnsw = pd.DataFrame(
         {
@@ -89,7 +167,6 @@ def plot_metrics_plotly(metrics: dict, k: int):
         yaxis_title="Latency",
         legend=dict(orientation="h", yanchor="top", y=0.01, xanchor="left", x=0.01),
     )
-    fig.show()
     fig.write_html("hubness__.html")
 
 def plot_faceted_grid(metrics: dict):
@@ -123,64 +200,17 @@ def plot_faceted_grid(metrics: dict):
     fig.show()
     
 
-def plot_bubble_chart(metrics, algorithm_name, ax):
-    """
-    Plots a bubble chart from a metrics dictionary.
+    
+    
 
-    Parameters:
-    - metrics: A dictionary containing 'latency', 'skewness', and 'dataset_names' keys.
-    - algorithm_name: The name of the algorithm to be used to extract latency and skewness.
-    - ax: The matplotlib axis on which to plot the chart.
-    """
-    # Extract the latency and skewness values based on the algorithm name
-    latency_key = f"latency_{algorithm_name.lower()}"
-    skewness_key = f"skewness_{algorithm_name.lower()}"
-    latencies = metrics[latency_key]
-    skewnesses = metrics[skewness_key]
-    names = metrics['dataset_names']
-    
-    # Extract dimensions from the dataset names
-    dimensions = [int(re.search(r'\d+', name).group()) for name in names]
-    
-    # Normalize dimensions for bubble size: the smallest dimension gets a size of 100, and others are scaled proportionally
-    min_dimension = min(dimensions)
-    sizes = [(dim / min_dimension) * 100 for dim in dimensions]
-    
-    # Scatter plot
-    scatter = ax.scatter(skewnesses, latencies, s=sizes, alpha=0.5, label=algorithm_name)
-    
-    # Label the axes
-    ax.set_xlabel('Skewness')
-    ax.set_ylabel('Latency')
-    ax.set_title(f'Bubble Chart for {algorithm_name}')
-    
-    # Add a legend with a title
-    legend = ax.legend(title="Dataset Dimension")
-    
-    # Update the sizes in the legend using the new attribute 'legend_handles'
-    for handle, dim in zip(legend.legend_handles, sorted(set(dimensions))):
-        handle.set_sizes([dim])
-
-    return ax
-
-
-    
     
 if __name__=="__main__":
     # load metrics from JSON 
     with open("metrics.json", "r") as f:
         metrics = json.load(f)
-    
-    metrics2 = deepcopy(metrics)
-    fig, ax = plt.subplots()
-    ax = plot_bubble_chart(metrics, 'FlatNav', ax)
-    ax = plot_bubble_chart(metrics2, 'HNSW', ax)
-    
-    # Save the plot
-    plt.savefig("bubble_chart.png")
-    
-    plt.show()
         
-    # plot the heatmap
-    # plot_metrics_plotly(metrics, 100)        
+    plot_metrics_by_similarity(metrics, "cosine")
+    plot_metrics_by_similarity(metrics, "l2")
+    
+         
     
