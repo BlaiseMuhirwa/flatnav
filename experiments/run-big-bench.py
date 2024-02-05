@@ -79,7 +79,7 @@ def load_benchmark_dataset(
         return (
             np.load(train_dataset_path).astype(np.float32, copy=False),
             np.load(queries_path).astype(np.float32, copy=False),
-            np.load(gtruth_path).astype(np.float32, copy=False),
+            np.load(gtruth_path).astype(np.int32, copy=False),
         )
 
 
