@@ -78,9 +78,10 @@ def load_benchmark_dataset(
     if files_have_npy_extensions:
         return (
             np.load(train_dataset_path).astype(np.float32, copy=False),
-            np.load(queries_path, np.float32, copy=False),
-            np.load(gtruth_path, np.uint32, copy=False),
+            np.load(queries_path).astype(np.float32, copy=False),
+            np.load(gtruth_path).astype(np.float32, copy=False),
         )
+
 
     train_dtype = np.float32 if train_dataset_path.endswith("fbin") else np.uint8
     total_size = os.path.getsize(train_dataset_path) // np.dtype(train_dtype).itemsize
