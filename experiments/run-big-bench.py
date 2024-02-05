@@ -26,16 +26,6 @@ ENVIRONMENT_INFO = {
 }
 
 
-def load_sift_dataset(
-    train_dataset_path: str, queries_path: str, gtruth_path: str
-) -> Tuple[np.ndarray]:
-    return (
-        np.load(train_dataset_path).astype(np.float32),
-        np.load(queries_path).astype(np.float32),
-        np.load(gtruth_path).astype(np.uint32),
-    )
-
-
 def load_benchmark_dataset(
     train_dataset_path: str,
     queries_path: str,
@@ -80,6 +70,17 @@ def load_benchmark_dataset(
         return ground_truth_ids, ground_truth_dists, num_queries, K
 
     verify_paths_exist([train_dataset_path, queries_path, gtruth_path])
+
+    files_have_npy_extensions = all(
+        dataset.endswith("npy")
+        for dataset in [train_dataset_path, queries_path, gtruth_path]
+    )
+    if files_have_npy_extensions:
+        return (
+            np.load(train_dataset_path).astype(np.float32, copy=False),
+            np.load(queries_path, np.float32, copy=False),
+            np.load(gtruth_path, np.uint32, copy=False),
+        )
 
     train_dtype = np.float32 if train_dataset_path.endswith("fbin") else np.uint8
     total_size = os.path.getsize(train_dataset_path) // np.dtype(train_dtype).itemsize
