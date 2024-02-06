@@ -62,7 +62,7 @@ ANN-Benchmarks provides HDF5 files for a standard benchmark of near-neighbor dat
 To generate the [ANNS benchmark datasets](https://github.com/erikbern/ann-benchmarks?tab=readme-ov-file#data-sets), run the following script
 
 ```shell
-> ./bin/download_anns_datasets.sh <dataset-name>
+> ./bin/download_anns_datasets.sh <dataset-name> [--normalize]
 ```
 
 For datasets that use the angular/cosine similarity, you will need to use `--normalize` option so that the dataset is normalized. 
