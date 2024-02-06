@@ -59,21 +59,25 @@ We currently support SIMD extensions for certain platforms as detailed below.
 
 ANN-Benchmarks provides HDF5 files for a standard benchmark of near-neighbor datasets, queries and ground-truth results. To run on these datasets, we provide a set of tools to process numpy (NPY) files: construct_npy, reorder_npy and query_npy.
 
-To generate these NPY files from the HDF5 files provided by ANN-benchmarks, you may use the Python script dump.py, as follows
-
-```shell 
-> python dump.py dataset.hdf5
-```
-
-Alternatively, you can use a helper script to download any ANN-benchmark script by running a command like 
-this:
+To generate the [ANNS benchmark datasets](https://github.com/erikbern/ann-benchmarks?tab=readme-ov-file#data-sets), run the following script
 
 ```shell
-> ./bin/download_anns_datasets.sh glove-25-angular --normalize
+> ./bin/download_anns_datasets.sh <dataset-name> [--normalize]
 ```
 
-For datasets that use the angular similarity measure, you will need the `--normalize` option so that the 
-correct distance is computed. 
+For datasets that use the angular/cosine similarity, you will need to use `--normalize` option so that the dataset is normalized. 
+Available dataset names include:
+
+* mnist-784-euclidean
+* sift-128-euclidean
+* glove-25-angular
+* glove-50-angular
+* glove-100-angular
+* glove-200-angular
+* deep-image-96-angular
+* gist-960-euclidean
+* nytimes-256-angular
+
 
 
 ### Using Custom Datasets
