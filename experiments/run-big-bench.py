@@ -295,7 +295,6 @@ def main(
 
     for node_links in num_node_links:
         for ef_cons in ef_cons_params:
-            for ef_search in ef_search_params:
                 index = train_index(
                     index_type=index_type,
                     train_dataset=train_dataset,
@@ -320,18 +319,18 @@ def main(
                     index.reorder(strategies=reordering_strategies)
 
                 index.set_num_threads(num_search_threads)
+                for ef_search in ef_search_params:
+                        recall, qps = compute_metrics(
+                        index=index,
+                        queries=queries,
+                        ground_truth=gtruth,
+                        ef_search=ef_search,
+                    )
 
-                recall, qps = compute_metrics(
-                    index=index,
-                    queries=queries,
-                    ground_truth=gtruth,
-                    ef_search=ef_search,
-                )
-
-                logging.info(
-                    f"Recall@100: {recall}, QPS={qps}, node_links={node_links},"
-                    f" ef_cons={ef_cons}, ef_search={ef_search}"
-                )
+                        logging.info(
+                            f"Recall@100: {recall}, QPS={qps}, node_links={node_links},"
+                            f" ef_cons={ef_cons}, ef_search={ef_search}"
+                        )
 
 
 def parse_arguments() -> argparse.Namespace:
