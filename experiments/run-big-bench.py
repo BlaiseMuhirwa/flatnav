@@ -11,7 +11,7 @@ import logging
 import platform, socket, psutil
 import argparse
 import flatnav
-from plotting_utils import plot_qps_against_recall
+from plotting_utils import plot_qps_against_recall, plot_percentile_against_recall
 
 
 ENVIRONMENT_INFO = {
@@ -126,41 +126,68 @@ def compute_metrics(
     k=100,
 ) -> Dict[str, float]:
     """
-    Compute recall and QPS for given queries, ground truth for the given index(FlatNav or HNSW).
+    Compute recall, QPS, and latency percentiles for given queries, ground truth
+    for the given index (FlatNav or HNSW).
 
     Args:
-        - requested_metrics: A list of metrics to compute. Options include `recall` and `qps` and `latency`.
+        - requested_metrics: A list of metrics to compute. Options include `recall`,
+                            `qps`, `latency`, `latency_p95`, `latency_p99`, and `latency_p999`.
         - index: A FlatNav index to search.
         - queries: The query vectors.
         - ground_truth: The ground truth indices for each query.
+        - ef_search: The size of the dynamic candidate list.
         - k: Number of neighbors to search.
 
     Returns:
-        Dictionary of metrics.
-
+        Dictionary of metrics including recall, QPS, mean latency, 95th and 99th percentile latencies.
     """
     is_flatnav_index = type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex)
+    latencies = []
+    top_k_indices = []
+
     if is_flatnav_index:
-        start = time.time()
-        _, top_k_indices = index.search(
-            queries=queries, ef_search=ef_search, K=k, num_initializations=100
-        )
-        end = time.time()
+        for query in queries:
+            start = time.time()
+            _, indices = index.search_single(
+                query=query,
+                ef_search=ef_search,
+                K=k,
+                num_initializations=100,
+            )
+            end = time.time()
+            latencies.append(end - start)
+            top_k_indices.append(indices)
     else:
         index.set_ef(ef_search)
-        start = time.time()
-        # Search for HNSW return (ids, distances) instead of (distances, ids)
-        top_k_indices, _ = index.knn_query(data=queries, k=k)
-        end = time.time()
+        for query in queries:
+            start = time.time()
+            indices, _ = index.knn_query(data=np.array([query]), k=k)
+            end = time.time()
+            latencies.append(end - start)
+            top_k_indices.append(indices[0])
 
-    querying_time = end - start
+    if not all(len(indices) == k for indices in top_k_indices):
+        raise RuntimeError("Not all queries returned the same number of results.")
+
+    # Convert the list of lists to a NumPy array
+    top_k_indices = np.stack(top_k_indices)
+    querying_time = sum(latencies)
 
     metrics = {}
     if "qps" in requested_metrics:
         metrics["qps"] = len(queries) / querying_time
 
     if "latency" in requested_metrics:
-        metrics["latency"] = (querying_time * 1000) / len(queries)
+        metrics["latency"] = np.mean(latencies) * 1000
+
+    if "latency_p95" in requested_metrics:
+        metrics["latency_p95"] = np.percentile(latencies, 95) * 1000
+
+    if "latency_p99" in requested_metrics:
+        metrics["latency_p99"] = np.percentile(latencies, 99) * 1000
+
+    if "latency_p999" in requested_metrics:
+        metrics["latency_p999"] = np.percentile(latencies, 99.9) * 1000
 
     # Convert each ground truth list to a set for faster lookup
     ground_truth_sets = [set(gt) for gt in ground_truth]
@@ -336,7 +363,14 @@ def main(
             index.set_num_threads(num_search_threads)
             for ef_search in ef_search_params:
                 metrics = compute_metrics(
-                    requested_metrics=["recall", "qps", "latency"],
+                    requested_metrics=[
+                        "recall",
+                        "qps",
+                        "latency",
+                        "latency_p95",
+                        "latency_p99",
+                        "latency_p999",
+                    ],
                     index=index,
                     queries=queries,
                     ground_truth=gtruth,
@@ -344,7 +378,7 @@ def main(
                 )
 
                 logging.info(
-                    f"Recall@100: {metrics['recall']}, QPS={metrics['qps']}, node_links={node_links},"
+                    f"Recall@100: {metrics['recall']}, QPS={metrics['qps']}, mean-latency = {metrics['latency']}, node_links={node_links},"
                     f" ef_cons={ef_cons}, ef_search={ef_search}"
                 )
 
@@ -474,6 +508,13 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--dataset-name",
+        required=True,
+        type=str,
+        help="Name of the benchmark dataset being used.",
+    )
+
+    parser.add_argument(
         "--log_metrics", required=False, default=False, help="Log metrics to DVC."
     )
 
@@ -497,7 +538,6 @@ def run_experiment():
             raise ValueError("HNSW does not support num_initializations.")
 
     metrics_file_path = os.path.join(ROOT_DIR, "metrics", args.metrics_file)
-    plot_file_path = os.path.join(ROOT_DIR, "metrics", "qps_v_recall.png")
 
     main(
         train_dataset=train_data,
@@ -521,13 +561,26 @@ def run_experiment():
     with open(metrics_file_path, "r") as file:
         all_metrics = json.load(file)
 
+    qps_recall_filepath = os.path.join(
+        ROOT_DIR, "metrics", f"{args.dataset_name}qps_v_recall.png"
+    )
     plot_qps_against_recall(
-        save_filepath=plot_file_path,
+        save_filepath=qps_recall_filepath,
         all_metrics=all_metrics,
     )
+
+    latency_percentiles = ["latency", "latency_p95", "latency_p99", "latency_p999"]
+    for percentile_key in latency_percentiles:
+        filepath = os.path.join(
+            ROOT_DIR, "metrics", f"{args.dataset_name}{percentile_key}_v_recall.png"
+        )
+        plot_percentile_against_recall(
+            save_filepath=filepath,
+            all_metrics=all_metrics,
+            percentile_key=percentile_key,
+        )
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     run_experiment()
-

@@ -329,8 +329,8 @@ public:
     return results;
   }
 
-  void doGraphReordering(const std::vector<std::string>& reordering_methods) {
-    
+  void doGraphReordering(const std::vector<std::string> &reordering_methods) {
+
     for (const auto &method : reordering_methods) {
       auto outdegree_table = getGraphOutdegreeTable();
       std::vector<node_id_t> P;
@@ -345,7 +345,6 @@ public:
       relabel(P);
     }
   }
-
 
   void reorderGOrder(const int window_size = 5) {
     auto outdegree_table = getGraphOutdegreeTable();
