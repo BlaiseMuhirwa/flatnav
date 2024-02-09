@@ -280,7 +280,15 @@ void bindIndexMethods(
             return index->getNodeAccessCounts();
           },
           "Returns a dictionary mapping node ID's to the number of times they "
-          "were accessed during the last search operation.")
+          "were accessed during the search operation.")
+      .def(
+          "get_edge_access_counts",
+          [](IndexType &index_type) {
+            auto index = index_type.getIndex();
+            return index->getEdgeAccessCounts();
+          },
+          "Returns a dictionary mapping edge ID's to the number of times they "
+          "were accessed during the search operation.")
       .def(
           "get_edge_length_distribution",
           [](IndexType &index_type) {

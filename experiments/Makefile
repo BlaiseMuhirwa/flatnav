@@ -53,14 +53,24 @@ generate-hubness-scores:
 # l2 angular angular l2 angular l2 angular l2
 generate-distributions:
 	poetry run python generate-distributions.py \
-		--datasets mnist-784-euclidean \
+		--datasets mnist-784-euclidean sift-128-euclidean glove-100-angular normal-10-angular normal-10-euclidean normal-256-euclidean normal-256-angular \
 		--k 100 \
-		--metrics l2 \
+		--metrics l2 l2 angular angular l2 l2 angular \
 		--ef-construction 100 \
 		--ef-search 200 \
 		--num-node-links 32 \
 		--distribution-type node-access
 
+
+subgraph-analysis:
+	poetry run python subgraph-analysis.py \
+		--datasets mnist-784-euclidean sift-128-euclidean glove-100-angular normal-256-euclidean \
+		--k 100 \
+		--metrics l2 l2 angular l2 \
+		--ef-construction 100 \
+		--ef-search 100 \
+		--num-node-links 32
+		
 get-index-sizes:
 	poetry run python index-sizes.py \
 		--datasets sift-128-euclidean \

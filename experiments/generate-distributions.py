@@ -7,14 +7,14 @@ from typing import Tuple, Union
 import logging
 import hnswlib
 import time
-from sklearn.neighbors import NearestNeighbors
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import plotly.express as px
-import powerlaw
-from utils import compute_metrics, fit_power_law
+# import powerlaw
+from utils import compute_metrics
 from collections import Counter
+from scipy.stats import skew
 
 logging.basicConfig(level=logging.INFO)
 
@@ -70,32 +70,32 @@ def find_number_of_connected_components(
     return num_connected_components
 
 
-def plot_pmf_from_node_accesses(node_access_counts: dict, dataset_name: str) -> None:
-    """
-    Plots a PMF of the number of times nodes were accessed.
-    :param node_access_counts: A dictionary mapping node ids to the number of times they were accessed.
-    """
-    # Count how many times each access count occurs
-    access_count_frequencies = Counter(node_access_counts.values())
-    total_accesses = sum(access_count_frequencies.values())
+# def plot_pmf_from_node_accesses(node_access_counts: dict, dataset_name: str) -> None:
+#     """
+#     Plots a PMF of the number of times nodes were accessed.
+#     :param node_access_counts: A dictionary mapping node ids to the number of times they were accessed.
+#     """
+#     # Count how many times each access count occurs
+#     access_count_frequencies = Counter(node_access_counts.values())
+#     total_accesses = sum(access_count_frequencies.values())
     
-    # Sort the access counts and calculate their probabilities
-    sorted_access_counts = sorted(access_count_frequencies.keys())
-    probabilities = [access_count_frequencies[count] / total_accesses for count in sorted_access_counts]
+#     # Sort the access counts and calculate their probabilities
+#     sorted_access_counts = sorted(access_count_frequencies.keys())
+#     probabilities = [access_count_frequencies[count] / total_accesses for count in sorted_access_counts]
     
-    # Plot the PMF
-    plt.figure(figsize=(10, 6))
-    plt.plot(sorted_access_counts, probabilities, 'ro')
+#     # Plot the PMF
+#     plt.figure(figsize=(10, 6))
+#     plt.plot(sorted_access_counts, probabilities, 'ro')
     
-    powerlaw.plot_pdf(sorted_access_counts, color='black', linewidth=2)
+#     powerlaw.plot_pdf(sorted_access_counts, color='black', linewidth=2)
     
-    plt.xticks(fontsize=20)
-    plt.yticks(fontsize=22)
+#     plt.xticks(fontsize=20)
+#     plt.yticks(fontsize=22)
     
-    plt.title(f"PMF of Node Access Counts in {dataset_name}")
-    plt.xlabel("Number of Times Accessed")
-    plt.ylabel("Probability")
-    plt.savefig(f"{dataset_name}_pmf-node-access-counts.png")
+#     plt.title(f"PMF of Node Access Counts in {dataset_name}")
+#     plt.xlabel("Number of Times Accessed")
+#     plt.ylabel("Probability")
+#     plt.savefig(f"{dataset_name}_pmf-node-access-counts.png")
     
 
 
@@ -174,15 +174,77 @@ def get_node_access_counts_distribution(
         ef_search=ef_search,
         k=k,
     )
+    logging.info(f"FlatNav metrics: {flatnav_metrics}")
 
     node_access_counts: dict = index.get_node_access_counts()
+    return node_access_counts
 
-    name = DATASET_NAMES[dataset_name]
-    plot_pmf_from_node_accesses(node_access_counts=node_access_counts, dataset_name=name)
+    # name = DATASET_NAMES[dataset_name]
+    # plot_pmf_from_node_accesses(node_access_counts=node_access_counts, dataset_name=name)
     # plot_histogram(node_access_counts=node_access_counts, dataset_name=name)
     # fit_power_law(distribution=node_access_counts, save_path=f"{name}-powerlaw.png")
+    
+def plot_kde_distributions(distributions, bw_adjust_value=0.3):
+    plt.figure(figsize=(10, 6), dpi=300)
+    ax = plt.gca()  # Get the current Axes instance
 
-    logging.info(f"FlatNav metrics: {flatnav_metrics}")
+    # Compute skewness before the log transformation and store them
+    skewness_values = {}
+    for dataset_name, node_access_counts in distributions.items():
+        skewness_values[dataset_name] = skew(list(node_access_counts.values()))
+
+    for dataset_name, node_access_counts in distributions.items():
+        # Apply log-transform to the counts, adding 1 to avoid log(0)
+        log_counts = np.log1p(list(node_access_counts.values()))
+        raw_skewness = skewness_values[dataset_name]
+        # Replace "euclidean" with "l2" and "angular" with "cosine"
+        dataset_name = dataset_name.replace("euclidean", "l2").replace("angular", "cosine")
+        
+        # Plot the KDE for log-transformed data with less smoothness
+        sns.kdeplot(log_counts, label=f"{dataset_name} ($\\tilde{{\\mu}}_3$ = {raw_skewness:.2f})", bw_adjust=bw_adjust_value)
+
+
+    # Set up the legend on the right of the plot
+    plt.legend(title='Dataset', loc='center left', bbox_to_anchor=(1, 0.5))
+
+    # Improve plot aesthetics
+    sns.despine(trim=True)  # Trim the spines for a cleaner look
+    plt.grid(True)  # Add gridlines
+    plt.xlabel('Log of Node access counts')
+    plt.ylabel('PDF')
+    plt.title('KDE of Log-Transformed Node Access Counts')
+
+    # Adjust the plot area to fit the legend and increase the resolution
+    plt.subplots_adjust(right=0.75)
+    plt.tight_layout()
+    
+    plt.savefig("node_access_distributions.png")
+    
+    
+def plot_distributions(distributions):
+    fig, ax = plt.subplots()
+    
+    # Generate bins for the histograms
+    all_counts = [count for dist in distributions.values() for count in dist.values()]
+    max_count = max(all_counts)
+    bins = np.arange(0, max_count + 2) - 0.5  # 0.5 offset to center the bars on the integers
+
+    for dataset_name, node_access_counts in distributions.items():
+        # Convert counts to frequencies
+        total_visits = sum(node_access_counts.values())
+        frequencies = np.array(list(node_access_counts.values())) / total_visits
+        
+        # Plot the PDF or PMF
+        hist, _ = np.histogram(list(node_access_counts.values()), bins=bins, density=True)
+        mid_points = 0.5*(bins[1:] + bins[:-1])
+        plt.plot(mid_points, hist, label=dataset_name)
+
+    plt.xlabel('In-degree (bin number)')
+    plt.ylabel('PDF')
+    plt.legend(title='Dataset')
+    
+    plt.savefig("node_access_distributions.png")
+
 
 
 def get_edge_lengths_distribution(
@@ -291,7 +353,7 @@ def main(
     # os.remove(hnsw_base_layer_filename)
 
     if distribution_type.lower() == "node-access":
-        get_node_access_counts_distribution(
+        node_access_counts = get_node_access_counts_distribution(
             dataset_name=dataset_name,
             index=flatnav_index,
             queries=queries,
@@ -299,6 +361,8 @@ def main(
             ef_search=ef_search,
             k=k,
         )
+        
+        return node_access_counts
 
     elif distribution_type.lower() == "edge-length":
         name = DATASET_NAMES[dataset_name]
@@ -374,29 +438,46 @@ if __name__ == "__main__":
     distance_types = args.metrics
     if len(dataset_names) != len(distance_types):
         raise RuntimeError("Number of datasets and metrics/distances must be the same")
+    
+    # Map from dataset name to node access counts
+    distributions = {}
 
     for index, dataset_name in enumerate(dataset_names):
         print(f"Processing dataset {dataset_name}...")
-        metric = distance_types[index]
-        base_path = os.path.join(ROOT_DATASET_PATH, dataset_name)
+        # metric = distance_types[index]
+        # base_path = os.path.join(ROOT_DATASET_PATH, dataset_name)
 
-        if not os.path.exists(base_path):
-            # Create the directory if it doesn't exist
-            raise ValueError(f"Dataset path not found at {base_path}")
+        # if not os.path.exists(base_path):
+        #     # Create the directory if it doesn't exist
+        #     raise ValueError(f"Dataset path not found at {base_path}")
 
-        train_dataset, queries, ground_truth = load_dataset(
-            base_path=base_path, dataset_name=dataset_name
-        )
+        # train_dataset, queries, ground_truth = load_dataset(
+        #     base_path=base_path, dataset_name=dataset_name
+        # )
 
-        flatnav_metrics = main(
-            dataset_name=dataset_name,
-            train_dataset=train_dataset,
-            queries=queries,
-            ground_truth=ground_truth,
-            distance_type=metric,
-            max_edges_per_node=args.num_node_links,
-            ef_construction=args.ef_construction,
-            ef_search=args.ef_search,
-            k=args.k,
-            distribution_type=args.distribution_type,
-        )
+        # node_access_counts = main(
+        #     dataset_name=dataset_name,
+        #     train_dataset=train_dataset,
+        #     queries=queries,
+        #     ground_truth=ground_truth,
+        #     distance_type=metric,
+        #     max_edges_per_node=args.num_node_links,
+        #     ef_construction=args.ef_construction,
+        #     ef_search=args.ef_search,
+        #     k=args.k,
+        #     distribution_type=args.distribution_type,
+        # )
+        
+        # Save the node access counts for this dataset to a JSON file 
+        # with open(f"{dataset_name}_node_access_counts.json", "w") as f:
+        #     json.dump(node_access_counts, f)
+        
+        # Load the node access counts from the JSON file
+        with open(f"{dataset_name}_node_access_counts.json", "r") as f:
+            node_access_counts = json.load(f)
+        
+        distributions[dataset_name] = node_access_counts
+        
+    # Now plot the distributions 
+    # plot_distributions(distributions)
+    plot_kde_distributions(distributions)

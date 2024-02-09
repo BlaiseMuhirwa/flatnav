@@ -30,6 +30,17 @@
 
 namespace flatnav {
 
+// Define a custom hash function for std::pair<uint32_t, uint32_t>
+struct pair_hash {
+  template <class T1, class T2>
+  std::size_t operator()(const std::pair<T1, T2> &pair) const {
+    auto hash1 = std::hash<T1>{}(pair.first);
+    auto hash2 = std::hash<T2>{}(pair.second);
+    // Combine the two hash values. (This is just one possible way to do it.)
+    return hash1 ^ hash2;
+  }
+};
+
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
 template <typename dist_t, typename label_t> class Index {
@@ -76,6 +87,13 @@ template <typename dist_t, typename label_t> class Index {
   // the sum of the two node IDs and the value is the length of the edge
   // connecting them.
   std::unordered_map<size_t, float> _edge_length_distribution;
+
+  // Track the number of times each edge is visited during search. This
+  // unordered map is used to record how many times each edge is visited during
+  // search.
+  std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t, pair_hash>
+      _edge_access_counts;
+  std::mutex _edge_access_counts_guard;
 
   // Hasher for the node ID's. We add two node IDs and compute their hashes
   // and use the hash as the key in the edge length distribution map.
@@ -479,11 +497,19 @@ public:
   inline size_t dataDimension() const { return _distance->dimension(); }
 
   // Return a reference to the node access counts
-  inline std::unordered_map<uint32_t, uint32_t> &getNodeAccessCounts() {
+  inline const std::unordered_map<uint32_t, uint32_t> &
+  getNodeAccessCounts() const {
     return _node_access_counts;
   }
 
-  inline std::unordered_map<size_t, float> &getEdgeLengthDistribution() {
+  inline const std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t,
+                                  pair_hash> &
+  getEdgeAccessCounts() const {
+    return _edge_access_counts;
+  }
+
+  inline const std::unordered_map<size_t, float> &
+  getEdgeLengthDistribution() const {
     return _edge_length_distribution;
   }
 
@@ -606,10 +632,15 @@ private:
 
       visited_set->insert(/* num = */ neighbor_node_id);
 
-      _node_access_counts_guard.lock();
-      // Increment the counter in the visited map
-      _node_access_counts[neighbor_node_id]++;
-      _node_access_counts_guard.unlock();
+      // _node_access_counts_guard.lock();
+      // // Increment the counter in the visited map
+      // _node_access_counts[neighbor_node_id]++;
+      // _node_access_counts_guard.unlock();
+
+      _edge_access_counts_guard.lock();
+      auto key = std::make_pair(node, neighbor_node_id);
+      _edge_access_counts[key]++;
+      _edge_access_counts_guard.unlock();
 
       dist = _distance->distance(/* x = */ query,
                                  /* y = */ getNodeData(neighbor_node_id),
