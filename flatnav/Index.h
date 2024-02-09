@@ -329,6 +329,23 @@ public:
     return results;
   }
 
+  void doGraphReordering(const std::vector<std::string> &reordering_methods) {
+
+    for (const auto &method : reordering_methods) {
+      auto outdegree_table = getGraphOutdegreeTable();
+      std::vector<node_id_t> P;
+      if (method == "gorder") {
+        P = std::move(flatnav::gOrder<node_id_t>(outdegree_table, 5));
+      } else if (method == "rcm") {
+        P = std::move(flatnav::rcmOrder<node_id_t>(outdegree_table));
+      } else {
+        throw std::invalid_argument("Invalid reordering method: " + method);
+      }
+
+      relabel(P);
+    }
+  }
+
   void reorderGOrder(const int window_size = 5) {
     auto outdegree_table = getGraphOutdegreeTable();
     std::vector<node_id_t> P =

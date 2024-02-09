@@ -154,9 +154,34 @@ public:
     }
   }
 
+  DistancesLabelsPair search_single(
+      const py::array_t<float, py::array::c_style | py::array::forcecast>
+          &query,
+      int K, int ef_search, int num_initializations = 100) {
+
+    if (query.ndim() != 1 || query.shape(0) != _dim) {
+      throw std::invalid_argument("Query has incorrect dimensions.");
+    }
+
+    std::vector<std::pair<float, label_t>> top_k = this->_index->search(
+        /* query = */ (const void *)query.data(0), /* K = */ K,
+        /* ef_search = */ ef_search,
+        /* num_initializations = */ num_initializations);
+
+    py::array_t<label_t> labels = py::array_t<label_t>(top_k.size());
+    py::array_t<float> distances = py::array_t<float>(top_k.size());
+
+    for (size_t i = 0; i < top_k.size(); i++) {
+      distances.mutable_at(i) = top_k[i].first;
+      labels.mutable_at(i) = top_k[i].second;
+    }
+
+    return {distances, labels};
+  }
+
   DistancesLabelsPair
   search(const py::array_t<float, py::array::c_style | py::array::forcecast>
-             queries,
+             &queries,
          int K, int ef_search, int num_initializations = 100) {
 
     size_t num_queries = queries.shape(0);
@@ -253,6 +278,13 @@ void bindIndexMethods(
            "grpah. When using this method, you should invoke "
            "`build_graph_links` explicity. NOTE: In most cases you should not "
            "need to use this method.")
+      .def("search_single", &IndexType::search_single, py::arg("query"),
+           py::arg("K"), py::arg("ef_search"),
+           py::arg("num_initializations") = 100,
+           "Return top `K` closest data points for the given `query`. The "
+           "results are returned as a Tuple of distances and label ID's. The "
+           "`ef_search` parameter determines how many neighbors are visited "
+           "while finding the closest neighbors for the query.")
       .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
            py::arg("ef_search"), py::arg("num_initializations") = 100,
            "Return top `K` closest data points for every query in the "
@@ -297,16 +329,7 @@ void bindIndexMethods(
                     "` is not a supported graph re-ordering strategy.");
               }
             }
-            for (auto &strategy : strategies) {
-              auto alg = strategy;
-              std::transform(alg.begin(), alg.end(), alg.begin(),
-                             [](unsigned char c) { return std::tolower(c); });
-              if (alg == "gorder") {
-                index->reorderGOrder();
-              } else if (alg == "rcm") {
-                index->reorderRCM();
-              }
-            }
+            index->doGraphReordering(strategies);
           },
           py::arg("strategies"),
           "Perform graph re-ordering based on the given sequence of "
