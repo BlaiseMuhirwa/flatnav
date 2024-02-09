@@ -55,10 +55,17 @@ function get_tag_name() {
 TAG_NAME=$(get_tag_name)
 DATA_DIR=${DATA_DIR:-$(pwd)/data}
 
+# Directory for storing metrics and plots. 
+METRICS_DIR=${METRICS_DIR:-$(pwd)/metrics}
+
 echo "Building docker image with tag name: $TAG_NAME"
 
-# Make sure the data/ directory exists
-mkdir -p data
+# If data directory doesn't exist, exit 
+if [ ! -d "$DATA_DIR" ]; then
+    echo "Data directory not found: $DATA_DIR"
+    exit 1
+fi
+mkdir -p $METRICS_DIR
 
 # Clean up existing docker images matching "flatnav" if any 
 docker rmi -f $(docker images --filter=reference="flatnav" -q) &> /dev/null || true
@@ -79,4 +86,8 @@ fi
 
 # Run the container and mount the data/ directory as volume to /root/data
 # Pass the make target as argument to the container. 
-docker run -it --volume ${DATA_DIR}:/root/data --rm flatnav:$TAG_NAME make $1
+docker run \
+        -it \
+        --volume ${DATA_DIR}:/root/data \
+        --volume ${METRICS_DIR}:/root/metrics \
+        --rm flatnav:$TAG_NAME make $1

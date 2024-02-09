@@ -297,16 +297,7 @@ void bindIndexMethods(
                     "` is not a supported graph re-ordering strategy.");
               }
             }
-            for (auto &strategy : strategies) {
-              auto alg = strategy;
-              std::transform(alg.begin(), alg.end(), alg.begin(),
-                             [](unsigned char c) { return std::tolower(c); });
-              if (alg == "gorder") {
-                index->reorderGOrder();
-              } else if (alg == "rcm") {
-                index->reorderRCM();
-              }
-            }
+            index->doGraphReordering(strategies);
           },
           py::arg("strategies"),
           "Perform graph re-ordering based on the given sequence of "

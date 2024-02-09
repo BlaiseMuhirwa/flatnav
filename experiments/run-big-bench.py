@@ -3,7 +3,7 @@ from typing import Union
 import json
 import hnswlib
 import numpy as np
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 import numpy as np
 from dvclive import Live
 import os
@@ -11,6 +11,7 @@ import logging
 import platform, socket, psutil
 import argparse
 import flatnav
+from plotting_utils import plot_qps_against_recall
 
 
 ENVIRONMENT_INFO = {
@@ -82,7 +83,6 @@ def load_benchmark_dataset(
             np.load(gtruth_path).astype(np.int32, copy=False),
         )
 
-
     train_dtype = np.float32 if train_dataset_path.endswith("fbin") else np.uint8
     total_size = os.path.getsize(train_dataset_path) // np.dtype(train_dtype).itemsize
 
@@ -118,31 +118,32 @@ def load_benchmark_dataset(
 
 
 def compute_metrics(
+    requested_metrics: List[str],
     index: Union[flatnav.index.L2Index, flatnav.index.IPIndex, hnswlib.Index],
     queries: np.ndarray,
     ground_truth: np.ndarray,
     ef_search: int,
     k=100,
-) -> Tuple[float, float]:
+) -> Dict[str, float]:
     """
     Compute recall and QPS for given queries, ground truth for the given index(FlatNav or HNSW).
 
     Args:
+        - requested_metrics: A list of metrics to compute. Options include `recall` and `qps` and `latency`.
         - index: A FlatNav index to search.
         - queries: The query vectors.
         - ground_truth: The ground truth indices for each query.
         - k: Number of neighbors to search.
 
     Returns:
-        Mean recall over all queries.
-        QPS over all queries
+        Dictionary of metrics.
 
     """
     is_flatnav_index = type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex)
     if is_flatnav_index:
         start = time.time()
         _, top_k_indices = index.search(
-            queries=queries, ef_search=ef_search, K=k, num_initializations=300
+            queries=queries, ef_search=ef_search, K=k, num_initializations=100
         )
         end = time.time()
     else:
@@ -153,7 +154,13 @@ def compute_metrics(
         end = time.time()
 
     querying_time = end - start
-    qps = len(queries) / querying_time
+
+    metrics = {}
+    if "qps" in requested_metrics:
+        metrics["qps"] = len(queries) / querying_time
+
+    if "latency" in requested_metrics:
+        metrics["latency"] = (querying_time * 1000) / len(queries)
 
     # Convert each ground truth list to a set for faster lookup
     ground_truth_sets = [set(gt) for gt in ground_truth]
@@ -167,8 +174,9 @@ def compute_metrics(
         mean_recall += query_recall / k
 
     recall = mean_recall / len(queries)
+    metrics["recall"] = recall
 
-    return recall, qps
+    return metrics
 
 
 def create_and_train_hnsw_index(
@@ -259,14 +267,14 @@ def train_index(
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
-            verbose=False,
+            verbose=True,
         )
         index.set_num_threads(num_build_threads)
 
         # Train the index.
         start = time.time()
         index.add(
-            data=train_dataset, ef_construction=ef_construction, num_initializations=300
+            data=train_dataset, ef_construction=ef_construction, num_initializations=100
         )
         end = time.time()
 
@@ -283,54 +291,80 @@ def main(
     ef_search_params: List[int],
     num_node_links: List[int],
     distance_type: str,
+    metrics_file: str,
     index_type: str = "flatnav",
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
     reordering_strategies: List[str] | None = None,
+    num_initializations: Optional[List[int]] = None,
     num_build_threads: int = 1,
     num_search_threads: int = 1,
 ):
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
 
+    metrics = {}
+
     for node_links in num_node_links:
+        metrics["node_links"] = node_links
+
         for ef_cons in ef_cons_params:
-                index = train_index(
-                    index_type=index_type,
-                    train_dataset=train_dataset,
-                    max_edges_per_node=node_links,
-                    ef_construction=ef_cons,
-                    dataset_size=dataset_size,
-                    dim=dim,
-                    distance_type=distance_type,
-                    use_hnsw_base_layer=use_hnsw_base_layer,
-                    hnsw_base_layer_filename=hnsw_base_layer_filename,
-                    num_build_threads=num_build_threads,
+            metrics["ef_construction"] = ef_cons
+
+            logging.info(f"Building {index_type=}")
+            index = train_index(
+                index_type=index_type,
+                train_dataset=train_dataset,
+                max_edges_per_node=node_links,
+                ef_construction=ef_cons,
+                dataset_size=dataset_size,
+                dim=dim,
+                distance_type=distance_type,
+                use_hnsw_base_layer=use_hnsw_base_layer,
+                hnsw_base_layer_filename=hnsw_base_layer_filename,
+                num_build_threads=num_build_threads,
+            )
+
+            if reordering_strategies is not None:
+                if type(index) not in (
+                    flatnav.index.L2Index,
+                    flatnav.index.IPIndex,
+                ):
+                    raise ValueError("Reordering only applies to the FlatNav index.")
+                index.reorder(strategies=reordering_strategies)
+
+            index.set_num_threads(num_search_threads)
+            for ef_search in ef_search_params:
+                metrics = compute_metrics(
+                    requested_metrics=["recall", "qps", "latency"],
+                    index=index,
+                    queries=queries,
+                    ground_truth=gtruth,
+                    ef_search=ef_search,
                 )
 
-                if reordering_strategies is not None:
-                    if type(index) not in (
-                        flatnav.index.L2Index,
-                        flatnav.index.IPIndex,
-                    ):
-                        raise ValueError(
-                            "Reordering strategies only apply to FlatNav index."
-                        )
-                    index.reorder(strategies=reordering_strategies)
+                logging.info(
+                    f"Recall@100: {metrics['recall']}, QPS={metrics['qps']}, node_links={node_links},"
+                    f" ef_cons={ef_cons}, ef_search={ef_search}"
+                )
 
-                index.set_num_threads(num_search_threads)
-                for ef_search in ef_search_params:
-                        recall, qps = compute_metrics(
-                        index=index,
-                        queries=queries,
-                        ground_truth=gtruth,
-                        ef_search=ef_search,
-                    )
+                # Add parameters to the metrics dictionary.
+                metrics["distance_type"] = distance_type
+                all_metrics = {index_type: []}
 
-                        logging.info(
-                            f"Recall@100: {recall}, QPS={qps}, node_links={node_links},"
-                            f" ef_cons={ef_cons}, ef_search={ef_search}"
-                        )
+                if os.path.exists(metrics_file) and os.path.getsize(metrics_file) > 0:
+                    with open(metrics_file, "r") as file:
+                        try:
+                            all_metrics = json.load(file)
+                        except json.JSONDecodeError:
+                            logging.error(f"Error reading {metrics_file=}")
+
+                if index_type not in all_metrics:
+                    all_metrics[index_type] = []
+
+                all_metrics[index_type].append(metrics)
+                with open(metrics_file, "w") as file:
+                    json.dump(all_metrics, file, indent=4)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -380,6 +414,13 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--num-initializations",
+        required=False,
+        nargs="+",
+        type=int,
+    )
+
+    parser.add_argument(
         "--dataset",
         required=True,
         help="Path to a single ANNS benchmark dataset to run on.",
@@ -426,15 +467,22 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--metrics-file",
+        required=False,
+        default="metrics.json",
+        help="File to save metrics to.",
+    )
+
+    parser.add_argument(
         "--log_metrics", required=False, default=False, help="Log metrics to DVC."
     )
 
     return parser.parse_args()
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-
+def run_experiment():
+    # This is the root directory inside the Docker container not the host machine.
+    ROOT_DIR = "/root"
     args = parse_arguments()
 
     train_data, queries, ground_truth = load_benchmark_dataset(
@@ -442,6 +490,15 @@ if __name__ == "__main__":
         queries_path=args.queries,
         gtruth_path=args.gtruth,
     )
+
+    num_initializations = args.num_initializations
+    if args.index_type.lower() == "hnsw":
+        if num_initializations is not None:
+            raise ValueError("HNSW does not support num_initializations.")
+
+    metrics_file_path = os.path.join(ROOT_DIR, "metrics", args.metrics_file)
+    plot_file_path = os.path.join(ROOT_DIR, "metrics", "qps_v_recall.png")
+
     main(
         train_dataset=train_data,
         queries=queries,
@@ -456,4 +513,21 @@ if __name__ == "__main__":
         reordering_strategies=args.reordering_strategies,
         num_build_threads=args.num_build_threads,
         num_search_threads=args.num_search_threads,
+        metrics_file=metrics_file_path,
+        num_initializations=num_initializations,
     )
+
+    # Plot metrics
+    with open(metrics_file_path, "r") as file:
+        all_metrics = json.load(file)
+
+    plot_qps_against_recall(
+        save_filepath=plot_file_path,
+        all_metrics=all_metrics,
+    )
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    run_experiment()
+
