@@ -7,6 +7,8 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
+#include <cereal/types/optional.hpp>
+#include <cereal/types/vector.hpp>
 #include <condition_variable>
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
@@ -22,11 +24,146 @@
 #include <optional>
 #include <queue>
 #include <thread>
+#include <unordered_map>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace flatnav {
-  
+using IndexParameterValue = std::variant<uint32_t, float, std::string>;
+using ParameterMap = std::unordered_map<std::string, IndexParameterValue>;
+
+//clang-format off
+/**
+ * @brief A builder class for constructing an index object with various
+ * configuration parameters.
+ *
+ * The IndexBuilder class follows the builder pattern to allow for flexible
+ * configuration of an index object before its instantiation. It encapsulates
+ * all the necessary parameters required to create an index, such as the
+ * distance metric, dataset size, and various optimization parameters. The class
+ * is designed to be used in a chained manner, where methods are called in
+ * sequence to set different configuration options. This approach makes the code
+ * more readable and maintainable.
+ *
+ * @tparam dist_t The data type of the distance metric (e.g., float, double).
+ *
+ * Usage:
+ * 1. Instantiate an IndexBuilder object with the required distance metric and
+ * dataset size.
+ * 2. Optionally configure the index with additional parameters such as max
+ * edges per node, ef construction, number of initializations, number of
+ * threads, and graph reordering methods.
+ * 3. Call the `build` method to construct the configured index object.
+ *
+ * Example:
+ * ```cpp
+ * auto distance = std::make_shared<SquaredL2Distance>(dim=128);
+ * IndexBuilder<SquaredL2Distance> builder(distance, 1000);
+ * builder
+ *     .withMaxEdgesPerNode(16)
+ *     .withEfConstruction(200)
+ *     .withNumThreads(4)
+ *     .withGraphReordering({"gorder", "rcm"});
+ * auto index = std::make_unique<Index<SquaredL2Distance>>(builder);
+ * ```
+ *
+ * Notes:
+ * - The builder pattern provides a clear and flexible way to construct objects
+ * when the object creation process involves multiple steps or when many
+ * parameters are required.
+ * - This implementation allows for easy extension and addition of new
+ * parameters without affecting existing code.
+ * - The methods `withMaxEdgesPerNode`, `withEfConstruction`, `withNumThreads`,
+ * and `withGraphReordering` return a shared pointer to the builder itself,
+ * allowing for the chaining of method calls.
+ * - The `build` method finalizes the configuration and returns a shared pointer
+ * to the constructed index object.
+ */
+
+template <typename dist_t>
+struct IndexBuilder
+    : public std::enable_shared_from_this<IndexBuilder<dist_t>> {
+
+  std::shared_ptr<DistanceInterface<dist_t>> distance;
+  uint32_t max_edges_per_node;
+  uint32_t ef_construction;
+  uint32_t max_node_count;
+  uint32_t num_initializations;
+  uint32_t num_threads;
+  std::optional<std::vector<std::string>> reordering_methods;
+  std::optional<std::string> index_name;
+
+  IndexBuilder() = default;
+  friend class cereal::access;
+  template <typename Archive> void serialize(Archive &archive) {
+    archive(*distance, max_edges_per_node, ef_construction, max_node_count,
+            num_initializations, reordering_methods);
+  }
+
+  static std::shared_ptr<IndexBuilder<dist_t>>
+  create(std::shared_ptr<DistanceInterface<dist_t>> dist,
+         uint32_t dataset_size) {
+    return std::make_shared<IndexBuilder<dist_t>>(dist, dataset_size);
+  }
+
+  IndexBuilder(std::shared_ptr<DistanceInterface<dist_t>> dist,
+               uint32_t dataset_size)
+      : distance(std::move(dist)), max_node_count(dataset_size),
+        num_initializations(100), num_threads(1) {}
+
+  std::shared_ptr<IndexBuilder<dist_t>>
+  withMaxEdgesPerNode(uint32_t max_edges) {
+    max_edges_per_node = max_edges;
+    return this->shared_from_this();
+  }
+
+  std::shared_ptr<IndexBuilder<dist_t>> withEfConstruction(uint32_t value) {
+    ef_construction = value;
+    return this->shared_from_this();
+  }
+
+  std::shared_ptr<IndexBuilder<dist_t>>
+  withIndexParams(const ParameterMap &params) {
+    for (const auto &[key, value] : params) {
+      if (key == "max_edges_per_node") {
+        max_edges_per_node = std::get<uint32_t>(value);
+      } else if (key == "num_threads") {
+        num_threads = std::get<uint32_t>(value);
+      } else if (key == "ef_construction") {
+        ef_construction = std::get<uint32_t>(value);
+      } else if (key == "num_initializations") {
+        num_initializations = std::get<uint32_t>(value);
+      } else if (key == "index_name") {
+        index_name = std::get<std::string>(value);
+      } else {
+        throw std::invalid_argument("Invalid parameter: " + key);
+      }
+    }
+  }
+
+  std::shared_ptr<IndexBuilder<dist_t>>
+  withGraphReordering(const std::vector<std::string> &values) {
+    for (const auto &method : values) {
+      if (method != "gorder" && method != "rcm") {
+        throw std::invalid_argument("Invalid reordering method: " + method);
+      }
+    }
+    reordering_methods = std::move(values);
+    return this->shared_from_this();
+  }
+
+  std::shared_ptr<IndexBuilder<dist_t>> withNumThreads(int threads) {
+    if (threads == 0 || threads > std::thread::hardware_concurrency()) {
+      throw std::invalid_argument(
+          "Number of threads must be greater than 0 and less than or equal to "
+          "the number of hardware threads.");
+    }
+    num_threads = threads;
+    return this->shared_from_this();
+  }
+};
+
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
 template <typename dist_t, typename label_t> class Index {
@@ -40,98 +177,63 @@ template <typename dist_t, typename label_t> class Index {
   // min-heap depending on the context.
   typedef std::priority_queue<dist_node_t, std::vector<dist_node_t>>
       PriorityQueue;
-
+  std::shared_ptr<IndexBuilder<dist_t>> _index_builder;
   // Large (several GB), pre-allocated block of memory.
   char *_index_memory;
 
-  size_t _M;
   // size of one data point (does not support variable-size data, strings)
   size_t _data_size_bytes;
   // Node consists of: ([data] [M links] [data label]). This layout was chosen
   // after benchmarking - it's slightly more cache-efficient than others.
   size_t _node_size_bytes;
-  size_t _max_node_count; // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
-  std::shared_ptr<DistanceInterface<dist_t>> _distance;
   std::mutex _index_data_guard;
-
-  uint32_t _num_threads;
 
   // Remembers which nodes we've visited, to avoid re-computing distances.
   VisitedSetPool *_visited_set_pool;
   std::vector<std::mutex> _node_links_mutexes;
-  std::optional<std::vector<std::vector<uint32_t>>> _outdegree_table;
 
   template <typename Archive> void serialize(Archive &archive) {
-    archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
-            _cur_num_nodes, *_distance);
+    archive(_index_builder, _data_size_bytes, _node_size_bytes, _cur_num_nodes);
 
     // Serialize the allocated memory for the index & query.
-    archive(
-        cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
+    archive(cereal::binary_data(
+        _index_memory, _node_size_bytes * _index_builder->max_node_count));
   }
 
 public:
   /**
-   * @brief Construct a new Index object for approximate near neighbor search
+   * @brief Construct a new Index object using an IndexBuilder.
+   * @param index_builder An IndexBuilder object containing the configuration
+   * parameters for the index.
+   * NOTE: This constructor does not use std::move() because we want to keep the
+   * index_builder object alive for the lifetime of the Index object.
+   * The builder object could be modified after the Index object is constructed.
    *
-   * @param dist                A distance metric for the specific index
-   * distance. Options include l2(euclidean) and inner product.
-   * @param dataset_size        The maximum number of vectors that can be
-   * inserted in the index.
-   * @param max_edges_per_node  The maximum number of links per node.
    */
-  Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
-        int max_edges_per_node)
-      : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(dist), _num_threads(1),
+  explicit Index(std::shared_ptr<IndexBuilder<dist_t>> index_builder)
+      : _index_builder(index_builder), _cur_num_nodes(0),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
-            /* num_elements = */ dataset_size)),
-        _node_links_mutexes(dataset_size) {
+            /* num_elements = */ _index_builder->max_node_count)),
+        _node_links_mutexes(_index_builder->max_node_count) {
 
-    // Get the size in bytes of the _node_links_mutexes vector.
-    size_t mutexes_size_bytes = _node_links_mutexes.size() * sizeof(std::mutex);
-
-    _data_size_bytes = _distance->dataSize();
+    _data_size_bytes = _index_builder->distance->dataSize();
     _node_size_bytes =
-        _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
-    size_t index_memory_size = _node_size_bytes * _max_node_count;
-
+        _data_size_bytes +
+        (sizeof(node_id_t) * _index_builder->max_edges_per_node) +
+        sizeof(label_t);
+    size_t index_memory_size =
+        _node_size_bytes * _index_builder->max_node_count;
     _index_memory = new char[index_memory_size];
   }
 
-  /**
-   * @brief Construct a new Index object using a pre-computed outdegree table.
-   * The outdegree table is extracted from a Matrix Market file.
-   *
-   * @param dist              A distance metric for the specific index
-   * distance. Options include l2(euclidean) and inner product.
-   * @param outdegree_table  A table of outdegrees for each node in the graph.
-   * Each vector in the table contains the IDs of the nodes to which it is
-   * connected.
-   */
-
-  Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
-        const std::string &mtx_filename)
-      : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1) {
-    auto mtx_graph =
-        flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
-    _outdegree_table = std::move(mtx_graph.adjacency_list);
-    _max_node_count = _outdegree_table.value().size();
-    _M = mtx_graph.max_num_edges;
-
-    _visited_set_pool = new VisitedSetPool(
-        /* initial_pool_size = */ 1,
-        /* num_elements = */ _max_node_count);
-
-    _node_links_mutexes = std::vector<std::mutex>(_max_node_count);
-
-    _data_size_bytes = _distance->dataSize();
-    _node_size_bytes =
-        _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
-    size_t index_memory_size = _node_size_bytes * _max_node_count;
-    _index_memory = new char[index_memory_size];
+  std::unique_ptr<Index<dist_t, uint32_t>> buildFromOutdegreeTable(
+      std::shared_ptr<IndexBuilder<dist_t>> index_builder,
+      const std::vector<std::vector<uint32_t>> &outdegree_table) {
+    auto index = std::make_unique<Index<dist_t, uint32_t>>(index_builder);
+    index->buildGraphLinks(outdegree_table);
+    return index;
   }
 
   ~Index() {
@@ -139,20 +241,15 @@ public:
     delete _visited_set_pool;
   }
 
-  void buildGraphLinks() {
-    if (!_outdegree_table.has_value()) {
-      throw std::runtime_error("Cannot build graph links without outdegree "
-                               "table. Please construct index with outdegree "
-                               "table.");
-    }
-
-    for (node_id_t node = 0; node < _outdegree_table.value().size(); node++) {
+  void
+  buildGraphLinks(const std::vector<std::vector<uint32_t>> &outdegree_table) {
+    for (node_id_t node = 0; node < outdegree_table.size(); node++) {
       node_id_t *links = getNodeLinks(node);
-      for (int i = 0; i < _M; i++) {
-        if (i >= _outdegree_table.value()[node].size()) {
+      for (int i = 0; i < _index_builder->max_edges_per_node; i++) {
+        if (i >= outdegree_table[node].size()) {
           links[i] = node;
         } else {
-          links[i] = _outdegree_table.value()[node][i];
+          links[i] = outdegree_table[node][i];
         }
       }
     }
@@ -162,7 +259,7 @@ public:
     std::vector<std::vector<uint32_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
       node_id_t *links = getNodeLinks(node);
-      for (int i = 0; i < _M; i++) {
+      for (int i = 0; i < _index_builder->max_edges_per_node; i++) {
         if (links[i] != node) {
           outdegree_table[node].push_back(links[i]);
         }
@@ -183,14 +280,14 @@ public:
   void allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
 
     new_node_id = _cur_num_nodes;
-    _distance->transformData(
+    _index_builder->distance->transformData(
         /* destination = */ getNodeData(new_node_id),
         /* src = */ data);
     *(getNodeLabel(new_node_id)) = label;
 
     node_id_t *links = getNodeLinks(new_node_id);
     // Initialize all edges to self
-    std::fill_n(links, _M, new_node_id);
+    std::fill_n(links, _index_builder->max_edges_per_node, new_node_id);
     _cur_num_nodes++;
   }
 
@@ -201,7 +298,7 @@ public:
    * `data`, to the underlying graph. Each vector is associated with a label
    * provided in the `labels` vector. The method efficiently handles concurrent
    * additions by dividing the workload among multiple threads, defined by
-   * `_num_threads`.
+   * `_index_builder->num_threads`.
    *
    * The method ensures thread safety by employing locking mechanisms at the
    * node level in the underlying `connectNeighbors` and `beamSearch` methods.
@@ -210,42 +307,33 @@ public:
    *
    * @param data Pointer to the array of vectors to be added.
    * @param labels A vector of labels corresponding to each vector in `data`.
-   * @param ef_construction Parameter for controlling the size of the dynamic
-   * candidate list during the construction of the graph.
-   * @param num_initializations Number of initializations for the search
-   * algorithm. Must be greater than 0.
    *
    * @exception std::invalid_argument Thrown if `num_initializations` is less
    * than or equal to 0.
    * @exception std::runtime_error Thrown if the maximum number of nodes in the
    * index is reached.
    */
-  void addBatch(void *data, std::vector<label_t> &labels, int ef_construction,
-                int num_initializations = 100) {
-    if (num_initializations <= 0) {
-      throw std::invalid_argument(
-          "num_initializations must be greater than 0.");
-    }
+  void addBatch(void *data, std::vector<label_t> &labels) {
     uint32_t total_num_nodes = labels.size();
-    uint32_t data_dimension = _distance->dimension();
+    uint32_t data_dimension = _index_builder->distance->dimension();
 
     // Don't spawn any threads if we are only using one.
-    if (_num_threads == 1) {
+    if (_index_builder->num_threads == 1) {
       for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
         void *vector = (float *)data + (row_id * data_dimension);
         label_t label = labels[row_id];
-        this->add(vector, label, ef_construction, num_initializations);
+        this->add(vector, label);
       }
       return;
     }
 
     flatnav::executeInParallel(
         /* start_index = */ 0, /* end_index = */ total_num_nodes,
-        /* num_threads = */ _num_threads, /* function = */
+        /* num_threads = */ _index_builder->num_threads, /* function = */
         [&](uint32_t row_index) {
           void *vector = (float *)data + (row_index * data_dimension);
           label_t label = labels[row_index];
-          this->add(vector, label, ef_construction, num_initializations);
+          this->add(vector, label);
         });
   }
 
@@ -271,16 +359,16 @@ public:
    * @exception std::runtime_error Thrown if the maximum number of nodes is
    * reached.
    */
-  void add(void *data, label_t &label, int ef_construction,
-           int num_initializations) {
+  void add(void *data, label_t &label) {
 
-    if (_cur_num_nodes >= _max_node_count) {
+    if (_cur_num_nodes >= _index_builder->max_node_count) {
       throw std::runtime_error("Maximum number of nodes reached. Consider "
                                "increasing the `max_node_count` parameter to "
                                "create a larger index.");
     }
     _index_data_guard.lock();
-    auto entry_node = initializeSearch(data, num_initializations);
+    auto entry_node =
+        initializeSearch(data, _index_builder->num_initializations);
     node_id_t new_node_id;
     allocateNode(data, label, new_node_id);
     _index_data_guard.unlock();
@@ -291,7 +379,7 @@ public:
 
     auto neighbors = beamSearch(
         /* query = */ data, /* entry_node = */ entry_node,
-        /* buffer_size = */ ef_construction);
+        /* buffer_size = */ _index_builder->ef_construction);
 
     selectNeighbors(/* neighbors = */ neighbors);
     connectNeighbors(neighbors, new_node_id);
@@ -312,9 +400,12 @@ public:
                                          /* entry_node = */ entry_node,
                                          /* buffer_size = */ ef_search);
     auto size = neighbors.size();
+    while (neighbors.size() > K) {
+      neighbors.pop();
+    }
     std::vector<dist_label_t> results;
     results.reserve(size);
-    while (!neighbors.empty()) {
+    while (neighbors.size() > 0) {
       results.emplace_back(neighbors.top().first,
                            *getNodeLabel(neighbors.top().second));
       neighbors.pop();
@@ -323,16 +414,16 @@ public:
               [](const dist_label_t &left, const dist_label_t &right) {
                 return left.first < right.first;
               });
-    if (results.size() > static_cast<size_t>(K)) {
-      results.resize(K);
-    }
-
     return results;
   }
 
-  void doGraphReordering(const std::vector<std::string> &reordering_methods) {
+  void doGraphReordering() {
+    if (!_index_builder->reordering_methods.has_value()) {
+      throw std::runtime_error("Reordering methods should be specified in the "
+                               "IndexBuilder object.");
+    }
 
-    for (const auto &method : reordering_methods) {
+    for (const auto &method : _index_builder->reordering_methods.value()) {
       auto outdegree_table = getGraphOutdegreeTable();
       std::vector<node_id_t> P;
       if (method == "gorder") {
@@ -375,25 +466,31 @@ public:
     std::shared_ptr<DistanceInterface<dist_t>> dist =
         std::make_shared<dist_t>();
 
+    std::cout << "created distance\n";
     // 1. Deserialize metadata
-    archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
-            index->_max_node_count, index->_cur_num_nodes, *dist);
+    archive(index->_index_builder, index->_data_size_bytes,
+            index->_node_size_bytes, index->_cur_num_nodes);
+
+    std::cout << "deserialized metadata\n";
     index->_visited_set_pool = new VisitedSetPool(
         /* initial_pool_size = */ 1,
-        /* num_elements = */ index->_max_node_count);
-    index->_distance = dist;
-    index->_num_threads = std::thread::hardware_concurrency();
+        /* num_elements = */ index->_index_builder->max_node_count);
+
+    std::cout << "created visited set pool\n";
     index->_node_links_mutexes =
-        std::vector<std::mutex>(index->_max_node_count);
+        std::vector<std::mutex>(index->_index_builder->max_node_count);
+
+    std::cout << "created node links mutexes\n";
 
     // 2. Allocate memory using deserialized metadata
-    index->_index_memory =
-        new char[index->_node_size_bytes * index->_max_node_count];
+    index->_index_memory = new char[index->_node_size_bytes *
+                                    index->_index_builder->max_node_count];
 
+    std::cout << "allocated memory\n";
     // 3. Deserialize content into allocated memory
-    archive(
-        cereal::binary_data(index->_index_memory,
-                            index->_node_size_bytes * index->_max_node_count));
+    archive(cereal::binary_data(index->_index_memory,
+                                index->_node_size_bytes *
+                                    index->_index_builder->max_node_count));
 
     return index;
   }
@@ -409,37 +506,33 @@ public:
     archive(*this);
   }
 
-  inline void setNumThreads(uint32_t num_threads) {
-    if (num_threads == 0 || num_threads > std::thread::hardware_concurrency()) {
-      throw std::invalid_argument(
-          "Number of threads must be greater than 0 and less than or equal to "
-          "the number of hardware threads.");
-    }
-    _num_threads = num_threads;
+  inline size_t maxEdgesPerNode() const {
+    return _index_builder->max_edges_per_node;
   }
-
-  inline uint32_t getNumThreads() const { return _num_threads; }
-
-  inline size_t maxEdgesPerNode() const { return _M; }
   inline size_t dataSizeBytes() const { return _data_size_bytes; }
 
   inline size_t nodeSizeBytes() const { return _node_size_bytes; }
 
-  inline size_t maxNodeCount() const { return _max_node_count; }
+  inline size_t maxNodeCount() const { return _index_builder->max_node_count; }
 
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
-  inline size_t dataDimension() const { return _distance->dimension(); }
+  inline size_t dataDimension() const {
+    return _index_builder->distance->dimension();
+  }
 
   void getIndexSummary() const {
     std::cout << "\nIndex Parameters\n" << std::flush;
     std::cout << "-----------------------------\n" << std::flush;
-    std::cout << "max_edges_per_node (M): " << _M << "\n" << std::flush;
+    std::cout << "max_edges_per_node (M): "
+              << _index_builder->max_edges_per_node << "\n"
+              << std::flush;
     std::cout << "data_size_bytes: " << _data_size_bytes << "\n" << std::flush;
     std::cout << "node_size_bytes: " << _node_size_bytes << "\n" << std::flush;
-    std::cout << "max_node_count: " << _max_node_count << "\n" << std::flush;
+    std::cout << "max_node_count: " << _index_builder->max_node_count << "\n"
+              << std::flush;
     std::cout << "cur_num_nodes: " << _cur_num_nodes << "\n" << std::flush;
 
-    _distance->getSummary();
+    _index_builder->distance->getSummary();
   }
 
 private:
@@ -458,7 +551,7 @@ private:
 
   label_t *getNodeLabel(const node_id_t &n) const {
     char *location = _index_memory + (n * _node_size_bytes) + _data_size_bytes +
-                     (_M * sizeof(node_id_t));
+                     (_index_builder->max_edges_per_node * sizeof(node_id_t));
     return reinterpret_cast<label_t *>(location);
   }
 
@@ -467,17 +560,20 @@ private:
 
     // stash b in temp
     std::memcpy(temp_data, getNodeData(b), _data_size_bytes);
-    std::memcpy(temp_links, getNodeLinks(b), _M * sizeof(node_id_t));
+    std::memcpy(temp_links, getNodeLinks(b),
+                _index_builder->max_edges_per_node * sizeof(node_id_t));
     std::memcpy(temp_label, getNodeLabel(b), sizeof(label_t));
 
     // place node at a in b
     std::memcpy(getNodeData(b), getNodeData(a), _data_size_bytes);
-    std::memcpy(getNodeLinks(b), getNodeLinks(a), _M * sizeof(node_id_t));
+    std::memcpy(getNodeLinks(b), getNodeLinks(a),
+                _index_builder->max_edges_per_node * sizeof(node_id_t));
     std::memcpy(getNodeLabel(b), getNodeLabel(a), sizeof(label_t));
 
     // put node b in a
     std::memcpy(getNodeData(a), temp_data, _data_size_bytes);
-    std::memcpy(getNodeLinks(a), temp_links, _M * sizeof(node_id_t));
+    std::memcpy(getNodeLinks(a), temp_links,
+                _index_builder->max_edges_per_node * sizeof(node_id_t));
     std::memcpy(getNodeLabel(a), temp_label, sizeof(label_t));
   }
 
@@ -500,9 +596,9 @@ private:
     auto *visited_set = _visited_set_pool->pollAvailableSet();
     visited_set->clear();
 
-    float dist =
-        _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node),
-                            /* asymmetric = */ true);
+    float dist = _index_builder->distance->distance(
+        /* x = */ query, /* y = */ getNodeData(entry_node),
+        /* asymmetric = */ true);
 
     float max_dist = dist;
     candidates.emplace(-dist, entry_node);
@@ -538,7 +634,7 @@ private:
     float dist = 0.f;
 
     node_id_t *neighbor_node_links = getNodeLinks(node);
-    for (uint32_t i = 0; i < _M; i++) {
+    for (uint32_t i = 0; i < _index_builder->max_edges_per_node; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
       bool neighbor_is_visited =
           visited_set->isVisited(/* num = */ neighbor_node_id);
@@ -548,9 +644,10 @@ private:
       }
 
       visited_set->insert(/* num = */ neighbor_node_id);
-      dist = _distance->distance(/* x = */ query,
-                                 /* y = */ getNodeData(neighbor_node_id),
-                                 /* asymmetric = */ true);
+      dist = _index_builder->distance->distance(
+          /* x = */ query,
+          /* y = */ getNodeData(neighbor_node_id),
+          /* asymmetric = */ true);
 
       if (neighbors.size() < buffer_size || dist < max_dist) {
         candidates.emplace(-dist, neighbor_node_id);
@@ -572,13 +669,13 @@ private:
    * distance where the top element is the furthest neighbor from the query.
    */
   void selectNeighbors(PriorityQueue &neighbors) {
-    if (neighbors.size() < _M) {
+    if (neighbors.size() < _index_builder->max_edges_per_node) {
       return;
     }
 
     PriorityQueue candidates;
     std::vector<dist_node_t> saved_candidates;
-    saved_candidates.reserve(_M);
+    saved_candidates.reserve(_index_builder->max_edges_per_node);
 
     while (neighbors.size() > 0) {
       candidates.emplace(-neighbors.top().first, neighbors.top().second);
@@ -587,7 +684,7 @@ private:
 
     float cur_dist = 0.0;
     while (candidates.size() > 0) {
-      if (saved_candidates.size() >= _M) {
+      if (saved_candidates.size() >= _index_builder->max_edges_per_node) {
         break;
       }
       // Extract the closest element from candidates.
@@ -597,9 +694,9 @@ private:
       bool should_keep_candidate = true;
       for (const dist_node_t &second_pair : saved_candidates) {
 
-        cur_dist =
-            _distance->distance(/* x = */ getNodeData(second_pair.second),
-                                /* y = */ getNodeData(current_pair.second));
+        cur_dist = _index_builder->distance->distance(
+            /* x = */ getNodeData(second_pair.second),
+            /* y = */ getNodeData(current_pair.second));
 
         if (cur_dist < (-current_pair.first)) {
           should_keep_candidate = false;
@@ -639,7 +736,7 @@ private:
           _node_links_mutexes[neighbor_node_id]);
       node_id_t *neighbor_node_links = getNodeLinks(neighbor_node_id);
       bool is_inserted = false;
-      for (size_t j = 0; j < _M; j++) {
+      for (size_t j = 0; j < _index_builder->max_edges_per_node; j++) {
         if (neighbor_node_links[j] == neighbor_node_id) {
           // If there is a self-loop, replace the self-loop with
           // the desired link.
@@ -655,18 +752,18 @@ private:
         // construct a candidate set including the old links AND our new
         // one, then prune this candidate set to get the new neighbors.
 
-        float max_dist =
-            _distance->distance(/* x = */ getNodeData(neighbor_node_id),
-                                /* y = */ getNodeData(new_node_id));
+        float max_dist = _index_builder->distance->distance(
+            /* x = */ getNodeData(neighbor_node_id),
+            /* y = */ getNodeData(new_node_id));
 
         PriorityQueue candidates;
         candidates.emplace(max_dist, new_node_id);
-        for (size_t j = 0; j < _M; j++) {
+        for (size_t j = 0; j < _index_builder->max_edges_per_node; j++) {
           if (neighbor_node_links[j] != neighbor_node_id) {
             auto label = neighbor_node_links[j];
-            auto distance =
-                _distance->distance(/* x = */ getNodeData(neighbor_node_id),
-                                    /* y = */ getNodeData(label));
+            auto distance = _index_builder->distance->distance(
+                /* x = */ getNodeData(neighbor_node_id),
+                /* y = */ getNodeData(label));
             candidates.emplace(distance, label);
           }
         }
@@ -678,7 +775,9 @@ private:
           candidates.pop();
           j++;
         }
-        while (j < _M) { // self-loops (unused links)
+        while (
+            j <
+            _index_builder->max_edges_per_node) { // self-loops (unused links)
           neighbor_node_links[j] = neighbor_node_id;
           j++;
         }
@@ -689,8 +788,8 @@ private:
 
       // loop increments:
       i++;
-      if (i >= _M) {
-        i = _M;
+      if (i >= _index_builder->max_edges_per_node) {
+        i = _index_builder->max_edges_per_node;
       }
       neighbors.pop();
     }
@@ -720,9 +819,9 @@ private:
     node_id_t entry_node = 0;
 
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
-      float dist =
-          _distance->distance(/* x = */ query, /* y = */ getNodeData(node),
-                              /* asymmetric = */ true);
+      float dist = _index_builder->distance->distance(
+          /* x = */ query, /* y = */ getNodeData(node),
+          /* asymmetric = */ true);
       if (dist < min_dist) {
         min_dist = dist;
         entry_node = node;
@@ -735,14 +834,14 @@ private:
     // 1. Rewire all of the node connections
     for (node_id_t n = 0; n < _cur_num_nodes; n++) {
       node_id_t *links = getNodeLinks(n);
-      for (int m = 0; m < _M; m++) {
+      for (int m = 0; m < _index_builder->max_edges_per_node; m++) {
         links[m] = P[links[m]];
       }
     }
 
     // 2. Physically re-layout the nodes (in place)
     char *temp_data = new char[_data_size_bytes];
-    node_id_t *temp_links = new node_id_t[_M];
+    node_id_t *temp_links = new node_id_t[_index_builder->max_edges_per_node];
     label_t *temp_label = new label_t;
 
     auto *visited_set = _visited_set_pool->pollAvailableSet();
