@@ -10,7 +10,23 @@ yandex-deep-bench:
 
 # Other available options include: --index-type (hnsw, flatnav)
 # We use dataset-name for the name of the plots.
-sift-bench: 
+sift-bench-flatnav: 
+	poetry run python run-big-bench.py \
+		--dataset-name sift \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--index-type flatnav \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename sift.mtx \
+		--num-node-links 32 \
+		--ef-construction 100 200 300 \
+		--ef-search 100 200 300 500 1000 \
+		--metric l2 \
+		--num-build-threads 16 \
+		--num-search-threads 1 
+
+sift-bench-hnsw: 
 	poetry run python run-big-bench.py \
 		--dataset-name sift \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
@@ -22,7 +38,7 @@ sift-bench:
 		--ef-search 100 200 300 500 1000 \
 		--metric l2 \
 		--num-build-threads 16 \
-		--num-search-threads 1 
+		--num-search-threads 1
 
 glove-bench:
 	poetry run python run-big-bench.py \
@@ -76,8 +92,3 @@ cleanup:
 	@echo "  yandex-deep-bench: run yandex-deep benchmark"
 	@echo "  sift-bench: run sift benchmark"
 	
-
-# C++
-# [INFO] Mean Recall: 0.682335, Duration:0.3437 milliseconds
-# [INFO] Mean Recall: 0.766166, Duration:0.6024 milliseconds
-# [INFO] Mean Recall: 0.806287, Duration:0.8613 milliseconds
