@@ -168,15 +168,35 @@ public:
         /* ef_search = */ ef_search,
         /* num_initializations = */ num_initializations);
 
-    py::array_t<label_t> labels = py::array_t<label_t>(top_k.size());
-    py::array_t<float> distances = py::array_t<float>(top_k.size());
-
-    for (size_t i = 0; i < top_k.size(); i++) {
-      distances.mutable_at(i) = top_k[i].first;
-      labels.mutable_at(i) = top_k[i].second;
+    if (top_k.size() != K) {
+      throw std::runtime_error("Search did not return the expected number of "
+                               "results. Expected " +
+                               std::to_string(K) + " but got " +
+                               std::to_string(top_k.size()) + ".");
     }
 
-    return {distances, labels};
+    label_t *labels = new label_t[K];
+    float *distances = new float[K];
+
+    for (size_t i = 0; i < K; i++) {
+      distances[i] = top_k[i].first;
+      labels[i] = top_k[i].second;
+    }
+
+    // Allows to transfer ownership to Python
+    py::capsule free_labels_when_done(labels,
+                                      [](void *ptr) { delete (label_t *)ptr; });
+
+    py::capsule free_distances_when_done(
+        distances, [](void *ptr) { delete (float *)ptr; });
+
+    py::array_t<label_t> labels_array = py::array_t<label_t>(
+        {K}, {sizeof(label_t)}, labels, free_labels_when_done);
+
+    py::array_t<float> distances_array = py::array_t<float>(
+        {K}, {sizeof(float)}, distances, free_distances_when_done);
+
+    return {distances_array, labels_array};
   }
 
   DistancesLabelsPair

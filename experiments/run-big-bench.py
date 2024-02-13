@@ -330,9 +330,8 @@ def main(
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
 
-    metrics = {}
-
     for node_links in num_node_links:
+        metrics = {}
         metrics["node_links"] = node_links
 
         for ef_cons in ef_cons_params:
@@ -362,28 +361,33 @@ def main(
 
             index.set_num_threads(num_search_threads)
             for ef_search in ef_search_params:
-                metrics = compute_metrics(
-                    requested_metrics=[
-                        "recall",
-                        "qps",
-                        "latency",
-                        "latency_p95",
-                        "latency_p99",
-                        "latency_p999",
-                    ],
-                    index=index,
-                    queries=queries,
-                    ground_truth=gtruth,
-                    ef_search=ef_search,
+                # Extend metrics with computed metrics
+                metrics.update(
+                    compute_metrics(
+                        requested_metrics=[
+                            "recall",
+                            "qps",
+                            "latency",
+                            "latency_p95",
+                            "latency_p99",
+                            "latency_p999",
+                        ],
+                        index=index,
+                        queries=queries,
+                        ground_truth=gtruth,
+                        ef_search=ef_search,
+                    )
                 )
 
                 logging.info(
-                    f"Recall@100: {metrics['recall']}, QPS={metrics['qps']}, mean-latency = {metrics['latency']}, node_links={node_links},"
-                    f" ef_cons={ef_cons}, ef_search={ef_search}"
+                    f"Recall@100: {metrics['recall']}, QPS={metrics['qps']}, "
+                    f"mean-latency = {metrics['latency']}, node_links={node_links}, "
+                    f"ef_cons={ef_cons}, ef_search={ef_search}"
                 )
 
                 # Add parameters to the metrics dictionary.
                 metrics["distance_type"] = distance_type
+                metrics["ef_search"] = ef_search
                 all_metrics = {index_type: []}
 
                 if os.path.exists(metrics_file) and os.path.getsize(metrics_file) > 0:
@@ -567,6 +571,7 @@ def run_experiment():
     plot_qps_against_recall(
         save_filepath=qps_recall_filepath,
         all_metrics=all_metrics,
+        dataset_name=args.dataset_name,
     )
 
     latency_percentiles = ["latency", "latency_p95", "latency_p99", "latency_p999"]
@@ -578,6 +583,7 @@ def run_experiment():
             save_filepath=filepath,
             all_metrics=all_metrics,
             percentile_key=percentile_key,
+            dataset_name=args.dataset_name,
         )
 
 
