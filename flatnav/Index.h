@@ -26,7 +26,7 @@
 #include <vector>
 
 namespace flatnav {
-
+  
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
 template <typename dist_t, typename label_t> class Index {
@@ -312,12 +312,9 @@ public:
                                          /* entry_node = */ entry_node,
                                          /* buffer_size = */ ef_search);
     auto size = neighbors.size();
-    while (neighbors.size() > K) {
-      neighbors.pop();
-    }
     std::vector<dist_label_t> results;
     results.reserve(size);
-    while (neighbors.size() > 0) {
+    while (!neighbors.empty()) {
       results.emplace_back(neighbors.top().first,
                            *getNodeLabel(neighbors.top().second));
       neighbors.pop();
@@ -326,6 +323,10 @@ public:
               [](const dist_label_t &left, const dist_label_t &right) {
                 return left.first < right.first;
               });
+    if (results.size() > static_cast<size_t>(K)) {
+      results.resize(K);
+    }
+
     return results;
   }
 

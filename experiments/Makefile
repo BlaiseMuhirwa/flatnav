@@ -9,31 +9,49 @@ yandex-deep-bench:
 		--metric l2 > logs.txt 2>&1
 
 # Other available options include: --index-type (hnsw, flatnav)
-sift-bench: 
+# We use dataset-name for the name of the plots.
+sift-bench-flatnav: 
 	poetry run python run-big-bench.py \
+		--dataset-name sift \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--index-type flatnav \
 		--use-hnsw-base-layer \
 		--hnsw-base-layer-filename sift.mtx \
 		--num-node-links 32 \
-		--ef-construction 100 200 \
-		--ef-search 100 200 300 \
+		--ef-construction 100 200 300 \
+		--ef-search 100 200 300 500 1000 \
 		--metric l2 \
 		--num-build-threads 16 \
-		--num-search-threads 1 \
-		--reordering-strategies gorder rcm 
+		--num-search-threads 1 
+
+sift-bench-hnsw: 
+	poetry run python run-big-bench.py \
+		--dataset-name sift \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--index-type hnsw \
+		--num-node-links 32 \
+		--ef-construction 100 200 300 \
+		--ef-search 100 200 300 500 1000 \
+		--metric l2 \
+		--num-build-threads 16 \
+		--num-search-threads 1
 
 glove-bench:
 	poetry run python run-big-bench.py \
 		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
 		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
 		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
-		--use-hnsw-base-layer \
-		--hnsw-base-layer-filename glove.mtx \
+		--dataset-name glove \
+		--index-type flatnav \
 		--num-node-links 32 \
-		--ef-construction 100 200 \
+		--ef-construction 100 \
 		--ef-search 100 200 300 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
 		--metric angular
 
 setup: install-flatnav install-hnswlib
