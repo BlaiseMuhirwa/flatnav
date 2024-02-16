@@ -33,14 +33,14 @@ void buildIndex(float *data,
                 const std::string &save_file) {
 
   // Create an index builder object
-  std::shared_ptr<IndexBuilder<dist_t>> builder =
-      IndexBuilder<dist_t>::create(std::move(distance), N)
+  std::shared_ptr<IndexBuilder> builder =
+      IndexBuilder::create(N)
           ->withEfConstruction(ef_construction)
           ->withMaxEdgesPerNode(M)
           ->withGraphReordering({"gorder", "rcm"})
           ->withNumThreads(std::thread::hardware_concurrency());
 
-  auto index = new Index<dist_t, int>(builder);
+  auto index = new Index<dist_t, int>(std::move(distance), builder);
 
   auto start = std::chrono::high_resolution_clock::now();
 

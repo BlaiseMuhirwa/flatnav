@@ -1,31 +1,44 @@
 import flatnav
-from flatnav.index import index_factory, IndexBuilder
+from flatnav.index import create_index, IndexBuilder
 import numpy as np
 
 index_builder = (
-    IndexBuilder(distance_type="l2", dataset_size=1000, dim=12)
+    IndexBuilder(dataset_size=10000)
     .with_index_params(
         {
-            "max-edges-per-node": 16,
-            "efConstruction": 200,
-            "num-initializations": 100,
-            "num-threads": 4,
+            "max_edges_per_node": 16,
+            "ef_construction": 200,
+            "num_initializations": 100,
+            "num_threads": 4,
+            "index_name": "hnsw_16_200"
         }
     )
-    .with_index_name("hnsw_16_200")
+    .with_reordering(["gorder", "rcm"]) 
 )
 
-index = index_factory(builder=index_builder)
-index.add(data=np.random.rand(1000, 12))
-index_builder.with_reordering(["gorder", "rcm"])
+print(f"Index builder: {index_builder}")
 
-index.search(queries=np.random.rand(100, 12), k=10)
+index = create_index(distance_type="l2", dim=100, index_builder=index_builder)
 
-##########################################
-# second initialization via a MTX file
-##########################################
+print(f"Index: {index}")
+index.add(data=np.random.rand(10000, 100))
 
-outdegree_table = index.utils.load_from_mtx_file(filename="outdegree.mtx")
+threads = index.num_threads
+print(f"Number of threads: {threads}")
+
+index.set_num_threads(8)
+
+threads = index.num_threads
+print(f"Number of threads: {threads}")
+# index_builder.with_reordering(["gorder", "rcm"])
+
+# index.search(queries=np.random.rand(100, 12), k=10)
+
+# ##########################################
+# # second initialization via a MTX file
+# ##########################################
+
+outdegree_table = flatnav.utils.load_from_mtx_file(filename="outdegree.mtx")
 
 # this calls buildGraphLinks() internally
-index = index_factory(builder=index_builder, outdegree_table=outdegree_table)
+index.build_from_outdegree_table(outdegree_table)

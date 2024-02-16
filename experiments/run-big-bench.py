@@ -11,6 +11,7 @@ import logging
 import platform, socket, psutil
 import argparse
 import flatnav
+from flatnav.index import create_index, IndexBuilder
 from plotting_utils import plot_qps_against_recall, plot_percentile_against_recall
 
 
@@ -289,20 +290,23 @@ def train_index(
         index.allocate_nodes(data=train_dataset).build_graph_links()
 
     else:
-        index = flatnav.index.index_factory(
+        index_builder = IndexBuilder(dataset_size=dataset_size).with_index_params(
+            params={
+                "max_edges_per_node": max_edges_per_node,
+                "ef_construction": ef_construction,
+                "num_threads": num_build_threads,
+                "num_initializations": 100,
+            }
+        )
+        index = flatnav.index.create_index(
             distance_type=distance_type,
             dim=dim,
-            dataset_size=dataset_size,
-            max_edges_per_node=max_edges_per_node,
-            verbose=True,
+            index_builder=index_builder,
         )
-        index.set_num_threads(num_build_threads)
 
         # Train the index.
         start = time.time()
-        index.add(
-            data=train_dataset, ef_construction=ef_construction, num_initializations=100
-        )
+        index.add(data=train_dataset)
         end = time.time()
 
         logging.info(f"Indexing time = {end - start} seconds")
