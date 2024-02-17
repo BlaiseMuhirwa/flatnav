@@ -5,12 +5,12 @@ import hnswlib
 import numpy as np
 from typing import Optional, Tuple, List, Dict
 import numpy as np
-from dvclive import Live
 import os
 import logging
 import platform, socket, psutil
 import argparse
 import flatnav
+import gc 
 from plotting_utils import plot_qps_against_recall, plot_percentile_against_recall
 
 
@@ -157,6 +157,7 @@ def compute_metrics(
             end = time.time()
             latencies.append(end - start)
             top_k_indices.append(indices)
+
     else:
         index.set_ef(ef_search)
         for query in queries:
@@ -166,13 +167,9 @@ def compute_metrics(
             latencies.append(end - start)
             top_k_indices.append(indices[0])
 
-    if not all(len(indices) == k for indices in top_k_indices):
-        raise RuntimeError("Not all queries returned the same number of results.")
-
-    # Convert the list of lists to a NumPy array
-    top_k_indices = np.stack(top_k_indices)
     querying_time = sum(latencies)
 
+    querying_time = end - start
     metrics = {}
     if "qps" in requested_metrics:
         metrics["qps"] = len(queries) / querying_time
@@ -273,10 +270,16 @@ def train_index(
             num_threads=num_build_threads,
         )
 
-        # Now extract the base layer's graph and save it to a file.
-        # This will be a Matrix Market file that we use to construct the Flatnav index.
-        hnsw_index.save_base_layer_graph(filename=hnsw_base_layer_filename)
-
+        try:
+            # Now extract the base layer's graph and save it to a file.
+            # This will be a Matrix Market file that we use to construct the Flatnav index.
+            hnsw_index.save_base_layer_graph(filename=hnsw_base_layer_filename)
+            
+        finally:
+            # delete the HNSW index and force garbage collection
+            del hnsw_index
+            gc.collect()
+            
         index = flatnav.index.index_factory(
             distance_type=distance_type,
             dim=dim,
@@ -319,6 +322,7 @@ def main(
     num_node_links: List[int],
     distance_type: str,
     metrics_file: str,
+    dataset_name: str, 
     index_type: str = "flatnav",
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
@@ -329,6 +333,8 @@ def main(
 ):
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
+    
+    experiment_key = f"{dataset_name}_{index_type}"
 
     for node_links in num_node_links:
         metrics = {}
@@ -388,7 +394,7 @@ def main(
                 # Add parameters to the metrics dictionary.
                 metrics["distance_type"] = distance_type
                 metrics["ef_search"] = ef_search
-                all_metrics = {index_type: []}
+                all_metrics = {experiment_key: []}
 
                 if os.path.exists(metrics_file) and os.path.getsize(metrics_file) > 0:
                     with open(metrics_file, "r") as file:
@@ -397,10 +403,10 @@ def main(
                         except json.JSONDecodeError:
                             logging.error(f"Error reading {metrics_file=}")
 
-                if index_type not in all_metrics:
-                    all_metrics[index_type] = []
+                if experiment_key not in all_metrics:
+                    all_metrics[experiment_key] = []
 
-                all_metrics[index_type].append(metrics)
+                all_metrics[experiment_key].append(metrics)
                 with open(metrics_file, "w") as file:
                     json.dump(all_metrics, file, indent=4)
 
@@ -518,10 +524,6 @@ def parse_arguments() -> argparse.Namespace:
         help="Name of the benchmark dataset being used.",
     )
 
-    parser.add_argument(
-        "--log_metrics", required=False, default=False, help="Log metrics to DVC."
-    )
-
     return parser.parse_args()
 
 
@@ -551,6 +553,7 @@ def run_experiment():
         ef_search_params=args.ef_search,
         num_node_links=args.num_node_links,
         distance_type=args.metric.lower(),
+        dataset_name=args.dataset_name,  
         index_type=args.index_type.lower(),
         use_hnsw_base_layer=args.use_hnsw_base_layer,
         hnsw_base_layer_filename=args.hnsw_base_layer_filename,
@@ -566,7 +569,7 @@ def run_experiment():
         all_metrics = json.load(file)
 
     qps_recall_filepath = os.path.join(
-        ROOT_DIR, "metrics", f"{args.dataset_name}qps_v_recall.png"
+        ROOT_DIR, "metrics", f"{args.dataset_name}_qps_v_recall.png"
     )
     plot_qps_against_recall(
         save_filepath=qps_recall_filepath,
@@ -577,7 +580,7 @@ def run_experiment():
     latency_percentiles = ["latency", "latency_p95", "latency_p99", "latency_p999"]
     for percentile_key in latency_percentiles:
         filepath = os.path.join(
-            ROOT_DIR, "metrics", f"{args.dataset_name}{percentile_key}_v_recall.png"
+            ROOT_DIR, "metrics", f"{args.dataset_name}_{percentile_key}_v_recall.png"
         )
         plot_percentile_against_recall(
             save_filepath=filepath,
