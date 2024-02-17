@@ -562,13 +562,11 @@ private:
                                  /* asymmetric = */ true);
 
       if (neighbors.size() < buffer_size || dist < max_dist) {
-
+        candidates.emplace(-dist, neighbor_node_id);
+        neighbors.emplace(dist, neighbor_node_id);
 #ifdef USE_SSE
         _mm_prefetch(getNodeData(candidates.top().second), _MM_HINT_T0);
 #endif
-
-        candidates.emplace(-dist, neighbor_node_id);
-        neighbors.emplace(dist, neighbor_node_id);
 
         if (neighbors.size() > buffer_size) {
           neighbors.pop();
