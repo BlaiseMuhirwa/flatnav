@@ -26,7 +26,7 @@
 #include <vector>
 
 namespace flatnav {
-  
+
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
 template <typename dist_t, typename label_t> class Index {
@@ -540,13 +540,22 @@ private:
     node_id_t *neighbor_node_links = getNodeLinks(node);
     for (uint32_t i = 0; i < _M; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
+
+      // If using SSE, prefetch the next neighbor node data and the visited
+      // marker
+#ifdef USE_SSE
+      if (i != _M - 1) {
+        _mm_prefetch(getNodeData(neighbor_node_links[i + 1]), _MM_HINT_T0);
+        visited_set->prefetch(neighbor_node_links[i + 1]);
+      }
+#endif
+
       bool neighbor_is_visited =
           visited_set->isVisited(/* num = */ neighbor_node_id);
 
       if (neighbor_is_visited) {
         continue;
       }
-
       visited_set->insert(/* num = */ neighbor_node_id);
       dist = _distance->distance(/* x = */ query,
                                  /* y = */ getNodeData(neighbor_node_id),
@@ -555,6 +564,9 @@ private:
       if (neighbors.size() < buffer_size || dist < max_dist) {
         candidates.emplace(-dist, neighbor_node_id);
         neighbors.emplace(dist, neighbor_node_id);
+#ifdef USE_SSE
+        _mm_prefetch(getNodeData(candidates.top().second), _MM_HINT_T0);
+#endif
 
         if (neighbors.size() > buffer_size) {
           neighbors.pop();
