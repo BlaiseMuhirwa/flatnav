@@ -416,6 +416,9 @@ public:
           "the number of hardware threads.");
     }
     _num_threads = num_threads;
+    if (_num_threads == 1) {
+      _visited_set_pool->setPoolSize(1);
+    }
   }
 
   inline uint32_t getNumThreads() const { return _num_threads; }

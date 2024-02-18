@@ -170,6 +170,21 @@ public:
     _visisted_set_pool.push_back(visited_set);
   }
 
+  void setPoolSize(uint32_t new_pool_size) {
+    std::unique_lock<std::mutex> lock(_pool_guard);
+
+    if (new_pool_size > _visisted_set_pool.size()) {
+      throw std::invalid_argument(
+          "new_pool_size must be less than or equal to the current pool size");
+    }
+
+    while (_visisted_set_pool.size() > new_pool_size) {
+      auto *visited_set = _visisted_set_pool.back();
+      _visisted_set_pool.pop_back();
+      delete visited_set;
+    }
+  }
+
   inline uint32_t getPoolSize() { return _visisted_set_pool.size(); }
 
   ~VisitedSetPool() {
