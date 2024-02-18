@@ -511,6 +511,18 @@ public:
   inline size_t maxEdgesPerNode() const {
     return _index_builder->max_edges_per_node;
   }
+  
+  inline void setNumThreads(uint32_t num_threads) {
+    if (num_threads == 0 || num_threads > std::thread::hardware_concurrency()) {
+      throw std::invalid_argument(
+          "Number of threads must be greater than 0 and less than or equal to "
+          "the number of hardware threads.");
+    }
+    _num_threads = num_threads;
+    if (_num_threads == 1) {
+      _visited_set_pool->setPoolSize(1);
+    }
+  }
   inline size_t dataSizeBytes() const { return _data_size_bytes; }
 
   inline size_t nodeSizeBytes() const { return _node_size_bytes; }
@@ -639,13 +651,22 @@ private:
     node_id_t *neighbor_node_links = getNodeLinks(node);
     for (uint32_t i = 0; i < _index_builder->max_edges_per_node; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
+
+      // If using SSE, prefetch the next neighbor node data and the visited
+      // marker
+#ifdef USE_SSE
+      if (i != _M - 1) {
+        _mm_prefetch(getNodeData(neighbor_node_links[i + 1]), _MM_HINT_T0);
+        visited_set->prefetch(neighbor_node_links[i + 1]);
+      }
+#endif
+
       bool neighbor_is_visited =
           visited_set->isVisited(/* num = */ neighbor_node_id);
 
       if (neighbor_is_visited) {
         continue;
       }
-
       visited_set->insert(/* num = */ neighbor_node_id);
       dist = _distance->distance(
           /* x = */ query,
@@ -655,6 +676,9 @@ private:
       if (neighbors.size() < buffer_size || dist < max_dist) {
         candidates.emplace(-dist, neighbor_node_id);
         neighbors.emplace(dist, neighbor_node_id);
+#ifdef USE_SSE
+        _mm_prefetch(getNodeData(candidates.top().second), _MM_HINT_T0);
+#endif
 
         if (neighbors.size() > buffer_size) {
           neighbors.pop();

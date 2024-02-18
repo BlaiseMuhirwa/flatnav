@@ -154,13 +154,6 @@ public:
         /* query = */ (const void *)query.data(0), /* K = */ K,
         /* ef_search = */ ef_search);
 
-    if (top_k.size() != K) {
-      throw std::runtime_error("Search did not return the expected number of "
-                               "results. Expected " +
-                               std::to_string(K) + " but got " +
-                               std::to_string(top_k.size()) + ".");
-    }
-
     label_t *labels = new label_t[K];
     float *distances = new float[K];
 

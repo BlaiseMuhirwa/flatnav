@@ -91,7 +91,7 @@ def plot_percentile_against_recall(
     # Adding labels and title
     plt.xlabel("Recall")
     plt.ylabel(f"{percentile_key} (ms)")
-    plot_title = f"({dataset_name}) {percentile_key} Latency-Recall Tradeoff - down and to the right is better"
+    plot_title = f"({dataset_name}) Latency-Recall Tradeoff - down and to the right is better"
     plt.title(
         plot_title
     )
