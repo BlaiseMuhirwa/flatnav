@@ -168,8 +168,6 @@ def compute_metrics(
             top_k_indices.append(indices[0])
 
     querying_time = sum(latencies)
-
-    querying_time = end - start
     metrics = {}
     if "qps" in requested_metrics:
         metrics["qps"] = len(queries) / querying_time
