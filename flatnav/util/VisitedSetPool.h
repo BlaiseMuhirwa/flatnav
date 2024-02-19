@@ -36,10 +36,23 @@ public:
 
   inline uint32_t size() const { return _table_size; }
 
-  inline void clear() { _mark++; }
+  inline void clear() {
+    _mark++;
+    // If we overflow (i.e., _mark equals to the maximum value of uint8_t), we
+    // reset the visited set to 0 and start over with mark 0.
+    // auto max_uint8_t = std::numeric_limits<uint8_t>::max();
+    // if (_mark == max_uint8_t) {
+    //   std::memset(_table, 0, _table_size);
+    //   _mark = 1;
+    // }
+  }
 
   inline bool isVisited(const uint32_t num) const {
     return _table[num] == _mark;
+  }
+
+  inline uint8_t getTableValue(const uint32_t num) const {
+    return _table[num];
   }
 
   ~VisitedSet() { delete[] _table; }
