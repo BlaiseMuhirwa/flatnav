@@ -109,6 +109,8 @@ glove100-bench-flatnav:
 		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
 		--dataset-name glove-100-angular \
 		--index-type flatnav \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename glove100.mtx \
 		--num-node-links 32 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 500 1000 3000 \
@@ -138,6 +140,8 @@ glove25-bench-flatnav:
 		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
 		--dataset-name glove-25-angular \
 		--index-type flatnav \
+		--use-hnsw-base-layer \
+                --hnsw-base-layer-filename glove25.mtx \
 		--num-node-links 32 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 500 1000 3000 \
@@ -166,6 +170,8 @@ nytimes-bench-flatnav:
 		--gtruth /root/data/nytimes-256-angular/nytimes-256-angular.gtruth.npy \
 		--dataset-name nytimes-256-angular \
 		--index-type flatnav \
+		--use-hnsw-base-layer \
+                --hnsw-base-layer-filename nytimes.mtx \
 		--num-node-links 32 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 500 1000 2500 5000 \
