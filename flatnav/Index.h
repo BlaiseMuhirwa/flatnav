@@ -61,7 +61,6 @@ template <typename dist_t, typename label_t> class Index {
   VisitedSetPool *_visited_set_pool;
   std::vector<std::mutex> _node_links_mutexes;
   std::optional<std::vector<std::vector<uint32_t>>> _outdegree_table;
-  bool _verbose;
 
   template <typename Archive> void serialize(Archive &archive) {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
@@ -83,13 +82,13 @@ public:
    * @param max_edges_per_node  The maximum number of links per node.
    */
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
-        int max_edges_per_node, bool verbose = false)
+        int max_edges_per_node)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
         _cur_num_nodes(0), _distance(dist), _num_threads(1),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
-        _node_links_mutexes(dataset_size), _verbose(verbose) {
+        _node_links_mutexes(dataset_size) {
 
     // Get the size in bytes of the _node_links_mutexes vector.
     size_t mutexes_size_bytes = _node_links_mutexes.size() * sizeof(std::mutex);
@@ -115,8 +114,7 @@ public:
 
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
         const std::string &mtx_filename, bool verbose = false)
-      : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1),
-        _verbose(verbose) {
+      : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1) {
     auto mtx_graph =
         flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
     _outdegree_table = std::move(mtx_graph.adjacency_list);
@@ -314,11 +312,6 @@ public:
                                          /* entry_node = */ entry_node,
                                          /* buffer_size = */ ef_search);
     auto size = neighbors.size();
-    if (_verbose) {
-      std::cout << "Beam search returned " << size << " neighbors.\n"
-                << std::flush;
-    }
-
     std::vector<dist_label_t> results;
     results.reserve(size);
     while (!neighbors.empty()) {
@@ -428,8 +421,6 @@ public:
     }
   }
 
-  inline void setVerbose(bool verbose) { _verbose = verbose; }
-
   inline uint32_t getNumThreads() const { return _num_threads; }
 
   inline size_t maxEdgesPerNode() const { return _M; }
@@ -511,14 +502,6 @@ private:
 
     auto *visited_set = _visited_set_pool->pollAvailableSet();
     uint8_t visited_set_mark = visited_set->getMark();
-
-    if (_verbose) {
-      uint8_t table_value = visited_set->getTableValue(entry_node);
-      std::cout << "Visited set mark: " << (int)visited_set_mark << "\n"
-                << "Table value for entry node: " << (int)table_value << "\n"
-                << std::flush;
-    }
-
     visited_set->clear();
 
     float dist =
@@ -530,55 +513,10 @@ private:
     neighbors.emplace(dist, entry_node);
     visited_set->insert(entry_node);
 
-    visited_set_mark = visited_set->getMark();
-    if (_verbose) {
-      uint8_t table_value = visited_set->getTableValue(entry_node);
-      std::cout << "Visited set mark: " << (int)visited_set_mark << "\n"
-                << "Table value for entry node: " << (int)table_value << "\n"
-                << std::flush;
-    }
-
-    // if (_verbose) {
-    //   // Print entry point node and distance to the query.
-    //   std::cout << "Entry node: " << entry_node << " with distance " << dist
-    //             << " to the query.\n"
-    //             << std::flush;
-    // }
-
     while (!candidates.empty()) {
       dist_node_t d_node = candidates.top();
 
-      // if (_verbose) {
-      //   // Print the node ID we're processing and the distance to teh query
-      //   as
-      //   // well as the distance to the query from the entry node.
-      //   std::cout << "Processing node " << d_node.second << " with distance "
-      //             << -d_node.first << " to the query and " << dist
-      //             << " to the entry node.\n"
-      //             << std::flush;
-
-      //   // Print all neighbors for this node.
-      //   auto *links = getNodeLinks(d_node.second);
-      //   for (size_t i = 0; i < _M; i++) {
-      //     if (d_node.second != links[i]) {
-      //       std::cout << "Neighbor " << i << " of node " << d_node.second
-      //                 << " is " << links[i] << "\n"
-      //                 << std::flush;
-      //     }
-      //   }
-      // }
-
       if ((-d_node.first) > max_dist && neighbors.size() >= buffer_size) {
-        // Print out all the d_node.first, max_dist, and neighbors.size()
-        // values.
-        // if (_verbose) {
-        //   std::cout << "Breaking out of beam search with distance "
-        //             << -d_node.first << " and max_dist " << max_dist
-        //             << " and neighbors size " << neighbors.size() << ".\n"
-        //             << std::flush;
-        //   std::cout << "Data node id: " << d_node.second << "\n" <<
-        //   std::flush;
-        // }
         break;
       }
       candidates.pop();
@@ -621,17 +559,6 @@ private:
           visited_set->isVisited(/* num = */ neighbor_node_id);
 
       if (neighbor_is_visited) {
-        if (_verbose) {
-          uint8_t table_value = visited_set->getTableValue(neighbor_node_id);
-          uint8_t visited_set_mark = visited_set->getMark();
-
-          // Print out the visited set mark and the table value for the
-          // neighbor node.
-          std::cout << "Neighbor " << neighbor_node_id << " is visited with "
-                    << "table value " << (int)table_value << " and visited set "
-                    << "mark " << (int)visited_set_mark << ".\n"
-                    << std::flush;
-        }
         continue;
       }
       visited_set->insert(/* num = */ neighbor_node_id);
@@ -640,14 +567,6 @@ private:
                                  /* asymmetric = */ true);
 
       if (neighbors.size() < buffer_size || dist < max_dist) {
-        // if (_verbose) {
-        //   std::cout << "Adding neighbor " << neighbor_node_id << " with "
-        //             << "distance " << dist << " to the query.\n"
-        //             << std::flush;
-        //   std::cout << "Size of neighbors set: " << neighbors.size() << "\n"
-        //             << std::flush;
-        // }
-
         candidates.emplace(-dist, neighbor_node_id);
         neighbors.emplace(dist, neighbor_node_id);
 #ifdef USE_SSE
