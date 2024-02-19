@@ -420,7 +420,7 @@ static float distanceImplInnerProductSIMD16ExtSSE(const void *x, const void *y,
 
   _mm_store_ps(temp_res, sum);
   float total = temp_res[0] + temp_res[1] + temp_res[2] + temp_res[3];
-  return 1.0f - total;
+  return total;
 }
 
 static float distanceImplInnerProductSIMD4ExtSSE(const void *x, const void *y,
