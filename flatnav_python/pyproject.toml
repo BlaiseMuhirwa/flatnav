@@ -26,7 +26,6 @@ h5py = "^3.10.0"
 requests = "^2.31.0"
 
 
-
 [build-system]
 requires = ["setuptools>=68", "wheel", "pybind11=2.10.4", "python>=3.9"]
 build-backend = "setuptools.build_meta"

@@ -67,7 +67,7 @@ if no_manual_vectorization:
 
 ext_modules = [
     Pybind11Extension(
-        "flatnav",
+        "flatnav_cpp",
         [SOURCE_PATH],
         define_macros=[("VERSION_INFO", __version__)],
         cxx_std=17,
@@ -81,7 +81,7 @@ ext_modules = [
 setup(
     name="flatnav",
     version=__version__,
-    packages=find_packages(),
+    packages=find_packages(exclude=["unit_tests"], where="."),
     author="Benjamin Coleman",
     author_email="benjamin.ray.coleman@gmail.com",
     url="https://randorithms.com",

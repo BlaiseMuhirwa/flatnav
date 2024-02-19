@@ -1,4 +1,2 @@
 
-
-from .flatnav import * 
-from . import utils 
+import flatnav_cpp 

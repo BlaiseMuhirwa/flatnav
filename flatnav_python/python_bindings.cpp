@@ -335,6 +335,9 @@ void bindIndexMethods(
           [](IndexType &index_type, int num_threads) {
             auto index = index_type.getIndex();
             index->getBuilder()->num_threads = num_threads;
+            if (num_threads == 1) {
+              index->setVisitedPoolSize(1);
+            }
           },
           "Set the number of threads to use for the index.")
       .def(
@@ -397,7 +400,7 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   bindIndexMethods(ip_index_class);
 }
 
-PYBIND11_MODULE(flatnav, module) {
+PYBIND11_MODULE(flatnav_cpp, module) {
   auto index_submodule = module.def_submodule("index");
 
   defineIndexSubmodule(index_submodule);
