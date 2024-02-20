@@ -221,7 +221,14 @@ public:
             /* query = */ (const void *)queries.data(query_index), /* K = */ K,
             /* ef_search = */ ef_search,
             /* num_initializations = */ num_initializations);
-            
+
+        if (top_k.size() != K) {
+          throw std::runtime_error("Search did not return the expected number "
+                                   "of results. Expected " +
+                                   std::to_string(K) + " but got " +
+                                   std::to_string(top_k.size()) + ".");
+        }
+
         for (size_t i = 0; i < top_k.size(); i++) {
           distances[query_index * K + i] = top_k[i].first;
           results[query_index * K + i] = top_k[i].second;
