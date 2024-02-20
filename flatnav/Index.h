@@ -113,7 +113,7 @@ public:
    */
 
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
-        const std::string &mtx_filename)
+        const std::string &mtx_filename, bool verbose = false)
       : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1) {
     auto mtx_graph =
         flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
@@ -308,9 +308,10 @@ public:
                                    int ef_search,
                                    int num_initializations = 100) {
     node_id_t entry_node = initializeSearch(query, num_initializations);
-    PriorityQueue neighbors = beamSearch(/* query = */ query,
-                                         /* entry_node = */ entry_node,
-                                         /* buffer_size = */ ef_search);
+    PriorityQueue neighbors =
+        beamSearch(/* query = */ query,
+                   /* entry_node = */ entry_node,
+                   /* buffer_size = */ std::max(ef_search, K));
     auto size = neighbors.size();
     std::vector<dist_label_t> results;
     results.reserve(size);
@@ -514,7 +515,8 @@ private:
 
     while (!candidates.empty()) {
       dist_node_t d_node = candidates.top();
-      if ((-d_node.first) > max_dist) {
+
+      if ((-d_node.first) > max_dist && neighbors.size() >= buffer_size) {
         break;
       }
       candidates.pop();
@@ -522,7 +524,7 @@ private:
       processCandidateNode(
           /* query = */ query, /* node = */ d_node.second,
           /* max_dist = */ max_dist, /* buffer_size = */ buffer_size,
-          /* visited_nodes = */ visited_set,
+          /* visited_set = */ visited_set,
           /* neighbors = */ neighbors, /* candidates = */ candidates);
     }
 
@@ -570,7 +572,6 @@ private:
 #ifdef USE_SSE
         _mm_prefetch(getNodeData(candidates.top().second), _MM_HINT_T0);
 #endif
-
         if (neighbors.size() > buffer_size) {
           neighbors.pop();
         }

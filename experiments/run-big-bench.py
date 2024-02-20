@@ -157,7 +157,6 @@ def compute_metrics(
             end = time.time()
             latencies.append(end - start)
             top_k_indices.append(indices)
-
     else:
         index.set_ef(ef_search)
         for query in queries:
@@ -166,7 +165,7 @@ def compute_metrics(
             end = time.time()
             latencies.append(end - start)
             top_k_indices.append(indices[0])
-
+            
     querying_time = sum(latencies)
     metrics = {}
     if "qps" in requested_metrics:
@@ -288,6 +287,7 @@ def train_index(
         # using the HNSW base layer graph. We do not use the ef-construction parameter since
         # it's assumed to have been used when building the HNSW base layer.
         index.allocate_nodes(data=train_dataset).build_graph_links()
+        os.remove(hnsw_base_layer_filename)
 
     else:
         index = flatnav.index.index_factory(
@@ -295,7 +295,7 @@ def train_index(
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
-            verbose=True,
+            verbose=False,
         )
         index.set_num_threads(num_build_threads)
 

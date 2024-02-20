@@ -154,7 +154,7 @@ public:
     }
   }
 
-  DistancesLabelsPair search_single(
+  DistancesLabelsPair searchSingle(
       const py::array_t<float, py::array::c_style | py::array::forcecast>
           &query,
       int K, int ef_search, int num_initializations = 100) {
@@ -167,6 +167,12 @@ public:
         /* query = */ (const void *)query.data(0), /* K = */ K,
         /* ef_search = */ ef_search,
         /* num_initializations = */ num_initializations);
+
+    if (top_k.size() != K) {
+      throw std::runtime_error(
+          "Search did not return the expected number of results. Expected " +
+          std::to_string(K) + " but got " + std::to_string(top_k.size()) + ".");
+    }
 
     label_t *labels = new label_t[K];
     float *distances = new float[K];
@@ -215,6 +221,13 @@ public:
             /* query = */ (const void *)queries.data(query_index), /* K = */ K,
             /* ef_search = */ ef_search,
             /* num_initializations = */ num_initializations);
+
+        if (top_k.size() != K) {
+          throw std::runtime_error("Search did not return the expected number "
+                                   "of results. Expected " +
+                                   std::to_string(K) + " but got " +
+                                   std::to_string(top_k.size()) + ".");
+        }
 
         for (size_t i = 0; i < top_k.size(); i++) {
           distances[query_index * K + i] = top_k[i].first;
@@ -291,7 +304,7 @@ void bindIndexMethods(
            "grpah. When using this method, you should invoke "
            "`build_graph_links` explicity. NOTE: In most cases you should not "
            "need to use this method.")
-      .def("search_single", &IndexType::search_single, py::arg("query"),
+      .def("search_single", &IndexType::searchSingle, py::arg("query"),
            py::arg("K"), py::arg("ef_search"),
            py::arg("num_initializations") = 100,
            "Return top `K` closest data points for the given `query`. The "
