@@ -313,26 +313,18 @@ public:
                    /* entry_node = */ entry_node,
                    /* buffer_size = */ std::max(ef_search, K));
 
-    std::priority_queue<dist_label_t, std::vector<dist_label_t>> max_heap;
+    while (neighbors.size() > K) {
+      neighbors.pop();
+    }
+    std::vector<dist_label_t> results;
+    results.reserve(neighbors.size());
 
-    while (!neighbors.empty()) {
+    while (neighbors.size() > 0) {
       auto [distance, node_id] = neighbors.top();
-      if (max_heap.size() < K) {
-        max_heap.emplace(distance, *getNodeLabel(node_id));
-      } else if (distance < max_heap.top().first) {
-        max_heap.pop();
-        max_heap.emplace(distance, *getNodeLabel(node_id));
-      }
+      results.emplace_back(distance, *getNodeLabel(node_id));
       neighbors.pop();
     }
 
-    std::vector<dist_label_t> results;
-    results.reserve(max_heap.size());
-    while (!max_heap.empty()) {
-      results.emplace_back(max_heap.top());
-      max_heap.pop();
-    }
-    std::reverse(results.begin(), results.end());
     return results;
   }
 
