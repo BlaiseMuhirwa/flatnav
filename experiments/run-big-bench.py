@@ -158,7 +158,6 @@ def compute_metrics(
             end = time.time()
             latencies.append(end - start)
             top_k_indices.append(indices)
-
     else:
         index.set_ef(ef_search)
         for query in queries:
@@ -167,7 +166,7 @@ def compute_metrics(
             end = time.time()
             latencies.append(end - start)
             top_k_indices.append(indices[0])
-
+            
     querying_time = sum(latencies)
     metrics = {}
     if "qps" in requested_metrics:

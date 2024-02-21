@@ -19,7 +19,7 @@ private:
   uint32_t _table_size;
 
 public:
-  VisitedSet(const uint32_t size) : _mark(0), _table_size(size) {
+  VisitedSet(const uint32_t size) : _mark(1), _table_size(size) {
     // initialize values to 0
     _table = new uint8_t[_table_size]();
   }
@@ -36,7 +36,13 @@ public:
 
   inline uint32_t size() const { return _table_size; }
 
-  inline void clear() { _mark++; }
+  inline void clear() {
+    _mark++;
+    if (_mark == 0) {
+      std::memset(_table, 0, _table_size);
+      _mark = 1;
+    }
+  }
 
   inline bool isVisited(const uint32_t num) const {
     return _table[num] == _mark;
