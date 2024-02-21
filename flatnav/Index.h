@@ -245,14 +245,6 @@ public:
     _index_memory = new char[index_memory_size];
   }
 
-  std::unique_ptr<Index<dist_t, uint32_t>> buildFromOutdegreeTable(
-      std::shared_ptr<IndexBuilder> index_builder,
-      const std::vector<std::vector<uint32_t>> &outdegree_table) {
-    auto index = std::make_unique<Index<dist_t, uint32_t>>(index_builder);
-    index->buildGraphLinks(outdegree_table);
-    return index;
-  }
-
   ~Index() {
     delete[] _index_memory;
     delete _visited_set_pool;
@@ -408,8 +400,8 @@ public:
    * @param num_initializations The number of random initializations to use.
    */
   std::vector<dist_label_t> search(const void *query, const int K,
-                                   int ef_search,
-                                   int num_initializations = 100) {
+                                   int ef_search) {
+    int num_initializations = _index_builder->num_initializations;
     node_id_t entry_node = initializeSearch(query, num_initializations);
     PriorityQueue neighbors =
         beamSearch(/* query = */ query,

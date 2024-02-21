@@ -41,4 +41,4 @@ print(f"Number of threads: {threads}")
 outdegree_table = flatnav.utils.load_from_mtx_file(filename="outdegree.mtx")
 
 # this calls buildGraphLinks() internally
-index.build_from_outdegree_table(outdegree_table)
+index.build_from_outdegree_table(outdegree_table=outdegree_table, index_builder=index_builder)

@@ -4,6 +4,7 @@
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/util/ParallelConstructs.h>
+#include <flatnav/util/PreprocessorUtils.h>
 #include <iostream>
 #include <memory>
 #include <ostream>
@@ -354,7 +355,7 @@ void bindIndexMethods(
           },
           "Set the number of threads to use for the index.")
       .def(
-          "build_from_outdegree_table",
+          "build_graph_links",
           [](IndexType &index_type,
              const std::vector<std::vector<uint32_t>> &outdegree_table) {
             auto index = index_type.getIndex();
@@ -413,8 +414,20 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   bindIndexMethods(ip_index_class);
 }
 
-PYBIND11_MODULE(flatnav_cpp, module) {
-  auto index_submodule = module.def_submodule("index");
+void defineUtilSubmodule(py::module_ &util_submodule) {
+  util_submodule.def(
+    "load_from_mtx_file",
+    [](const std::string &filename) -> std::vector<std::vector<uint32_t>> {
+      auto mtx_graph = flatnav::util::loadGraphFromMatrixMarket(filename.c_str());
+      return mtx_graph.adjacency_list;
+    },  py::arg("filename"),
+    "Load the adjacency list representation of the graph from a Matrix Market formatted file.");
+}
 
+PYBIND11_MODULE(flatnav, module) {
+  auto index_submodule = module.def_submodule("index");
+  auto util_submodule = module.def_submodule("util");
+
+  defineUtilSubmodule(util_submodule);
   defineIndexSubmodule(index_submodule);
 }

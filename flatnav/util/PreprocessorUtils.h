@@ -14,14 +14,13 @@ struct MtxGraph {
 };
 
 // Function to load a graph from a Matrix Market file
-// TODO: This might need a more robust error handling.
 MtxGraph loadGraphFromMatrixMarket(const char *filename) {
   std::ifstream input_file;
   input_file.open(filename);
 
   if (!input_file.is_open()) {
-    std::cerr << "Error opening file" << std::endl;
-    exit(1);
+    throw std::runtime_error("Unable to open file: " + std::string(filename) +
+                             ".");
   }
 
   std::string line;

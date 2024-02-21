@@ -67,7 +67,7 @@ if no_manual_vectorization:
 
 ext_modules = [
     Pybind11Extension(
-        "flatnav_cpp",
+        "flatnav",
         [SOURCE_PATH],
         define_macros=[("VERSION_INFO", __version__)],
         cxx_std=17,
