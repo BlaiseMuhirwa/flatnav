@@ -289,7 +289,7 @@ def train_index(
         print(f"Allocating nodes for {index_type=}")
         outdegree_table = flatnav.util.load_from_mtx_file(
             filename=hnsw_base_layer_filename
-        )
+        )        
         print(f"Building graph links for {index_type=}")
         index.allocate_nodes(data=train_dataset)
         

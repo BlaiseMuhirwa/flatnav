@@ -356,10 +356,10 @@ void bindIndexMethods(
           "Set the number of threads to use for the index.")
       .def(
           "build_graph_links",
-          [](IndexType &index_type,
+          [](std::shared_ptr<IndexType> index_type,
              const std::vector<std::vector<uint32_t>> &outdegree_table) {
-            auto index = index_type.getIndex();
-            index->buildGraphLinks(outdegree_table);
+            auto *index = index_type->getIndex();
+            index->buildGraphLinks(/* outdegree_table = */ outdegree_table);
           },
           "Construct the edge connectivity of the underlying graph. This "
           "method "

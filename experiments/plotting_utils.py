@@ -98,3 +98,22 @@ def plot_percentile_against_recall(
     plt.legend()
     plt.ticklabel_format(style="plain", axis="x")
     plt.savefig(save_filepath, dpi=300, bbox_inches="tight")
+
+
+if __name__=="__main__":
+    import os 
+    import json 
+    
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    qps_recall_filepath = os.path.join(current_dir, "yandex_qps_recall.png")  
+    metrics_file = os.path.join(current_dir, "..", "metrics", "metrics.json")
+    
+    with open(metrics_file, "r") as file:
+        all_metrics = json.load(file)
+
+    
+    plot_qps_against_recall(
+        save_filepath=qps_recall_filepath,
+        all_metrics=all_metrics,
+        dataset_name="yandex-deep",
+    )
