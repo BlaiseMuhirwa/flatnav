@@ -361,6 +361,7 @@ void bindIndexMethods(
             auto *index = index_type->getIndex();
             index->buildGraphLinks(/* outdegree_table = */ outdegree_table);
           },
+          py::arg("outdegree_table"),
           "Construct the edge connectivity of the underlying graph. This "
           "method "
           "should be invoked after allocating nodes using the "

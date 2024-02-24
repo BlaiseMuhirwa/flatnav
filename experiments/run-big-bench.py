@@ -286,22 +286,12 @@ def train_index(
         # Here we will first allocate memory for the index and then build edge connectivity
         # using the HNSW base layer graph. We do not use the ef-construction parameter since
         # it's assumed to have been used when building the HNSW base layer.
-        print(f"Allocating nodes for {index_type=}")
         outdegree_table = flatnav.util.load_from_mtx_file(
             filename=hnsw_base_layer_filename
-        )        
-        print(f"Building graph links for {index_type=}")
-        index.allocate_nodes(data=train_dataset)
-        
-        print(f"Building graph links for {index_type=}")
-        index.build_graph_links(
+        )
+        index.allocate_nodes(data=train_dataset).build_graph_links(
             outdegree_table=outdegree_table
         )
-        
-        print(f"Deleting {hnsw_base_layer_filename=}")
-        exit(0)
-
-        del outdegree_table
         os.remove(hnsw_base_layer_filename)
 
         return index

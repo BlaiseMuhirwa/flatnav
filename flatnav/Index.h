@@ -253,9 +253,6 @@ public:
   void
   buildGraphLinks(const std::vector<std::vector<uint32_t>> &outdegree_table) {
     auto M = _index_builder->max_edges_per_node;
-    std::cout << "Building graph links with outdegree table\n" << std::flush;
-    std::cout << "Table size: " << outdegree_table.size() << "\n" << std::flush;
-
     for (node_id_t node = 0; node < outdegree_table.size(); node++) {
       node_id_t *links = getNodeLinks(node);
       for (int i = 0; i < M; i++) {

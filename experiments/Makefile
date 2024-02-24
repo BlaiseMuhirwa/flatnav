@@ -72,6 +72,23 @@ gist-bench-hnsw:
 		--metric l2 \
 		--num-build-threads 16 \
 		--num-search-threads 1 
+
+mnist-bench-flatnav:
+	poetry run python run-big-bench.py \
+		--dataset-name mnist-784 \
+		--dataset /root/data/mnist-784-euclidean/mnist-784-euclidean.train.npy \
+		--queries /root/data/mnist-784-euclidean/mnist-784-euclidean.test.npy \
+		--gtruth /root/data/mnist-784-euclidean/mnist-784-euclidean.gtruth.npy \
+		--index-type flatnav \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename mnist.mtx \
+		--num-node-links 32 \
+		--ef-construction 100 200 300 \
+		--ef-search 100 200 300 \
+		--metric l2 \
+		--num-build-threads 16 \
+		--num-search-threads 1
+	
 sift-bench-flatnav: 
 	poetry run python run-big-bench.py \
 		--dataset-name sift \
@@ -171,10 +188,10 @@ nytimes-bench-flatnav:
 		--dataset-name nytimes-256-angular \
 		--index-type flatnav \
 		--use-hnsw-base-layer \
-                --hnsw-base-layer-filename nytimes.mtx \
+    	--hnsw-base-layer-filename nytimes.mtx \
 		--num-node-links 32 \
 		--ef-construction 100 200 300 \
-		--ef-search 100 200 300 500 1000 2500 5000 \
+		--ef-search 100 200 300 400 500 1000 \
 		--num-build-threads 16 \
 		--num-search-threads 1 \
 		--metric angular
