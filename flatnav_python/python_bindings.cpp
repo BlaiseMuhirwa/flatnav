@@ -48,7 +48,8 @@ public:
   }
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
-          std::shared_ptr<IndexParameterConfig> parameter_config, bool verbose = false)
+          std::shared_ptr<IndexParameterConfig> parameter_config,
+          bool verbose = false)
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* distance = */ std::move(distance),
@@ -269,8 +270,8 @@ py::object createIndex(const std::string &distance_type, int dim,
 
   if (dist_type == "l2") {
     auto distance = std::make_shared<SquaredL2Distance>(/* dim = */ dim);
-    return py::cast(
-        std::make_shared<L2FlatNavIndex>(std::move(distance), parameter_config));
+    return py::cast(std::make_shared<L2FlatNavIndex>(std::move(distance),
+                                                     parameter_config));
   } else if (dist_type == "angular") {
     auto distance = std::make_shared<InnerProductDistance>(/* dim = */ dim);
     return py::cast(std::make_shared<InnerProductFlatNavIndex>(
@@ -374,8 +375,8 @@ void bindIndexMethods(
 }
 
 void defineIndexSubmodule(py::module_ &index_submodule) {
-  py::class_<IndexParameterConfig, std::shared_ptr<IndexParameterConfig>>(index_submodule,
-                                                          "ParameterConfig")
+  py::class_<IndexParameterConfig, std::shared_ptr<IndexParameterConfig>>(
+      index_submodule, "ParameterConfig")
       .def(py::init<int>(), py::arg("dataset_size"))
       .def("with_index_params", &IndexParameterConfig::withIndexParams,
            py::arg("params"),
@@ -395,7 +396,21 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
            // clang-format off
            "Enables or disables graph reordering strategies.\n\n"
            "Parameters:\n"
-           "    strategies (List[str]): A list of reordering strategies to apply.");
+           "    strategies (List[str]): A list of reordering strategies to apply.")
+      // clang-format on
+      .def("enable_distance_metrics",
+           &IndexParameterConfig::enableDistanceMetricsCollection,
+           "Enables distance metrics collection.")
+      .def(
+          "get_total_distance_computations",
+          [](std::shared_ptr<IndexParameterConfig> config) -> uint64_t {
+            return config->distance_computations;
+          },
+          "Returns the total number of distance computations.")
+      .def("save", &IndexParameterConfig::save, py::arg("filename"),
+           "Save the index parameter configuration to a file.")
+      .def_static("load", &IndexParameterConfig::load, py::arg("filename"),
+                  "Load the index parameter configuration from a file.");
 
   index_submodule.def(
       "create_index",
@@ -417,12 +432,15 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
 
 void defineUtilSubmodule(py::module_ &util_submodule) {
   util_submodule.def(
-    "load_from_mtx_file",
-    [](const std::string &filename) -> std::vector<std::vector<uint32_t>> {
-      auto mtx_graph = flatnav::util::loadGraphFromMatrixMarket(filename.c_str());
-      return mtx_graph.adjacency_list;
-    },  py::arg("filename"),
-    "Load the adjacency list representation of the graph from a Matrix Market formatted file.");
+      "load_from_mtx_file",
+      [](const std::string &filename) -> std::vector<std::vector<uint32_t>> {
+        auto mtx_graph =
+            flatnav::util::loadGraphFromMatrixMarket(filename.c_str());
+        return mtx_graph.adjacency_list;
+      },
+      py::arg("filename"),
+      "Load the adjacency list representation of the graph from a Matrix "
+      "Market formatted file.");
 }
 
 PYBIND11_MODULE(flatnav, module) {

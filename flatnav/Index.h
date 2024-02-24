@@ -38,23 +38,20 @@ using ParameterMap = std::unordered_map<std::string, IndexParameterValue>;
  * @brief A builder class for constructing an index object with various
  * configuration parameters.
  *
- * The IndexParameterConfig class follows the builder pattern to allow for flexible
- * configuration of an index object before its instantiation. It encapsulates
- * all the necessary parameters required to create an index, such as the
- * distance metric, dataset size, and various optimization parameters. The class
- * is designed to be used in a chained manner, where methods are called in
- * sequence to set different configuration options. This approach makes the code
- * more readable and maintainable.
+ * The IndexParameterConfig class follows the builder pattern to allow for
+ * flexible configuration of an index object before its instantiation. It
+ * encapsulates all the necessary parameters required to create an index.
+ * The class is designed to be used in a chained manner, where methods are
+ * called in sequence to set different configuration options. This approach
+ * makes the code more readable and maintainable.
  *
- * @tparam dist_t The data type of the distance metric (e.g., float, double).
  *
  * Usage:
- * 1. Instantiate an IndexParameterConfig object with the required distance metric and
- * dataset size.
+ * 1. Instantiate an IndexParameterConfig object with the dataset size.
  * 2. Optionally configure the index with additional parameters such as max
  * edges per node, ef construction, number of initializations, number of
  * threads, and graph reordering methods.
- * 3. Call the `build` method to construct the configured index object.
+ * 3. Pass the config object to the Index constructor to create the index.
  *
  * Example:
  * ```cpp
@@ -66,21 +63,10 @@ using ParameterMap = std::unordered_map<std::string, IndexParameterValue>;
  *         ->withGraphReordering({"gorder", "rcm"})
  *         ->withNumThreads(std::thread::hardware_concurrency());
  * ```
- *
- * Notes:
- * - The builder pattern provides a clear and flexible way to construct objects
- * when the object creation process involves multiple steps or when many
- * parameters are required.
- * - This implementation allows for easy extension and addition of new
- * parameters without affecting existing code.
- * - The methods `withMaxEdgesPerNode`, `withEfConstruction`, `withNumThreads`,
- * and `withGraphReordering` return a shared pointer to the builder itself,
- * allowing for the chaining of method calls.
- * - The `build` method finalizes the configuration and returns a shared pointer
- * to the constructed index object.
  */
 
-struct IndexParameterConfig : public std::enable_shared_from_this<IndexParameterConfig> {
+struct IndexParameterConfig
+    : public std::enable_shared_from_this<IndexParameterConfig> {
 
   uint32_t max_edges_per_node;
   uint32_t ef_construction;
@@ -90,6 +76,10 @@ struct IndexParameterConfig : public std::enable_shared_from_this<IndexParameter
   std::optional<std::vector<std::string>> reordering_methods;
   std::optional<std::string> index_name;
 
+  bool should_collect_distance_metrics;
+  // Number of distance computations performed during search.
+  std::atomic<uint64_t> distance_computations;
+
   IndexParameterConfig() = default;
   friend class cereal::access;
   template <typename Archive> void serialize(Archive &archive) {
@@ -97,7 +87,7 @@ struct IndexParameterConfig : public std::enable_shared_from_this<IndexParameter
             num_initializations, reordering_methods, index_name);
   }
 
-  void saveIndexParameterConfig(const std::string &filename) {
+  void save(const std::string &filename) {
     std::ofstream stream(filename, std::ios::binary);
     if (!stream.is_open()) {
       throw std::runtime_error("Unable to open file for writing: " + filename);
@@ -107,7 +97,7 @@ struct IndexParameterConfig : public std::enable_shared_from_this<IndexParameter
   }
 
   static std::shared_ptr<IndexParameterConfig>
-  loadIndexParameterConfig(const std::string &filename) {
+  load(const std::string &filename) {
     std::ifstream stream(filename, std::ios::binary);
     if (!stream.is_open()) {
       throw std::runtime_error("Unable to open file for reading: " + filename);
@@ -123,10 +113,11 @@ struct IndexParameterConfig : public std::enable_shared_from_this<IndexParameter
   }
 
   explicit IndexParameterConfig(uint32_t dataset_size)
-      : max_node_count(dataset_size), num_initializations(100), num_threads(1) {
-  }
+      : max_node_count(dataset_size), num_initializations(100), num_threads(1),
+        should_collect_distance_metrics(false), distance_computations(0) {}
 
-  std::shared_ptr<IndexParameterConfig> withMaxEdgesPerNode(uint32_t max_edges) {
+  std::shared_ptr<IndexParameterConfig>
+  withMaxEdgesPerNode(uint32_t max_edges) {
     max_edges_per_node = max_edges;
     return this->shared_from_this();
   }
@@ -136,7 +127,8 @@ struct IndexParameterConfig : public std::enable_shared_from_this<IndexParameter
     return this->shared_from_this();
   }
 
-  std::shared_ptr<IndexParameterConfig> withIndexParams(const ParameterMap &params) {
+  std::shared_ptr<IndexParameterConfig>
+  withIndexParams(const ParameterMap &params) {
     for (const auto &[key, value] : params) {
       if (key == "max_edges_per_node") {
         max_edges_per_node = std::get<uint32_t>(value);
@@ -175,6 +167,10 @@ struct IndexParameterConfig : public std::enable_shared_from_this<IndexParameter
     }
     num_threads = threads;
     return this->shared_from_this();
+  }
+
+  inline void enableDistanceMetricsCollection() {
+    should_collect_distance_metrics = true;
   }
 };
 
@@ -220,11 +216,11 @@ template <typename dist_t, typename label_t> class Index {
 public:
   /**
    * @brief Construct a new Index object using an IndexParameterConfig.
-   * @param parameter_config An IndexParameterConfig object containing the configuration
-   * parameters for the index.
-   * NOTE: This constructor does not use std::move() because we want to keep the
-   * parameter_config object alive for the lifetime of the Index object.
-   * The builder object could be modified after the Index object is constructed.
+   * @param parameter_config An IndexParameterConfig object containing the
+   * configuration parameters for the index. NOTE: This constructor does not use
+   * std::move() because we want to keep the parameter_config object alive for
+   * the lifetime of the Index object. The builder object could be modified
+   * after the Index object is constructed.
    *
    */
   Index(std::shared_ptr<DistanceInterface<dist_t>> distance,
@@ -459,7 +455,7 @@ public:
     std::unique_ptr<Index<dist_t, label_t>> index(new Index<dist_t, label_t>());
 
     std::string builder_filename = filename + ".builder";
-    index->_parameter_config = IndexParameterConfig::loadIndexParameterConfig(
+    index->_parameter_config = IndexParameterConfig::load(
         /* filename = */ builder_filename);
     std::shared_ptr<DistanceInterface<dist_t>> distance =
         std::make_shared<dist_t>();
@@ -496,7 +492,7 @@ public:
 
     // Save builder object in filename.builder
     std::string builder_filename = filename + ".builder";
-    _parameter_config->saveIndexParameterConfig(builder_filename);
+    _parameter_config->save(builder_filename);
 
     cereal::BinaryOutputArchive archive(stream);
     archive(*this);
@@ -514,7 +510,9 @@ public:
 
   inline size_t nodeSizeBytes() const { return _node_size_bytes; }
 
-  inline size_t maxNodeCount() const { return _parameter_config->max_node_count; }
+  inline size_t maxNodeCount() const {
+    return _parameter_config->max_node_count;
+  }
 
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
@@ -553,8 +551,9 @@ private:
   }
 
   label_t *getNodeLabel(const node_id_t &n) const {
-    char *location = _index_memory + (n * _node_size_bytes) + _data_size_bytes +
-                     (_parameter_config->max_edges_per_node * sizeof(node_id_t));
+    char *location =
+        _index_memory + (n * _node_size_bytes) + _data_size_bytes +
+        (_parameter_config->max_edges_per_node * sizeof(node_id_t));
     return reinterpret_cast<label_t *>(location);
   }
 
@@ -638,6 +637,7 @@ private:
 
     node_id_t *neighbor_node_links = getNodeLinks(node);
     auto M = _parameter_config->max_edges_per_node;
+
     for (uint32_t i = 0; i < M; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
 
@@ -790,9 +790,8 @@ private:
           candidates.pop();
           j++;
         }
-        while (
-            j <
-            _parameter_config->max_edges_per_node) { // self-loops (unused links)
+        while (j < _parameter_config
+                       ->max_edges_per_node) { // self-loops (unused links)
           neighbor_node_links[j] = neighbor_node_id;
           j++;
         }
@@ -856,7 +855,8 @@ private:
 
     // 2. Physically re-layout the nodes (in place)
     char *temp_data = new char[_data_size_bytes];
-    node_id_t *temp_links = new node_id_t[_parameter_config->max_edges_per_node];
+    node_id_t *temp_links =
+        new node_id_t[_parameter_config->max_edges_per_node];
     label_t *temp_label = new label_t;
 
     auto *visited_set = _visited_set_pool->pollAvailableSet();

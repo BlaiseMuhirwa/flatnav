@@ -113,8 +113,8 @@ sift-bench-hnsw:
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
 		--index-type hnsw \
 		--num-node-links 32 \
-		--ef-construction 100 200 300 \
-		--ef-search 100 200 300 500 1000 \
+		--ef-construction 100 200 \
+		--ef-search 100 200 300 \
 		--metric l2 \
 		--num-build-threads 16 \
 		--num-search-threads 1
