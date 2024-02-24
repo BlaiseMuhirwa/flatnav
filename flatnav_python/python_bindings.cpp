@@ -18,7 +18,7 @@
 
 using flatnav::DistanceInterface;
 using flatnav::Index;
-using flatnav::IndexBuilder;
+using flatnav::IndexParameterConfig;
 using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
 
@@ -48,11 +48,11 @@ public:
   }
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
-          std::shared_ptr<IndexBuilder> index_builder, bool verbose = false)
+          std::shared_ptr<IndexParameterConfig> parameter_config, bool verbose = false)
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* distance = */ std::move(distance),
-            /* index_builder = */ index_builder)) {
+            /* parameter_config = */ parameter_config)) {
 
     if (_verbose) {
       _index->getIndexSummary();
@@ -262,7 +262,7 @@ using L2FlatNavIndex = PyIndex<SquaredL2Distance, int>;
 using InnerProductFlatNavIndex = PyIndex<InnerProductDistance, int>;
 
 py::object createIndex(const std::string &distance_type, int dim,
-                       std::shared_ptr<IndexBuilder> index_builder) {
+                       std::shared_ptr<IndexParameterConfig> parameter_config) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });
@@ -270,11 +270,11 @@ py::object createIndex(const std::string &distance_type, int dim,
   if (dist_type == "l2") {
     auto distance = std::make_shared<SquaredL2Distance>(/* dim = */ dim);
     return py::cast(
-        std::make_shared<L2FlatNavIndex>(std::move(distance), index_builder));
+        std::make_shared<L2FlatNavIndex>(std::move(distance), parameter_config));
   } else if (dist_type == "angular") {
     auto distance = std::make_shared<InnerProductDistance>(/* dim = */ dim);
     return py::cast(std::make_shared<InnerProductFlatNavIndex>(
-        std::move(distance), index_builder));
+        std::move(distance), parameter_config));
   }
   throw std::invalid_argument("Invalid distance type: `" + dist_type +
                               "` during index construction. Valid options "
@@ -374,10 +374,10 @@ void bindIndexMethods(
 }
 
 void defineIndexSubmodule(py::module_ &index_submodule) {
-  py::class_<IndexBuilder, std::shared_ptr<IndexBuilder>>(index_submodule,
-                                                          "IndexBuilder")
+  py::class_<IndexParameterConfig, std::shared_ptr<IndexParameterConfig>>(index_submodule,
+                                                          "ParameterConfig")
       .def(py::init<int>(), py::arg("dataset_size"))
-      .def("with_index_params", &IndexBuilder::withIndexParams,
+      .def("with_index_params", &IndexParameterConfig::withIndexParams,
            py::arg("params"),
            // clang-format off
            "Configures index parameters.\n\n"
@@ -389,8 +389,8 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
            "        - num_initializations (int): Number of initial nodes selected at random.\n"
            "        - index_name (str): Name of the index.\n\n"
            "Returns:\n"
-           "    IndexBuilder: The same IndexBuilder instance for method chaining.")
-      .def("with_reordering", &IndexBuilder::withGraphReordering,
+           "    IndexParameterConfig: The same IndexParameterConfig instance for method chaining.")
+      .def("with_reordering", &IndexParameterConfig::withGraphReordering,
            py::arg("strategies"),
            // clang-format off
            "Enables or disables graph reordering strategies.\n\n"
@@ -400,10 +400,10 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   index_submodule.def(
       "create_index",
       [](const std::string &distance_type, int dim,
-         std::shared_ptr<IndexBuilder> index_builder) {
-        return createIndex(distance_type, dim, index_builder);
+         std::shared_ptr<IndexParameterConfig> parameter_config) {
+        return createIndex(distance_type, dim, parameter_config);
       },
-      py::arg("distance_type"), py::arg("dim"), py::arg("index_builder"));
+      py::arg("distance_type"), py::arg("dim"), py::arg("parameter_config"));
 
   py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
       index_submodule, "L2Index");

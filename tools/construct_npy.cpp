@@ -21,7 +21,7 @@
 
 using flatnav::DistanceInterface;
 using flatnav::Index;
-using flatnav::IndexBuilder;
+using flatnav::IndexParameterConfig;
 using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
 using flatnav::quantization::ProductQuantizer;
@@ -32,15 +32,15 @@ void buildIndex(float *data,
                 int M, int dim, int ef_construction,
                 const std::string &save_file) {
 
-  // Create an index builder object
-  std::shared_ptr<IndexBuilder> builder =
-      IndexBuilder::create(N)
+  // Create an index parameter_config object
+  std::shared_ptr<IndexParameterConfig> parameter_config =
+      IndexParameterConfig::create(N)
           ->withEfConstruction(ef_construction)
           ->withMaxEdgesPerNode(M)
           ->withGraphReordering({"gorder", "rcm"})
           ->withNumThreads(std::thread::hardware_concurrency());
 
-  auto index = new Index<dist_t, int>(std::move(distance), builder);
+  auto index = new Index<dist_t, int>(std::move(distance), parameter_config);
 
   auto start = std::chrono::high_resolution_clock::now();
 

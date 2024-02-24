@@ -38,7 +38,7 @@ using ParameterMap = std::unordered_map<std::string, IndexParameterValue>;
  * @brief A builder class for constructing an index object with various
  * configuration parameters.
  *
- * The IndexBuilder class follows the builder pattern to allow for flexible
+ * The IndexParameterConfig class follows the builder pattern to allow for flexible
  * configuration of an index object before its instantiation. It encapsulates
  * all the necessary parameters required to create an index, such as the
  * distance metric, dataset size, and various optimization parameters. The class
@@ -49,7 +49,7 @@ using ParameterMap = std::unordered_map<std::string, IndexParameterValue>;
  * @tparam dist_t The data type of the distance metric (e.g., float, double).
  *
  * Usage:
- * 1. Instantiate an IndexBuilder object with the required distance metric and
+ * 1. Instantiate an IndexParameterConfig object with the required distance metric and
  * dataset size.
  * 2. Optionally configure the index with additional parameters such as max
  * edges per node, ef construction, number of initializations, number of
@@ -59,8 +59,8 @@ using ParameterMap = std::unordered_map<std::string, IndexParameterValue>;
  * Example:
  * ```cpp
  * auto distance = std::make_shared<SquaredL2Distance>(dim=128);
- * std::shared_ptr<IndexBuilder> builder =
- *     IndexBuilder::create(std::move(distance), N)
+ * std::shared_ptr<IndexParameterConfig> builder =
+ *     IndexParameterConfig::create(std::move(distance), N)
  *         ->withEfConstruction(ef_construction)
  *         ->withMaxEdgesPerNode(M)
  *         ->withGraphReordering({"gorder", "rcm"})
@@ -80,7 +80,7 @@ using ParameterMap = std::unordered_map<std::string, IndexParameterValue>;
  * to the constructed index object.
  */
 
-struct IndexBuilder : public std::enable_shared_from_this<IndexBuilder> {
+struct IndexParameterConfig : public std::enable_shared_from_this<IndexParameterConfig> {
 
   uint32_t max_edges_per_node;
   uint32_t ef_construction;
@@ -90,14 +90,14 @@ struct IndexBuilder : public std::enable_shared_from_this<IndexBuilder> {
   std::optional<std::vector<std::string>> reordering_methods;
   std::optional<std::string> index_name;
 
-  IndexBuilder() = default;
+  IndexParameterConfig() = default;
   friend class cereal::access;
   template <typename Archive> void serialize(Archive &archive) {
     archive(max_edges_per_node, ef_construction, max_node_count,
             num_initializations, reordering_methods, index_name);
   }
 
-  void saveIndexBuilder(const std::string &filename) {
+  void saveIndexParameterConfig(const std::string &filename) {
     std::ofstream stream(filename, std::ios::binary);
     if (!stream.is_open()) {
       throw std::runtime_error("Unable to open file for writing: " + filename);
@@ -106,37 +106,37 @@ struct IndexBuilder : public std::enable_shared_from_this<IndexBuilder> {
     archive(*this);
   }
 
-  static std::shared_ptr<IndexBuilder>
-  loadIndexBuilder(const std::string &filename) {
+  static std::shared_ptr<IndexParameterConfig>
+  loadIndexParameterConfig(const std::string &filename) {
     std::ifstream stream(filename, std::ios::binary);
     if (!stream.is_open()) {
       throw std::runtime_error("Unable to open file for reading: " + filename);
     }
     cereal::BinaryInputArchive archive(stream);
-    std::shared_ptr<IndexBuilder> builder(new IndexBuilder());
+    std::shared_ptr<IndexParameterConfig> builder(new IndexParameterConfig());
     archive(*builder);
     return builder;
   }
 
-  static std::shared_ptr<IndexBuilder> create(uint32_t dataset_size) {
-    return std::make_shared<IndexBuilder>(dataset_size);
+  static std::shared_ptr<IndexParameterConfig> create(uint32_t dataset_size) {
+    return std::make_shared<IndexParameterConfig>(dataset_size);
   }
 
-  explicit IndexBuilder(uint32_t dataset_size)
+  explicit IndexParameterConfig(uint32_t dataset_size)
       : max_node_count(dataset_size), num_initializations(100), num_threads(1) {
   }
 
-  std::shared_ptr<IndexBuilder> withMaxEdgesPerNode(uint32_t max_edges) {
+  std::shared_ptr<IndexParameterConfig> withMaxEdgesPerNode(uint32_t max_edges) {
     max_edges_per_node = max_edges;
     return this->shared_from_this();
   }
 
-  std::shared_ptr<IndexBuilder> withEfConstruction(uint32_t value) {
+  std::shared_ptr<IndexParameterConfig> withEfConstruction(uint32_t value) {
     ef_construction = value;
     return this->shared_from_this();
   }
 
-  std::shared_ptr<IndexBuilder> withIndexParams(const ParameterMap &params) {
+  std::shared_ptr<IndexParameterConfig> withIndexParams(const ParameterMap &params) {
     for (const auto &[key, value] : params) {
       if (key == "max_edges_per_node") {
         max_edges_per_node = std::get<uint32_t>(value);
@@ -156,7 +156,7 @@ struct IndexBuilder : public std::enable_shared_from_this<IndexBuilder> {
     return this->shared_from_this();
   }
 
-  std::shared_ptr<IndexBuilder>
+  std::shared_ptr<IndexParameterConfig>
   withGraphReordering(const std::vector<std::string> &values) {
     for (const auto &method : values) {
       if (method != "gorder" && method != "rcm") {
@@ -167,7 +167,7 @@ struct IndexBuilder : public std::enable_shared_from_this<IndexBuilder> {
     return this->shared_from_this();
   }
 
-  std::shared_ptr<IndexBuilder> withNumThreads(int threads) {
+  std::shared_ptr<IndexParameterConfig> withNumThreads(int threads) {
     if (threads == 0 || threads > std::thread::hardware_concurrency()) {
       throw std::invalid_argument(
           "Number of threads must be greater than 0 and less than or equal to "
@@ -193,7 +193,7 @@ template <typename dist_t, typename label_t> class Index {
       PriorityQueue;
 
   std::shared_ptr<DistanceInterface<dist_t>> _distance;
-  std::shared_ptr<IndexBuilder> _index_builder;
+  std::shared_ptr<IndexParameterConfig> _parameter_config;
   // Large (several GB), pre-allocated block of memory.
   char *_index_memory;
 
@@ -214,34 +214,34 @@ template <typename dist_t, typename label_t> class Index {
 
     // Serialize the allocated memory for the index & query.
     archive(cereal::binary_data(
-        _index_memory, _node_size_bytes * _index_builder->max_node_count));
+        _index_memory, _node_size_bytes * _parameter_config->max_node_count));
   }
 
 public:
   /**
-   * @brief Construct a new Index object using an IndexBuilder.
-   * @param index_builder An IndexBuilder object containing the configuration
+   * @brief Construct a new Index object using an IndexParameterConfig.
+   * @param parameter_config An IndexParameterConfig object containing the configuration
    * parameters for the index.
    * NOTE: This constructor does not use std::move() because we want to keep the
-   * index_builder object alive for the lifetime of the Index object.
+   * parameter_config object alive for the lifetime of the Index object.
    * The builder object could be modified after the Index object is constructed.
    *
    */
   Index(std::shared_ptr<DistanceInterface<dist_t>> distance,
-        std::shared_ptr<IndexBuilder> index_builder)
-      : _distance(std::move(distance)), _index_builder(index_builder),
+        std::shared_ptr<IndexParameterConfig> parameter_config)
+      : _distance(std::move(distance)), _parameter_config(parameter_config),
         _cur_num_nodes(0),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
-            /* num_elements = */ _index_builder->max_node_count)),
-        _node_links_mutexes(_index_builder->max_node_count) {
+            /* num_elements = */ _parameter_config->max_node_count)),
+        _node_links_mutexes(_parameter_config->max_node_count) {
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
         _data_size_bytes +
-        (sizeof(node_id_t) * _index_builder->max_edges_per_node) +
+        (sizeof(node_id_t) * _parameter_config->max_edges_per_node) +
         sizeof(label_t);
     size_t index_memory_size =
-        _node_size_bytes * _index_builder->max_node_count;
+        _node_size_bytes * _parameter_config->max_node_count;
     _index_memory = new char[index_memory_size];
   }
 
@@ -252,7 +252,7 @@ public:
 
   void
   buildGraphLinks(const std::vector<std::vector<uint32_t>> &outdegree_table) {
-    auto M = _index_builder->max_edges_per_node;
+    auto M = _parameter_config->max_edges_per_node;
     for (node_id_t node = 0; node < outdegree_table.size(); node++) {
       node_id_t *links = getNodeLinks(node);
       for (int i = 0; i < M; i++) {
@@ -269,7 +269,7 @@ public:
     std::vector<std::vector<uint32_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
       node_id_t *links = getNodeLinks(node);
-      for (int i = 0; i < _index_builder->max_edges_per_node; i++) {
+      for (int i = 0; i < _parameter_config->max_edges_per_node; i++) {
         if (links[i] != node) {
           outdegree_table[node].push_back(links[i]);
         }
@@ -296,7 +296,7 @@ public:
 
     node_id_t *links = getNodeLinks(new_node_id);
     // Initialize all edges to self
-    std::fill_n(links, _index_builder->max_edges_per_node, new_node_id);
+    std::fill_n(links, _parameter_config->max_edges_per_node, new_node_id);
     _cur_num_nodes++;
   }
 
@@ -307,7 +307,7 @@ public:
    * `data`, to the underlying graph. Each vector is associated with a label
    * provided in the `labels` vector. The method efficiently handles concurrent
    * additions by dividing the workload among multiple threads, defined by
-   * `_index_builder->num_threads`.
+   * `_parameter_config->num_threads`.
    *
    * The method ensures thread safety by employing locking mechanisms at the
    * node level in the underlying `connectNeighbors` and `beamSearch` methods.
@@ -327,7 +327,7 @@ public:
     uint32_t data_dimension = _distance->dimension();
 
     // Don't spawn any threads if we are only using one.
-    if (_index_builder->num_threads == 1) {
+    if (_parameter_config->num_threads == 1) {
       for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
         void *vector = (float *)data + (row_id * data_dimension);
         label_t label = labels[row_id];
@@ -338,7 +338,7 @@ public:
 
     flatnav::executeInParallel(
         /* start_index = */ 0, /* end_index = */ total_num_nodes,
-        /* num_threads = */ _index_builder->num_threads, /* function = */
+        /* num_threads = */ _parameter_config->num_threads, /* function = */
         [&](uint32_t row_index) {
           void *vector = (float *)data + (row_index * data_dimension);
           label_t label = labels[row_index];
@@ -369,14 +369,14 @@ public:
    * reached.
    */
   void add(void *data, label_t &label) {
-    if (_cur_num_nodes >= _index_builder->max_node_count) {
+    if (_cur_num_nodes >= _parameter_config->max_node_count) {
       throw std::runtime_error("Maximum number of nodes reached. Consider "
                                "increasing the `max_node_count` parameter to "
                                "create a larger index.");
     }
     _index_data_guard.lock();
     auto entry_node =
-        initializeSearch(data, _index_builder->num_initializations);
+        initializeSearch(data, _parameter_config->num_initializations);
     node_id_t new_node_id;
     allocateNode(data, label, new_node_id);
     _index_data_guard.unlock();
@@ -387,7 +387,7 @@ public:
 
     auto neighbors = beamSearch(
         /* query = */ data, /* entry_node = */ entry_node,
-        /* buffer_size = */ _index_builder->ef_construction);
+        /* buffer_size = */ _parameter_config->ef_construction);
 
     selectNeighbors(/* neighbors = */ neighbors);
     connectNeighbors(neighbors, new_node_id);
@@ -402,7 +402,7 @@ public:
    */
   std::vector<dist_label_t> search(const void *query, const int K,
                                    int ef_search) {
-    int num_initializations = _index_builder->num_initializations;
+    int num_initializations = _parameter_config->num_initializations;
     node_id_t entry_node = initializeSearch(query, num_initializations);
     PriorityQueue neighbors =
         beamSearch(/* query = */ query,
@@ -427,12 +427,12 @@ public:
   }
 
   void doGraphReordering() {
-    if (!_index_builder->reordering_methods.has_value()) {
+    if (!_parameter_config->reordering_methods.has_value()) {
       throw std::runtime_error("Reordering methods should be specified in the "
-                               "IndexBuilder object.");
+                               "IndexParameterConfig object.");
     }
 
-    for (const auto &method : _index_builder->reordering_methods.value()) {
+    for (const auto &method : _parameter_config->reordering_methods.value()) {
       auto outdegree_table = getGraphOutdegreeTable();
       std::vector<node_id_t> P;
       if (method == "gorder") {
@@ -459,7 +459,7 @@ public:
     std::unique_ptr<Index<dist_t, label_t>> index(new Index<dist_t, label_t>());
 
     std::string builder_filename = filename + ".builder";
-    index->_index_builder = IndexBuilder::loadIndexBuilder(
+    index->_parameter_config = IndexParameterConfig::loadIndexParameterConfig(
         /* filename = */ builder_filename);
     std::shared_ptr<DistanceInterface<dist_t>> distance =
         std::make_shared<dist_t>();
@@ -470,19 +470,19 @@ public:
     index->_distance = std::move(distance);
     index->_visited_set_pool = new VisitedSetPool(
         /* initial_pool_size = */ 1,
-        /* num_elements = */ index->_index_builder->max_node_count);
+        /* num_elements = */ index->_parameter_config->max_node_count);
 
     index->_node_links_mutexes =
-        std::vector<std::mutex>(index->_index_builder->max_node_count);
+        std::vector<std::mutex>(index->_parameter_config->max_node_count);
 
     // 2. Allocate memory using deserialized metadata
     index->_index_memory = new char[index->_node_size_bytes *
-                                    index->_index_builder->max_node_count];
+                                    index->_parameter_config->max_node_count];
 
     // 3. Deserialize content into allocated memory
     archive(cereal::binary_data(index->_index_memory,
                                 index->_node_size_bytes *
-                                    index->_index_builder->max_node_count));
+                                    index->_parameter_config->max_node_count));
 
     return index;
   }
@@ -496,14 +496,14 @@ public:
 
     // Save builder object in filename.builder
     std::string builder_filename = filename + ".builder";
-    _index_builder->saveIndexBuilder(builder_filename);
+    _parameter_config->saveIndexParameterConfig(builder_filename);
 
     cereal::BinaryOutputArchive archive(stream);
     archive(*this);
   }
 
   inline size_t maxEdgesPerNode() const {
-    return _index_builder->max_edges_per_node;
+    return _parameter_config->max_edges_per_node;
   }
 
   inline void setVisitedPoolSize(uint32_t pool_size) {
@@ -514,24 +514,24 @@ public:
 
   inline size_t nodeSizeBytes() const { return _node_size_bytes; }
 
-  inline size_t maxNodeCount() const { return _index_builder->max_node_count; }
+  inline size_t maxNodeCount() const { return _parameter_config->max_node_count; }
 
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
 
-  inline std::shared_ptr<IndexBuilder> getBuilder() const {
-    return _index_builder;
+  inline std::shared_ptr<IndexParameterConfig> getBuilder() const {
+    return _parameter_config;
   }
 
   void getIndexSummary() const {
     std::cout << "\nIndex Parameters\n" << std::flush;
     std::cout << "-----------------------------\n" << std::flush;
     std::cout << "max_edges_per_node (M): "
-              << _index_builder->max_edges_per_node << "\n"
+              << _parameter_config->max_edges_per_node << "\n"
               << std::flush;
     std::cout << "data_size_bytes: " << _data_size_bytes << "\n" << std::flush;
     std::cout << "node_size_bytes: " << _node_size_bytes << "\n" << std::flush;
-    std::cout << "max_node_count: " << _index_builder->max_node_count << "\n"
+    std::cout << "max_node_count: " << _parameter_config->max_node_count << "\n"
               << std::flush;
     std::cout << "cur_num_nodes: " << _cur_num_nodes << "\n" << std::flush;
 
@@ -554,7 +554,7 @@ private:
 
   label_t *getNodeLabel(const node_id_t &n) const {
     char *location = _index_memory + (n * _node_size_bytes) + _data_size_bytes +
-                     (_index_builder->max_edges_per_node * sizeof(node_id_t));
+                     (_parameter_config->max_edges_per_node * sizeof(node_id_t));
     return reinterpret_cast<label_t *>(location);
   }
 
@@ -563,19 +563,19 @@ private:
     // stash b in temp
     std::memcpy(temp_data, getNodeData(b), _data_size_bytes);
     std::memcpy(temp_links, getNodeLinks(b),
-                _index_builder->max_edges_per_node * sizeof(node_id_t));
+                _parameter_config->max_edges_per_node * sizeof(node_id_t));
     std::memcpy(temp_label, getNodeLabel(b), sizeof(label_t));
 
     // place node at a in b
     std::memcpy(getNodeData(b), getNodeData(a), _data_size_bytes);
     std::memcpy(getNodeLinks(b), getNodeLinks(a),
-                _index_builder->max_edges_per_node * sizeof(node_id_t));
+                _parameter_config->max_edges_per_node * sizeof(node_id_t));
     std::memcpy(getNodeLabel(b), getNodeLabel(a), sizeof(label_t));
 
     // put node b in a
     std::memcpy(getNodeData(a), temp_data, _data_size_bytes);
     std::memcpy(getNodeLinks(a), temp_links,
-                _index_builder->max_edges_per_node * sizeof(node_id_t));
+                _parameter_config->max_edges_per_node * sizeof(node_id_t));
     std::memcpy(getNodeLabel(a), temp_label, sizeof(label_t));
   }
 
@@ -637,7 +637,7 @@ private:
     float dist = 0.f;
 
     node_id_t *neighbor_node_links = getNodeLinks(node);
-    auto M = _index_builder->max_edges_per_node;
+    auto M = _parameter_config->max_edges_per_node;
     for (uint32_t i = 0; i < M; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
 
@@ -684,13 +684,13 @@ private:
    * distance where the top element is the furthest neighbor from the query.
    */
   void selectNeighbors(PriorityQueue &neighbors) {
-    if (neighbors.size() < _index_builder->max_edges_per_node) {
+    if (neighbors.size() < _parameter_config->max_edges_per_node) {
       return;
     }
 
     PriorityQueue candidates;
     std::vector<dist_node_t> saved_candidates;
-    saved_candidates.reserve(_index_builder->max_edges_per_node);
+    saved_candidates.reserve(_parameter_config->max_edges_per_node);
 
     while (neighbors.size() > 0) {
       candidates.emplace(-neighbors.top().first, neighbors.top().second);
@@ -699,7 +699,7 @@ private:
 
     float cur_dist = 0.0;
     while (candidates.size() > 0) {
-      if (saved_candidates.size() >= _index_builder->max_edges_per_node) {
+      if (saved_candidates.size() >= _parameter_config->max_edges_per_node) {
         break;
       }
       // Extract the closest element from candidates.
@@ -751,7 +751,7 @@ private:
           _node_links_mutexes[neighbor_node_id]);
       node_id_t *neighbor_node_links = getNodeLinks(neighbor_node_id);
       bool is_inserted = false;
-      for (size_t j = 0; j < _index_builder->max_edges_per_node; j++) {
+      for (size_t j = 0; j < _parameter_config->max_edges_per_node; j++) {
         if (neighbor_node_links[j] == neighbor_node_id) {
           // If there is a self-loop, replace the self-loop with
           // the desired link.
@@ -773,7 +773,7 @@ private:
 
         PriorityQueue candidates;
         candidates.emplace(max_dist, new_node_id);
-        for (size_t j = 0; j < _index_builder->max_edges_per_node; j++) {
+        for (size_t j = 0; j < _parameter_config->max_edges_per_node; j++) {
           if (neighbor_node_links[j] != neighbor_node_id) {
             auto label = neighbor_node_links[j];
             auto distance = _distance->distance(
@@ -792,7 +792,7 @@ private:
         }
         while (
             j <
-            _index_builder->max_edges_per_node) { // self-loops (unused links)
+            _parameter_config->max_edges_per_node) { // self-loops (unused links)
           neighbor_node_links[j] = neighbor_node_id;
           j++;
         }
@@ -803,8 +803,8 @@ private:
 
       // loop increments:
       i++;
-      if (i >= _index_builder->max_edges_per_node) {
-        i = _index_builder->max_edges_per_node;
+      if (i >= _parameter_config->max_edges_per_node) {
+        i = _parameter_config->max_edges_per_node;
       }
       neighbors.pop();
     }
@@ -849,14 +849,14 @@ private:
     // 1. Rewire all of the node connections
     for (node_id_t n = 0; n < _cur_num_nodes; n++) {
       node_id_t *links = getNodeLinks(n);
-      for (int m = 0; m < _index_builder->max_edges_per_node; m++) {
+      for (int m = 0; m < _parameter_config->max_edges_per_node; m++) {
         links[m] = P[links[m]];
       }
     }
 
     // 2. Physically re-layout the nodes (in place)
     char *temp_data = new char[_data_size_bytes];
-    node_id_t *temp_links = new node_id_t[_index_builder->max_edges_per_node];
+    node_id_t *temp_links = new node_id_t[_parameter_config->max_edges_per_node];
     label_t *temp_label = new label_t;
 
     auto *visited_set = _visited_set_pool->pollAvailableSet();
