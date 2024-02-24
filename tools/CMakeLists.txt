@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 
-set(EXAMPLES construct_npy query_npy cereal_tests)
+# set(EXAMPLES construct_npy query_npy cereal_tests)
+set(EXAMPLES construct_npy query_npy)
+
 foreach(EXAMPLE IN LISTS EXAMPLES)
   add_executable(${EXAMPLE} ${EXAMPLE}.cpp ${HEADERS})
   target_link_libraries(${EXAMPLE} FLAT_NAV_LIB ${CNPY_LIB} ${ZLIB_LIB_RELEASE})

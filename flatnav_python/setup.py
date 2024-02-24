@@ -1,6 +1,6 @@
 import os
 from pybind11.setup_helpers import Pybind11Extension, build_ext
-from setuptools import setup
+from setuptools import setup, find_packages
 import sys, subprocess
 
 __version__ = "0.0.1"
@@ -81,6 +81,7 @@ ext_modules = [
 setup(
     name="flatnav",
     version=__version__,
+    packages=find_packages(exclude=["unit_tests"], where="."),
     author="Benjamin Coleman",
     author_email="benjamin.ray.coleman@gmail.com",
     url="https://randorithms.com",
