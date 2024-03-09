@@ -291,7 +291,8 @@ def train_index(
             base_layer_filename=hnsw_base_layer_filename,
         )
         
-        assert os.path.exists(hnsw_base_layer_filename)
+        if not os.path.exists(hnsw_base_layer_filename):
+            raise ValueError(f"Failed to create {hnsw_base_layer_filename=}")
         index = flatnav.index.index_factory(
             distance_type=distance_type,
             dim=dim,
