@@ -11,6 +11,7 @@ import platform, socket, psutil
 import argparse
 import flatnav
 from plotting_utils import plot_qps_against_recall, plot_percentile_against_recall
+from data_loader import get_data_loader
 
 
 ENVIRONMENT_INFO = {
@@ -24,96 +25,6 @@ ENVIRONMENT_INFO = {
     "ram_gb": round(psutil.virtual_memory().total / (1024.0**3)),
     "num_cores": psutil.cpu_count(logical=True),
 }
-
-
-def load_benchmark_dataset(
-    train_dataset_path: str,
-    queries_path: str,
-    gtruth_path: str,
-    chunk_size: Optional[int] = None,
-) -> Tuple[np.ndarray]:
-    def verify_paths_exist(paths: List[str]) -> None:
-        for path in paths:
-            if not os.path.exists(path):
-                raise ValueError(f"Invalid file path: {path}")
-
-    def load_ground_truth(path: str) -> Tuple[np.ndarray, np.ndarray, int, int]:
-        """
-        Load the IDs and the distances of the top-k's and not the distances.
-        Returns:
-            - Array of top k IDs
-            - Array of top k distances
-            - Number of queries
-            - K value
-        """
-        with open(path, "rb") as f:
-            num_queries = np.fromfile(f, dtype=np.uint32, count=1)[0]
-            K = np.fromfile(f, dtype=np.uint32, count=1)[0]
-
-        # Memory-map the IDs only
-        ground_truth_ids = np.memmap(
-            path,
-            dtype=np.uint32,
-            mode="r",
-            shape=(num_queries, K),
-            offset=8,
-        )
-
-        ground_truth_dists = np.memmap(
-            path,
-            dtype=np.float32,
-            mode="r",
-            shape=(num_queries, K),
-            offset=8 + (num_queries * K * np.dtype(np.uint32).itemsize),
-        )
-
-        return ground_truth_ids, ground_truth_dists, num_queries, K
-
-    verify_paths_exist([train_dataset_path, queries_path, gtruth_path])
-
-    files_have_npy_extensions = all(
-        dataset.endswith("npy")
-        for dataset in [train_dataset_path, queries_path, gtruth_path]
-    )
-    if files_have_npy_extensions:
-        return (
-            np.load(train_dataset_path).astype(np.float32, copy=False),
-            np.load(queries_path).astype(np.float32, copy=False),
-            np.load(gtruth_path).astype(np.int32, copy=False),
-        )
-
-    train_dtype = np.float32 if train_dataset_path.endswith("fbin") else np.uint8
-    total_size = os.path.getsize(train_dataset_path) // np.dtype(train_dtype).itemsize
-
-    # Read header information (num_points and num_dimensions)
-    with open(train_dataset_path, "rb") as f:
-        num_points = np.fromfile(f, dtype=np.uint32, count=1)[0]
-        num_dimensions = np.fromfile(f, dtype=np.uint32, count=1)[0]
-
-    if chunk_size:
-        bytes_to_load = chunk_size * num_dimensions * np.dtype(train_dtype).itemsize
-        train_dataset = np.memmap(
-            train_dataset_path,
-            dtype=train_dtype,
-            mode="r",
-            shape=(total_size - 2,),
-            offset=8,
-        )
-        train_dataset = train_dataset[: bytes_to_load // np.dtype(train_dtype).itemsize]
-        train_dataset = train_dataset.reshape((chunk_size, num_dimensions))
-    else:
-        train_dataset = np.fromfile(train_dataset_path, dtype=train_dtype, offset=8)
-        train_dataset = train_dataset.reshape((num_points, num_dimensions))
-
-    gtruth_dataset, _, num_queries, _ = load_ground_truth(gtruth_path)
-    queries_dataset = np.fromfile(
-        queries_path,
-        dtype=np.float32 if queries_path.endswith("fbin") else np.uint8,
-        offset=8,
-    )
-    queries_dataset = queries_dataset.reshape((num_queries, num_dimensions))
-
-    return train_dataset, queries_dataset, gtruth_dataset
 
 
 def compute_metrics(
@@ -164,7 +75,7 @@ def compute_metrics(
             end = time.time()
             latencies.append(end - start)
             top_k_indices.append(indices[0])
-            
+
     querying_time = sum(latencies)
     metrics = {}
     if "qps" in requested_metrics:
@@ -211,7 +122,7 @@ def create_and_train_hnsw_index(
 ) -> Union[hnswlib.Index, None]:
     """
     Kind of messy to return either a hnswlib.Index or None, but we are doing this so that
-    when we use the HNSW base layer to construct a Flatnav index, we don't ever have the 
+    when we use the HNSW base layer to construct a Flatnav index, we don't ever have the
     two indices in memory at the same time. This should help with memory usage.
     """
     hnsw_index = hnswlib.Index(space=space, dim=dim)
@@ -224,7 +135,7 @@ def create_and_train_hnsw_index(
     hnsw_index.add_items(data=data, ids=np.arange(dataset_size))
     end = time.time()
     logging.info(f"Indexing time = {end - start} seconds")
-    
+
     if base_layer_filename:
         hnsw_index.save_base_layer_graph(filename=base_layer_filename)
         return None
@@ -290,7 +201,7 @@ def train_index(
             num_threads=num_build_threads,
             base_layer_filename=hnsw_base_layer_filename,
         )
-        
+
         assert os.path.exists(hnsw_base_layer_filename)
         index = flatnav.index.index_factory(
             distance_type=distance_type,
@@ -335,7 +246,7 @@ def main(
     num_node_links: List[int],
     distance_type: str,
     metrics_file: str,
-    dataset_name: str, 
+    dataset_name: str,
     index_type: str = "flatnav",
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
@@ -346,7 +257,7 @@ def main(
 ):
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
-    
+
     experiment_key = f"{dataset_name}_{index_type}"
 
     for node_links in num_node_links:
@@ -537,6 +448,15 @@ def parse_arguments() -> argparse.Namespace:
         help="Name of the benchmark dataset being used.",
     )
 
+    parser.add_argument(
+        "--train-dataset-range",
+        required=False,
+        default=None,
+        nargs="+",
+        type=int,
+        help="The first element is the start index and the second element is the end index. Must be two integers.",
+    )
+
     return parser.parse_args()
 
 
@@ -545,11 +465,13 @@ def run_experiment():
     ROOT_DIR = "/root"
     args = parse_arguments()
 
-    train_data, queries, ground_truth = load_benchmark_dataset(
+    data_loader = get_data_loader(
         train_dataset_path=args.dataset,
         queries_path=args.queries,
-        gtruth_path=args.gtruth,
+        ground_truth_path=args.gtruth,
+        range=args.train_dataset_range,
     )
+    train_data, queries, ground_truth = data_loader.load_data()
 
     num_initializations = args.num_initializations
     if args.index_type.lower() == "hnsw":
@@ -566,7 +488,7 @@ def run_experiment():
         ef_search_params=args.ef_search,
         num_node_links=args.num_node_links,
         distance_type=args.metric.lower(),
-        dataset_name=args.dataset_name,  
+        dataset_name=args.dataset_name,
         index_type=args.index_type.lower(),
         use_hnsw_base_layer=args.use_hnsw_base_layer,
         hnsw_base_layer_filename=args.hnsw_base_layer_filename,
