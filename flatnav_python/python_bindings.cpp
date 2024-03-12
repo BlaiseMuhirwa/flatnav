@@ -38,7 +38,7 @@ public:
 
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), _label_id(0), _verbose(false),
-        _index(index.get()) {
+        _index(index.release()) {
 
     if (_verbose) {
       _index->getIndexSummary();
@@ -70,10 +70,10 @@ public:
 
   ~PyIndex() { delete _index; }
 
-  static std::unique_ptr<PyIndex<dist_t, label_t>>
+  static std::shared_ptr<PyIndex<dist_t, label_t>>
   loadIndex(const std::string &filename) {
     auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename);
-    return std::make_unique<PyIndex<dist_t, label_t>>(std::move(index));
+    return std::make_shared<PyIndex<dist_t, label_t>>(std::move(index));
   }
 
   std::shared_ptr<PyIndex<dist_t, label_t>> allocateNodes(
