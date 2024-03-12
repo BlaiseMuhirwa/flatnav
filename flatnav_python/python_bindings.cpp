@@ -288,13 +288,8 @@ void bindIndexMethods(
           },
           py::arg("filename"),
           "Save a FlatNav index at the given file location.")
-      .def_static(
-          "load",
-          [](const std::string &filename) {
-            return IndexType::loadIndex(filename);
-          },
-          py::arg("filename"),
-          "Load a FlatNav index from a given file location")
+      .def_static("load", &IndexType::loadIndex, py::arg("filename"),
+                  "Load a FlatNav index from a given file location")
       .def("add", &IndexType::add, py::arg("data"), py::arg("ef_construction"),
            py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
            "Add vectors(data) to the index with the given `ef_construction` "
