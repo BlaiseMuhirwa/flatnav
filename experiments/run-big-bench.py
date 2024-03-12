@@ -118,8 +118,14 @@ def create_and_train_hnsw_index(
     dataset_size: int,
     ef_construction: int,
     max_edges_per_node: int,
-    num_threads,
-) -> hnswlib.Index:
+    num_threads: int,
+    base_layer_filename: Optional[str] = None,
+) -> Union[hnswlib.Index, None]:
+    """
+    Kind of messy to return either a hnswlib.Index or None, but we are doing this so that
+    when we use the HNSW base layer to construct a Flatnav index, we don't ever have the 
+    two indices in memory at the same time. This should help with memory usage.
+    """
     hnsw_index = hnswlib.Index(space=space, dim=dim)
     hnsw_index.init_index(
         max_elements=dataset_size, ef_construction=ef_construction, M=max_edges_per_node
@@ -130,6 +136,10 @@ def create_and_train_hnsw_index(
     hnsw_index.add_items(data=data, ids=np.arange(dataset_size))
     end = time.time()
     logging.info(f"Indexing time = {end - start} seconds")
+    
+    if base_layer_filename:
+        hnsw_index.save_base_layer_graph(filename=base_layer_filename)
+        return None
 
     return hnsw_index
 
@@ -146,6 +156,20 @@ def train_index(
     hnsw_base_layer_filename: Optional[str] = None,
     num_build_threads: int = 1,
 ) -> Union[flatnav.index.L2Index, flatnav.index.IPIndex, hnswlib.Index]:
+    """
+    Creates and trains an index on the given dataset.
+    :param train_dataset: The dataset to train the index on.
+    :param distance_type: The distance type to use. Options include "l2" and "angular".
+    :param dim: The dimensionality of the dataset.
+    :param dataset_size: The number of points in the dataset.
+    :param max_edges_per_node: The maximum number of edges per node in the graph.
+    :param ef_construction: The size of the dynamic candidate list during construction.
+    :param index_type: The type of index to create. Options include "flatnav" and "hnsw".
+    :param use_hnsw_base_layer: If set, use HNSW's base layer's connectivity for the Flatnav index.
+    :param hnsw_base_layer_filename: Filename to save the HNSW base layer graph to.
+    :param num_build_threads: The number of threads to use during index construction.
+    :return: The trained index.
+    """
     if index_type == "hnsw":
         # We use "angular" instead of "ip", so here we are just converting.
         _distance_type = distance_type if distance_type == "l2" else "ip"
@@ -168,7 +192,7 @@ def train_index(
             raise ValueError("Must provide a filename for the HNSW base layer graph.")
 
         _distance_type = distance_type if distance_type == "l2" else "ip"
-        hnsw_index = create_and_train_hnsw_index(
+        create_and_train_hnsw_index(
             data=train_dataset,
             space=_distance_type,
             dim=dim,
@@ -176,18 +200,12 @@ def train_index(
             ef_construction=ef_construction,
             max_edges_per_node=max_edges_per_node // 2,
             num_threads=num_build_threads,
+            base_layer_filename=hnsw_base_layer_filename,
         )
         
-        try:
-            # Now extract the base layer's graph and save it to a file.
-            # This will be a Matrix Market file that we use to construct the Flatnav index.
-            hnsw_index.save_base_layer_graph(filename=hnsw_base_layer_filename)
-
-        finally:
-            # delete the HNSW index and force garbage collection
-            del hnsw_index
-            gc.collect()
-
+        if not os.path.exists(hnsw_base_layer_filename):
+            raise ValueError(f"Failed to create {hnsw_base_layer_filename=}")
+      
         index = flatnav.index.index_factory(
             distance_type=distance_type,
             dim=dim,
