@@ -38,7 +38,7 @@ public:
 
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), _label_id(0), _verbose(false),
-        _index(index.get()) {
+        _index(index.release()) {
 
     if (_verbose) {
       _index->getIndexSummary();
@@ -70,10 +70,10 @@ public:
 
   ~PyIndex() { delete _index; }
 
-  static std::unique_ptr<PyIndex<dist_t, label_t>>
+  static std::shared_ptr<PyIndex<dist_t, label_t>>
   loadIndex(const std::string &filename) {
     auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename);
-    return std::make_unique<PyIndex<dist_t, label_t>>(std::move(index));
+    return std::make_shared<PyIndex<dist_t, label_t>>(std::move(index));
   }
 
   std::shared_ptr<PyIndex<dist_t, label_t>> allocateNodes(
@@ -288,8 +288,13 @@ void bindIndexMethods(
           },
           py::arg("filename"),
           "Save a FlatNav index at the given file location.")
-      .def_static("load", &IndexType::loadIndex, py::arg("filename"),
-                  "Load a FlatNav index from a given file location")
+      .def_static(
+          "load",
+          [](const std::string &filename) {
+            return IndexType::loadIndex(filename);
+          },
+          py::arg("filename"),
+          "Load a FlatNav index from a given file location")
       .def("add", &IndexType::add, py::arg("data"), py::arg("ef_construction"),
            py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
            "Add vectors(data) to the index with the given `ef_construction` "

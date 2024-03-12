@@ -62,6 +62,55 @@ template <typename dist_t, typename label_t> class Index {
   std::vector<std::mutex> _node_links_mutexes;
   std::optional<std::vector<std::vector<uint32_t>>> _outdegree_table;
 
+  Index(const Index &) = delete;
+  Index &operator=(const Index &) = delete;
+
+  // A custom move constructor is needed because the class manages dynamic
+  // resources (_index_memory, _visited_set_pool),
+  // which require explicit ownership transfer and cleanup to avoid resource
+  // leaks or double frees. The default move constructor cannot ensure these
+  // resources are safely transferred and the source object is left in a valid
+  // state.
+  Index(Index &&other) noexcept
+      : _index_memory(other._index_memory), _M(other._M),
+        _data_size_bytes(other._data_size_bytes),
+        _node_size_bytes(other._node_size_bytes),
+        _max_node_count(other._max_node_count),
+        _cur_num_nodes(other._cur_num_nodes),
+        _distance(std::move(other._distance)),
+        _index_data_guard(std::move(other._index_data_guard)),
+        _num_threads(other._num_threads),
+        _visited_set_pool(std::move(other._visited_set_pool)),
+        _node_links_mutexes(std::move(other._node_links_mutexes)),
+        _outdegree_table(std::move(other._outdegree_table)) {
+    other._index_memory = nullptr;
+    other._visited_set_pool = nullptr;
+  }
+
+  Index &operator=(Index &&other) noexcept {
+    if (this != &other) {
+      delete[] _index_memory;
+      delete _visited_set_pool;
+
+      _index_memory = other._index_memory;
+      _M = other._M;
+      _data_size_bytes = other._data_size_bytes;
+      _node_size_bytes = other._node_size_bytes;
+      _max_node_count = other._max_node_count;
+      _cur_num_nodes = other._cur_num_nodes;
+      _distance = std::move(other._distance);
+      _index_data_guard = std::move(other._index_data_guard);
+      _num_threads = other._num_threads;
+      _visited_set_pool = std::move(other._visited_set_pool);
+      _node_links_mutexes = std::move(other._node_links_mutexes);
+      _outdegree_table = std::move(other._outdegree_table);
+
+      other._index_memory = nullptr;
+      other._visited_set_pool = nullptr;
+    }
+    return *this;
+  }
+
   template <typename Archive> void serialize(Archive &archive) {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
             _cur_num_nodes, *_distance);
