@@ -46,7 +46,7 @@ class DatasetLoader(ABC):
         pass
 
 
-class NPYDatasetLoader(DatasetLoader):
+class NpyDatasetLoader(DatasetLoader):
     def load_data(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         if self.range:
             start_index, end_index = self.range
@@ -62,9 +62,9 @@ class NPYDatasetLoader(DatasetLoader):
         return train_dataset, queries, ground_truth
 
 
-class BVECDatasetLoader:
+class BvecsDatasetLoader(DatasetLoader):
     """
-    This is adapted from the Matlab code provided by the authors of the SIFT1M dataset.
+    This is adapted from the Matlab code provided by the authors of the SIFT dataset.
     Reference:
         1. http://corpus-texmex.irisa.fr/ivecs_read.m
         2. http://corpus-texmex.irisa.fr/bvecs_read.m
@@ -116,7 +116,7 @@ class BVECDatasetLoader:
     def load_data(self) -> Tuple[np.ndarray]:
         ground_truth = self._read_ivecs_file(self.gtruth_path, self.range)
         # Ground truth has shape (10000, 1000) but we only need the first 100 queries
-        ground_truth = ground_truth[:100]
+        ground_truth = ground_truth[:, 0:100]
 
         train_data = self._read_bvecs_file(self.train_dataset_path, self.range)
         queries_data = self._read_bvecs_file(self.queries_path, self.range)
@@ -124,7 +124,7 @@ class BVECDatasetLoader:
         return train_data, queries_data, ground_truth
 
 
-class FBINDatasetLoader(DatasetLoader):
+class FbinDatasetLoader(DatasetLoader):
     """
     NOTE: This is mostly for loading the DEEP1B dataset.
     Uses numpy's memmap to map the file to memory, which is useful for large files like the DEEP1B dataset.
@@ -207,17 +207,17 @@ class FBINDatasetLoader(DatasetLoader):
 def get_data_loader(**kwargs) -> DatasetLoader:
     """
     Factory function for creating the appropriate dataset loader based on the extension of the training dataset.
-    :param kwargs: Dictionary of parameters. These must correspond to the parameters of the DatasetLoader class.
+    :param kwargs: Dictionary of parameters. These must correspond to the parameters of the DatasetLoader constructor.
     """
     train_dataset_path = kwargs.get("train_dataset_path")
     if not train_dataset_path:
         raise ValueError("The train_dataset_path parameter is required.")
 
     if train_dataset_path.endswith(".npy"):
-        return NPYDatasetLoader(**kwargs)
+        return NpyDatasetLoader(**kwargs)
     elif train_dataset_path.endswith(".bvecs"):
-        return BVECDatasetLoader(**kwargs)
+        return BvecsDatasetLoader(DatasetLoader)(**kwargs)
     elif train_dataset_path.endswith(".fbin"):
-        return FBINDatasetLoader(**kwargs)
+        return FbinDatasetLoader(**kwargs)
 
     raise ValueError("Invalid file extension for the training dataset.")
