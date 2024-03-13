@@ -9,7 +9,7 @@ CURRENT_DIR = os.getcwd()
 SOURCE_PATH = os.path.join(CURRENT_DIR, "python_bindings.cpp")
 
 
-def platform_has_avx_support():
+def simd_extension_supported(extension: str) -> bool:
     """
     TODO: Make this check more robust across compilers and supported platforms.
     """
@@ -17,7 +17,7 @@ def platform_has_avx_support():
         try:
             output = subprocess.check_output("cat /proc/cpuinfo", shell=True)
             decoded_output = output.decode()
-            return "avx" in decoded_output or "avx512" in decoded_output
+            return extension in decoded_output
         except Exception:
             return False
 
@@ -47,23 +47,27 @@ EXTRA_COMPILE_ARGS = [
     "-w",  # Suppress all warnings (note: this overrides -Wall)
     "-ffast-math",  # Enable fast math optimizations
     "-funroll-loops",  # Unroll loops
-    "-msse",  # Enable SSE instructions
-    "-mavx",  # Enable AVX instructions
-    "-mavx512f",  # Enable AVX-512 instructions
 ]
 
-if not platform_has_avx_support():
-    EXTRA_COMPILE_ARGS.append("-ftree-vectorize")
-
-
+# We don't include SIMD flags if the user has set the NO_MANUAL_VECTORIZATION
+# environment variable to 1
 no_manual_vectorization = int(os.environ.get("NO_MANUAL_VECTORIZATION", "0"))
 
-if no_manual_vectorization:
-    # Remove SIMD-related flags. Otherwise, it would crush in an environment
-    # where SIMD extensions (SSE, AVX) are not supported
-    EXTRA_COMPILE_ARGS = [
-        arg for arg in EXTRA_COMPILE_ARGS if arg not in ("-mavx", "-mavx512f")
-    ]
+if not no_manual_vectorization:
+    SIMD_EXTENSIONS = ["sse", "avx", "avx512f"]
+    found_single_extension = False
+    for extension in SIMD_EXTENSIONS:
+        if simd_extension_supported(extension=extension):
+            EXTRA_COMPILE_ARGS.append(f"-m{extension}")
+            found_single_extension = True
+
+    if not found_single_extension:
+        # We've found that ftree-vectorize (auto-vectorization) is good in general
+        # but it does slow down SIMD extensions considerably. So, we only enable it
+        # if we haven't found any SIMD extensions.
+        # Reference: https://llvm.org/docs/Vectorizers.html
+        EXTRA_COMPILE_ARGS.append("-ftree-vectorize")
+
 
 ext_modules = [
     Pybind11Extension(
