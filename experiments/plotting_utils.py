@@ -91,10 +91,14 @@ def plot_percentile_against_recall(
     # Adding labels and title
     plt.xlabel("Recall")
     plt.ylabel(f"{percentile_key} (ms)")
-    plot_title = f"({dataset_name}) Latency-Recall Tradeoff - down and to the right is better"
-    plt.title(
-        plot_title
+    plot_title = (
+        f"({dataset_name}) Latency-Recall Tradeoff - down and to the right is better"
     )
+    plt.title(plot_title)
     plt.legend()
     plt.ticklabel_format(style="plain", axis="x")
     plt.savefig(save_filepath, dpi=300, bbox_inches="tight")
+
+
+def plot_distance_computations_against_recall():
+    pass  # TODO

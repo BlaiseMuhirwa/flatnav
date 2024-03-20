@@ -46,12 +46,14 @@ public:
   }
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dataset_size,
-          int max_edges_per_node, bool verbose = false)
+          int max_edges_per_node, bool verbose = false,
+          bool collect_stats = false)
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
-            /* max_edges_per_node = */ max_edges_per_node)) {
+            /* max_edges_per_node = */ max_edges_per_node,
+            /* collect_stats = */ collect_stats)) {
 
     if (_verbose) {
       _index->getIndexSummary();
@@ -59,16 +61,25 @@ public:
   }
 
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
-          const std::string &mtx_filename, bool verbose = false)
+          const std::string &mtx_filename, bool verbose = false,
+          bool collect_stats = false)
       : _label_id(0), _verbose(verbose),
-        _index(new Index<dist_t, label_t>(/* dist = */ std::move(distance),
-                                          /* mtx_filename = */ mtx_filename)) {
+        _index(
+            new Index<dist_t, label_t>(/* dist = */ std::move(distance),
+                                       /* mtx_filename = */ mtx_filename,
+                                       /* collect_stats = */ collect_stats)) {
     _dim = _index->dataDimension();
   }
 
   Index<dist_t, label_t> *getIndex() { return _index; }
 
   ~PyIndex() { delete _index; }
+
+  uint64_t getQueryDistanceComputations() const {
+    auto distance_computations = _index->distanceComputations();
+    _index->resetStats();
+    return distance_computations;
+  }
 
   static std::shared_ptr<PyIndex<dist_t, label_t>>
   loadIndex(const std::string &filename) {
@@ -158,7 +169,6 @@ public:
       const py::array_t<float, py::array::c_style | py::array::forcecast>
           &query,
       int K, int ef_search, int num_initializations = 100) {
-
     if (query.ndim() != 1 || query.shape(0) != _dim) {
       throw std::invalid_argument("Query has incorrect dimensions.");
     }
@@ -202,7 +212,6 @@ public:
   search(const py::array_t<float, py::array::c_style | py::array::forcecast>
              &queries,
          int K, int ef_search, int num_initializations = 100) {
-
     size_t num_queries = queries.shape(0);
     size_t queries_dim = queries.shape(1);
 
@@ -311,6 +320,11 @@ void bindIndexMethods(
            "results are returned as a Tuple of distances and label ID's. The "
            "`ef_search` parameter determines how many neighbors are visited "
            "while finding the closest neighbors for the query.")
+      .def("get_query_distance_computations",
+           &IndexType::getQueryDistanceComputations,
+           "Returns the number of distance computations performed during the "
+           "last search operation. This method also resets the distance "
+           "computations counter.")
       .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
            py::arg("ef_search"), py::arg("num_initializations") = 100,
            "Return top `K` closest data points for every query in the "
@@ -414,12 +428,14 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   index_submodule.def(
       "index_factory",
       [](const std::string &distance_type, int dim, int dataset_size,
-         int max_edges_per_node, bool verbose = false) {
+         int max_edges_per_node, bool verbose = false,
+         bool collect_stats = false) {
         return createIndex(distance_type, dim, dataset_size, max_edges_per_node,
-                           verbose);
+                           verbose, collect_stats);
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
       py::arg("max_edges_per_node"), py::arg("verbose") = false,
+      py::arg("collect_stats") = false,
       "Creates a FlatNav index given the corresponding "
       "parameters. The `distance_type` argument determines the "
       "kind of index created (either L2Index or IPIndex)");

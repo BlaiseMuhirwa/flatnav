@@ -11,7 +11,11 @@ import logging
 import platform, socket, psutil
 import argparse
 import flatnav
-from plotting_utils import plot_qps_against_recall, plot_percentile_against_recall
+from plotting_utils import (
+    plot_qps_against_recall,
+    plot_percentile_against_recall,
+    plot_distance_computations_against_recall,
+)
 from data_loader import get_data_loader
 
 
@@ -55,6 +59,7 @@ def compute_metrics(
     is_flatnav_index = type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex)
     latencies = []
     top_k_indices = []
+    distance_computations = []
 
     if is_flatnav_index:
         for query in queries:
@@ -68,6 +73,12 @@ def compute_metrics(
             end = time.time()
             latencies.append(end - start)
             top_k_indices.append(indices)
+
+            # Fetches the total number of distance computations for the last query.
+            # and resets the counter.
+            query_dis_computations = index.get_query_distance_computations()
+            distance_computations.append(query_dis_computations)
+
     else:
         index.set_ef(ef_search)
         for query in queries:
@@ -93,6 +104,9 @@ def compute_metrics(
 
     if "latency_p999" in requested_metrics:
         metrics["latency_p999"] = np.percentile(latencies, 99.9) * 1000
+
+    if "distance_computations" in requested_metrics:
+        metrics["distance_computations"] = sum(distance_computations)
 
     # Convert each ground truth list to a set for faster lookup
     ground_truth_sets = [set(gt) for gt in ground_truth]
@@ -123,7 +137,7 @@ def create_and_train_hnsw_index(
 ) -> Union[hnswlib.Index, None]:
     """
     Kind of messy to return either a hnswlib.Index or None, but we are doing this so that
-    when we use the HNSW base layer to construct a Flatnav index, we don't ever have the 
+    when we use the HNSW base layer to construct a Flatnav index, we don't ever have the
     two indices in memory at the same time. This should help with memory usage.
     """
     hnsw_index = hnswlib.Index(space=space, dim=dim)
@@ -136,7 +150,7 @@ def create_and_train_hnsw_index(
     hnsw_index.add_items(data=data, ids=np.arange(dataset_size))
     end = time.time()
     logging.info(f"Indexing time = {end - start} seconds")
-    
+
     if base_layer_filename:
         hnsw_index.save_base_layer_graph(filename=base_layer_filename)
         return None
@@ -202,14 +216,15 @@ def train_index(
             num_threads=num_build_threads,
             base_layer_filename=hnsw_base_layer_filename,
         )
-        
+
         if not os.path.exists(hnsw_base_layer_filename):
             raise ValueError(f"Failed to create {hnsw_base_layer_filename=}")
-      
+
         index = flatnav.index.index_factory(
             distance_type=distance_type,
             dim=dim,
             mtx_filename=hnsw_base_layer_filename,
+            collect_stats=True,
         )
 
         # Here we will first allocate memory for the index and then build edge connectivity
@@ -225,6 +240,7 @@ def train_index(
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
             verbose=False,
+            collect_stats=True,
         )
         index.set_num_threads(num_build_threads)
 
@@ -304,6 +320,7 @@ def main(
                             "latency_p95",
                             "latency_p99",
                             "latency_p999",
+                            "distance_computations",
                         ],
                         index=index,
                         queries=queries,
@@ -526,6 +543,8 @@ def run_experiment():
             percentile_key=percentile_key,
             dataset_name=args.dataset_name,
         )
+
+    plot_distance_computations_against_recall()
 
 
 if __name__ == "__main__":
