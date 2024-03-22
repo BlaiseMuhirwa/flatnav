@@ -100,5 +100,44 @@ def plot_percentile_against_recall(
     plt.savefig(save_filepath, dpi=300, bbox_inches="tight")
 
 
-def plot_distance_computations_against_recall():
-    pass  # TODO
+def plot_recall_against_distance_computations(
+    save_filepath: str, all_metrics: dict, dataset_name: str
+):
+    """
+    Plot the recall against distance computations for each key in all_metrics and save the plot to the specified filepath.
+    :param save_filepath: The filepath to save the plot to
+    :param all_metrics: A dictionary keyed on the index with values corresponding to
+        a list of experiment runs. Each experiment run is a dictionary with keys "recall" and "distance_computations"
+    """
+
+    markers = ["o", "X"]
+    colors = sns.color_palette(n_colors=len(all_metrics))
+
+    sns.set_theme(context="paper", style="darkgrid")
+    plt.figure(figsize=(10, 6))
+
+    for (color, marker), (key, metrics) in zip(
+        zip(colors, markers), all_metrics.items()
+    ):
+        recall_values = [m["recall"] for m in metrics]
+        distance_computations_values = [m["distance_computations"] for m in metrics]
+
+        sns.lineplot(
+            x=distance_computations_values,
+            y=recall_values,
+            marker=marker,
+            color=color,
+            label=key,
+            sort=True,
+        )
+
+    # Adding labels and title
+    plt.ylabel("Recall")
+    plt.xlabel("Distance computations")
+    plt.title(f"({dataset_name}) Recall-Distance Computations Tradeoff")
+    plt.legend()
+
+    # Adjusting x-axis to use plain decimals instead of scientific notation
+    plt.ticklabel_format(style="plain", axis="x")
+
+    plt.savefig(save_filepath, dpi=300, bbox_inches="tight")

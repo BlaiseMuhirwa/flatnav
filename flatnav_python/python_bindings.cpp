@@ -443,11 +443,13 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   index_submodule.def(
       "index_factory",
       [](const std::string &distance_type, int dim,
-         const std::string &mtx_filename, bool verbose = false) {
-        return createIndex(distance_type, dim, mtx_filename, verbose);
+         const std::string &mtx_filename, bool verbose = false,
+         bool collect_stats = false) {
+        return createIndex(distance_type, dim, mtx_filename, verbose,
+                           collect_stats);
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
-      py::arg("verbose") = false,
+      py::arg("verbose") = false, py::arg("collect_stats") = false,
       "Creates a FlatNav index given the corresponding "
       "parameters. The `distance_type` argument determines the "
       "kind of index created (either L2Index or IPIndex). The "

@@ -14,7 +14,7 @@ import flatnav
 from plotting_utils import (
     plot_qps_against_recall,
     plot_percentile_against_recall,
-    plot_distance_computations_against_recall,
+    plot_recall_against_distance_computations,
 )
 from data_loader import get_data_loader
 
@@ -106,7 +106,8 @@ def compute_metrics(
         metrics["latency_p999"] = np.percentile(latencies, 99.9) * 1000
 
     if "distance_computations" in requested_metrics:
-        metrics["distance_computations"] = sum(distance_computations)
+        # This is the mean distance computations per query.
+        metrics["distance_computations"] = sum(distance_computations) / len(queries)
 
     # Convert each ground truth list to a set for faster lookup
     ground_truth_sets = [set(gt) for gt in ground_truth]
@@ -332,7 +333,7 @@ def main(
                 logging.info(
                     f"Recall@100: {metrics['recall']}, QPS={metrics['qps']}, "
                     f"mean-latency = {metrics['latency']}, node_links={node_links}, "
-                    f"ef_cons={ef_cons}, ef_search={ef_search}"
+                    f"ef_cons={ef_cons}, ef_search={ef_search}, distance_computations={metrics['distance_computations']}"
                 )
 
                 # Add parameters to the metrics dictionary.
@@ -543,8 +544,14 @@ def run_experiment():
             percentile_key=percentile_key,
             dataset_name=args.dataset_name,
         )
-
-    plot_distance_computations_against_recall()
+    distances_recall_path = os.path.join(
+        ROOT_DIR, "metrics", f"{args.dataset_name}_recall_v_distance_computations.png"
+    )
+    plot_recall_against_distance_computations(
+        save_filepath=distances_recall_path,
+        all_metrics=all_metrics,
+        dataset_name=args.dataset_name,
+    )
 
 
 if __name__ == "__main__":
