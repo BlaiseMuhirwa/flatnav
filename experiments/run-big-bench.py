@@ -6,7 +6,6 @@ import numpy as np
 from typing import Optional, Tuple, List, Dict
 import numpy as np
 import os
-import gc
 import logging
 import platform, socket, psutil
 import argparse
@@ -17,6 +16,8 @@ from plotting_utils import (
     plot_recall_against_distance_computations,
 )
 from data_loader import get_data_loader
+from plotting.metrics import RUNTIME_METRICS
+from plotting.plot import create_plot 
 
 
 ENVIRONMENT_INFO = {
@@ -91,37 +92,34 @@ def compute_metrics(
     querying_time = sum(latencies)
     metrics = {}
     if "qps" in requested_metrics:
-        metrics["qps"] = len(queries) / querying_time
+        metrics["qps"] = RUNTIME_METRICS["qps"]["function"](
+            querying_time=querying_time, num_queries=len(queries)
+        )
 
-    if "latency" in requested_metrics:
-        metrics["latency"] = np.mean(latencies) * 1000
+    if "latency_p50" in requested_metrics:
+        metrics["latency_p50"] = RUNTIME_METRICS["p50"]["function"](latencies=latencies)
 
     if "latency_p95" in requested_metrics:
-        metrics["latency_p95"] = np.percentile(latencies, 95) * 1000
+        metrics["latency_p95"] = RUNTIME_METRICS["p95"]["function"](latencies=latencies)
 
     if "latency_p99" in requested_metrics:
-        metrics["latency_p99"] = np.percentile(latencies, 99) * 1000
+        metrics["latency_p99"] = RUNTIME_METRICS["p99"]["function"](latencies=latencies)
 
     if "latency_p999" in requested_metrics:
-        metrics["latency_p999"] = np.percentile(latencies, 99.9) * 1000
+        metrics["latency_p999"] = RUNTIME_METRICS["p999"]["function"](
+            latencies=latencies
+        )
 
     if "distance_computations" in requested_metrics:
         # This is the mean distance computations per query.
-        metrics["distance_computations"] = sum(distance_computations) / len(queries)
+        metrics["distance_computations"] = RUNTIME_METRICS["distance_computations"][
+            "function"
+        ](disance_computations=sum(distance_computations), num_queries=len(queries))
 
-    # Convert each ground truth list to a set for faster lookup
-    ground_truth_sets = [set(gt) for gt in ground_truth]
-
-    mean_recall = 0
-
-    for idx, k_neighbors in enumerate(top_k_indices):
-        query_recall = sum(
-            1 for neighbor in k_neighbors if neighbor in ground_truth_sets[idx]
+    if "recall" in requested_metrics:
+        metrics["recall"] = RUNTIME_METRICS["recall@k"]["function"](
+            queries=queries, ground_truth=ground_truth, top_k_indices=top_k_indices, k=k
         )
-        mean_recall += query_recall / k
-
-    recall = mean_recall / len(queries)
-    metrics["recall"] = recall
 
     return metrics
 
@@ -267,6 +265,7 @@ def main(
     distance_type: str,
     metrics_file: str,
     dataset_name: str,
+    requested_metrics: List[str],
     index_type: str = "flatnav",
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
@@ -314,27 +313,14 @@ def main(
                 # Extend metrics with computed metrics
                 metrics.update(
                     compute_metrics(
-                        requested_metrics=[
-                            "recall",
-                            "qps",
-                            "latency",
-                            "latency_p95",
-                            "latency_p99",
-                            "latency_p999",
-                            "distance_computations",
-                        ],
+                        requested_metrics=requested_metrics,
                         index=index,
                         queries=queries,
                         ground_truth=gtruth,
                         ef_search=ef_search,
                     )
                 )
-
-                logging.info(
-                    f"Recall@100: {metrics['recall']}, QPS={metrics['qps']}, "
-                    f"mean-latency = {metrics['latency']}, node_links={node_links}, "
-                    f"ef_cons={ef_cons}, ef_search={ef_search}, distance_computations={metrics['distance_computations']}"
-                )
+                logging.info(f"Metrics: {metrics}")
 
                 # Add parameters to the metrics dictionary.
                 metrics["distance_type"] = distance_type
@@ -454,6 +440,22 @@ def parse_arguments() -> argparse.Namespace:
         type=int,
         help="Number of threads to use during search.",
     )
+    
+    parser.add_argument(
+        "--requested-metrics",
+        required=False,
+        nargs="+",
+        type=str,
+        default=[
+            "recall",
+            "qps",
+            "latency_p50",
+            "latency_p95",
+            "latency_p99",
+            "latency_p999",
+            "distance_computations",
+        ],
+    )
 
     parser.add_argument(
         "--metrics-file",
@@ -479,6 +481,12 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     return parser.parse_args()
+
+def plot_all_metrics(metrics_file: str, dataset_name: str) -> None:
+    with open(metrics_file, "r") as file:
+        all_metrics = json.load(file)
+        
+    
 
 
 def run_experiment():
@@ -518,6 +526,7 @@ def run_experiment():
         num_search_threads=args.num_search_threads,
         metrics_file=metrics_file_path,
         num_initializations=num_initializations,
+        requested_metrics=args.requested_metrics,
     )
 
     # Plot metrics
