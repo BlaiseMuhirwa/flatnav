@@ -64,7 +64,6 @@ def create_pointset(
     )
 
     for algorithm_name, x_value, y_value in data:
-        print(f"x_value: {x_value}, y_value: {y_value}")
         if not x_value or not y_value:
             continue
         all_x_values.append(x_value)
