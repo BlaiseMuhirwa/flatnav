@@ -62,6 +62,13 @@ template <typename dist_t, typename label_t> class Index {
   std::vector<std::mutex> _node_links_mutexes;
   std::optional<std::vector<std::vector<uint32_t>>> _outdegree_table;
 
+  bool _collect_stats = false;
+
+  // These are currently only supported for single-threaded search.
+  // Trying to use them in multi-threaded setting will result in wird behavior.
+  mutable std::atomic<uint64_t> _distance_computations = 0;
+  mutable std::atomic<uint64_t> _metric_hops = 0;
+
   Index(const Index &) = delete;
   Index &operator=(const Index &) = delete;
 
@@ -131,13 +138,13 @@ public:
    * @param max_edges_per_node  The maximum number of links per node.
    */
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
-        int max_edges_per_node)
+        int max_edges_per_node, bool collect_stats = false)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
         _cur_num_nodes(0), _distance(dist), _num_threads(1),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
-        _node_links_mutexes(dataset_size) {
+        _node_links_mutexes(dataset_size), _collect_stats(collect_stats) {
 
     // Get the size in bytes of the _node_links_mutexes vector.
     size_t mutexes_size_bytes = _node_links_mutexes.size() * sizeof(std::mutex);
@@ -162,8 +169,9 @@ public:
    */
 
   Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
-        const std::string &mtx_filename, bool verbose = false)
-      : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1) {
+        const std::string &mtx_filename, bool collect_stats = false)
+      : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1),
+        _collect_stats(collect_stats) {
     auto mtx_graph =
         flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
     _outdegree_table = std::move(mtx_graph.adjacency_list);
@@ -483,6 +491,15 @@ public:
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
 
+  inline uint64_t distanceComputations() const {
+    return _distance_computations.load();
+  }
+
+  void resetStats() {
+    _distance_computations = 0;
+    _metric_hops = 0;
+  }
+
   void getIndexSummary() const {
     std::cout << "\nIndex Parameters\n" << std::flush;
     std::cout << "-----------------------------\n" << std::flush;
@@ -614,6 +631,10 @@ private:
       dist = _distance->distance(/* x = */ query,
                                  /* y = */ getNodeData(neighbor_node_id),
                                  /* asymmetric = */ true);
+
+      if (_collect_stats) {
+        _distance_computations.fetch_add(1);
+      }
 
       if (neighbors.size() < buffer_size || dist < max_dist) {
         candidates.emplace(-dist, neighbor_node_id);
@@ -783,6 +804,10 @@ private:
 
     float min_dist = std::numeric_limits<float>::max();
     node_id_t entry_node = 0;
+
+    if (_collect_stats) {
+      _distance_computations.fetch_add(num_initializations);
+    }
 
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
       float dist =
