@@ -10,14 +10,9 @@ import logging
 import platform, socket, psutil
 import argparse
 import flatnav
-from plotting_utils import (
-    plot_qps_against_recall,
-    plot_percentile_against_recall,
-    plot_recall_against_distance_computations,
-)
 from data_loader import get_data_loader
-from plotting.metrics import RUNTIME_METRICS
-from plotting.plot import create_plot 
+from plotting.plot import create_plot, create_linestyles
+from plotting.metrics import metric_manager
 
 
 ENVIRONMENT_INFO = {
@@ -42,20 +37,19 @@ def compute_metrics(
     k=100,
 ) -> Dict[str, float]:
     """
-    Compute recall, QPS, and latency percentiles for given queries, ground truth
-    for the given index (FlatNav or HNSW).
-
-    Args:
-        - requested_metrics: A list of metrics to compute. Options include `recall`,
-                            `qps`, `latency`, `latency_p95`, `latency_p99`, and `latency_p999`.
-        - index: A FlatNav index to search.
-        - queries: The query vectors.
-        - ground_truth: The ground truth indices for each query.
-        - ef_search: The size of the dynamic candidate list.
-        - k: Number of neighbors to search.
-
-    Returns:
-        Dictionary of metrics including recall, QPS, mean latency, 95th and 99th percentile latencies.
+    Compute metrics, possibly including recall, QPS, average per query distance computations, 
+    and latency percentiles for given queries, ground truth for the given index (FlatNav or HNSW).
+    
+    :param requested_metrics: A list of metrics to compute. Options include `recall`, `qps`, `latency_p50`,
+        `latency_p95`, `latency_p99`, and `latency_p999`.
+    :param index: Either a FlatNav or HNSW index to search.
+    :param queries: The query vectors.
+    :param ground_truth: The ground truth indices for each query.
+    :param ef_search: The size of the dynamic candidate list.
+    :param k: Number of neighbors to search.
+    
+    :return: Dictionary of metrics.
+        
     """
     is_flatnav_index = type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex)
     latencies = []
@@ -90,39 +84,34 @@ def compute_metrics(
             top_k_indices.append(indices[0])
 
     querying_time = sum(latencies)
+    distance_computations = sum(distance_computations)
+    num_queries = len(queries)
+    
+    # Construct a kwargs dictionary to pass to the metric functions.
+    kwargs = {
+        "querying_time": querying_time,
+        "num_queries": num_queries,
+        "latencies": latencies,
+        "distance_computations": distance_computations,
+        "queries": queries,
+        "ground_truth": ground_truth,
+        "top_k_indices": top_k_indices,
+        "k": k,
+    }
+    
     metrics = {}
-    if "qps" in requested_metrics:
-        metrics["qps"] = RUNTIME_METRICS["qps"]["function"](
-            querying_time=querying_time, num_queries=len(queries)
-        )
+    
+    for metric_name in requested_metrics:
+        try:
+            if metric_name in metric_manager.metric_functions:
+                metrics[metric_name] = metric_manager.compute_metric(
+                    metric_name,
+                    **kwargs
+                )
+        except Exception:
+            logging.error(f"Error computing metric {metric_name}", exc_info=True)
 
-    if "latency_p50" in requested_metrics:
-        metrics["latency_p50"] = RUNTIME_METRICS["p50"]["function"](latencies=latencies)
-
-    if "latency_p95" in requested_metrics:
-        metrics["latency_p95"] = RUNTIME_METRICS["p95"]["function"](latencies=latencies)
-
-    if "latency_p99" in requested_metrics:
-        metrics["latency_p99"] = RUNTIME_METRICS["p99"]["function"](latencies=latencies)
-
-    if "latency_p999" in requested_metrics:
-        metrics["latency_p999"] = RUNTIME_METRICS["p999"]["function"](
-            latencies=latencies
-        )
-
-    if "distance_computations" in requested_metrics:
-        # This is the mean distance computations per query.
-        metrics["distance_computations"] = RUNTIME_METRICS["distance_computations"][
-            "function"
-        ](disance_computations=sum(distance_computations), num_queries=len(queries))
-
-    if "recall" in requested_metrics:
-        metrics["recall"] = RUNTIME_METRICS["recall@k"]["function"](
-            queries=queries, ground_truth=ground_truth, top_k_indices=top_k_indices, k=k
-        )
-
-    return metrics
-
+    return metrics 
 
 def create_and_train_hnsw_index(
     data: np.ndarray,
@@ -440,7 +429,7 @@ def parse_arguments() -> argparse.Namespace:
         type=int,
         help="Number of threads to use during search.",
     )
-    
+
     parser.add_argument(
         "--requested-metrics",
         required=False,
@@ -482,11 +471,49 @@ def parse_arguments() -> argparse.Namespace:
 
     return parser.parse_args()
 
-def plot_all_metrics(metrics_file: str, dataset_name: str) -> None:
-    with open(metrics_file, "r") as file:
+
+def plot_all_metrics(
+    metrics_file_path: str,
+    dataset_name: str,
+    requested_metrics: List[str],
+) -> None:
+    with open(metrics_file_path, "r") as file:
         all_metrics = json.load(file)
+
+    linestyles = create_linestyles(unique_algorithms=all_metrics.keys())
+    metrics_dir = os.path.dirname(metrics_file_path)
+
+    for y_metric in requested_metrics:
+        if y_metric == "recall":
+            continue
+        x_metric = "recall"
+        if y_metric == "distance_computations":
+            x_metric = "distance_computations"
+            y_metric = "recall"
+
+        plot_name = os.path.join(
+            metrics_dir, f"{dataset_name}_{y_metric}_v_{x_metric}.png"
+        )
         
-    
+        # Here we are aggregating the metrics across all runs in order
+        # to get the x, y pairs. So, we need to create this list of tuples
+        experiment_runs = {}
+        for experiment_key, metrics in all_metrics.items():
+            experiment_runs[experiment_key] = [
+                (experiment_key, run[x_metric], run[y_metric])
+                for run in metrics
+            ]
+
+        create_plot(
+            experiment_runs=experiment_runs,
+            raw=True,
+            x_scale="linear",
+            y_scale="linear",
+            x_axis_metric=x_metric,
+            y_axis_metric=y_metric,
+            linestyles=linestyles,
+            plot_name=plot_name,
+        )
 
 
 def run_experiment():
@@ -529,37 +556,10 @@ def run_experiment():
         requested_metrics=args.requested_metrics,
     )
 
-    # Plot metrics
-    with open(metrics_file_path, "r") as file:
-        all_metrics = json.load(file)
-
-    qps_recall_filepath = os.path.join(
-        ROOT_DIR, "metrics", f"{args.dataset_name}_qps_v_recall.png"
-    )
-    plot_qps_against_recall(
-        save_filepath=qps_recall_filepath,
-        all_metrics=all_metrics,
+    plot_all_metrics(
+        metrics_file_path=metrics_file_path,
         dataset_name=args.dataset_name,
-    )
-
-    latency_percentiles = ["latency", "latency_p95", "latency_p99", "latency_p999"]
-    for percentile_key in latency_percentiles:
-        filepath = os.path.join(
-            ROOT_DIR, "metrics", f"{args.dataset_name}_{percentile_key}_v_recall.png"
-        )
-        plot_percentile_against_recall(
-            save_filepath=filepath,
-            all_metrics=all_metrics,
-            percentile_key=percentile_key,
-            dataset_name=args.dataset_name,
-        )
-    distances_recall_path = os.path.join(
-        ROOT_DIR, "metrics", f"{args.dataset_name}_recall_v_distance_computations.png"
-    )
-    plot_recall_against_distance_computations(
-        save_filepath=distances_recall_path,
-        all_metrics=all_metrics,
-        dataset_name=args.dataset_name,
+        requested_metrics=args.requested_metrics,
     )
 
 

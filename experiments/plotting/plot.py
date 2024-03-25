@@ -7,22 +7,23 @@ mpl.use("Agg")
 
 import matplotlib.pyplot as plt
 from matplotlib import ticker
-from metrics import RUNTIME_METRICS
+from .metrics import metric_manager
+from .metrics import MetricConfig
 
 
-def get_plot_title(x_metric: Dict, y_metric: Dict) -> str:
-    up_down = "down" if y_metric["worst_value"] == float("inf") else "up"
-    left_right = "left" if x_metric["worst_value"] == float("inf") else "right"
+def get_plot_title(x_metric: MetricConfig, y_metric: MetricConfig) -> str:
+    up_down = "down" if y_metric.worst_value == float("inf") else "up"
+    left_right = "left" if x_metric.worst_value == float("inf") else "right"
 
     return (
-        f"{x_metric['Description']}-{y_metric['Description']} tradeoff "
+        f"{x_metric.description}-{y_metric.description} tradeoff "
         f"- {up_down} and to the {left_right} is better"
     )
 
 
 def create_pointset(
     data,
-    x_axis_metric_name: Optional[str] = "recall@k",
+    x_axis_metric_name: Optional[str] = "recall",
     y_axis_metric_name: Optional[str] = "qps",
 ) -> Tuple[List]:
     """
@@ -40,9 +41,11 @@ def create_pointset(
             algorithms either on the Pareto frontier or in the entire dataset.
     """
 
-    x_metric, y_metric = RUNTIME_METRICS[x_axis_metric_name], RUNTIME_METRICS[y_axis_metric_name]
-    rev_y = -1 if y_metric["worst_value"] < 0 else 1
-    rev_x = -1 if x_metric["worst_value"] < 0 else 1
+    x_metric: MetricConfig = metric_manager.get_metric(x_axis_metric_name)
+    y_metric: MetricConfig = metric_manager.get_metric(y_axis_metric_name)
+    
+    rev_y = -1 if y_metric.worst_value < 0 else 1
+    rev_x = -1 if x_metric.worst_value < 0 else 1
 
     # Sort data by y-axis metric, then x-axis metric
     # This is necessary to generate the Pareto frontier
@@ -51,7 +54,7 @@ def create_pointset(
     # Generate Pareto frontier
     x_values, y_values, labels = [], [], []
     all_x_values, all_y_values, all_labels = [], [], []
-    last_x = x_metric["worst_value"]
+    last_x = x_metric.worst_value
 
     # Comparator function to determine if a value is better than the last
     comparator = (
@@ -60,7 +63,8 @@ def create_pointset(
         else (lambda xvalue, last_x: xvalue < last_x)
     )
 
-    for algorithm, algorithm_name, x_value, y_value in data:
+    for algorithm_name, x_value, y_value in data:
+        print(f"x_value: {x_value}, y_value: {y_value}")
         if not x_value or not y_value:
             continue
         all_x_values.append(x_value)
@@ -220,10 +224,11 @@ def create_plot(
             )
         labels.append(algorithm)
 
-    x_metric, y_metric = RUNTIME_METRICS[x_axis_metric], RUNTIME_METRICS[y_axis_metric]
+    x_metric: MetricConfig = metric_manager.get_metric(x_axis_metric)
+    y_metric: MetricConfig = metric_manager.get_metric(y_axis_metric)
     ax = plt.gca()
-    ax.set_xlabel(x_metric["Description"])
-    ax.set_ylabel(y_metric["Description"])
+    ax.set_xlabel(x_metric.description)
+    ax.set_ylabel(y_metric.description)
 
     if x_scale[0] == "a":
         alpha = float(x_scale[1:])
@@ -256,19 +261,38 @@ def create_plot(
     plt.setp(ax.get_xminorticklabels(), visible=True)
 
     if "range" in x_metric and x_scale != "logit":
-        x0, x1 = x_metric["range"]
+        x0, x1 = x_metric.range
         plt.xlim(max(x0, 0), min(x1, 1))
     elif x_scale == "logit":
         plt.xlim(min_x, max_x)
     if "range" in y_metric:
-        plt.ylim(y_metric["range"])
+        plt.ylim(y_metric.range)
 
     ax.spines["bottom"]._adjust_location()
     plt.savefig(plot_name, bbox_inches="tight")
     plt.close()
 
 
-if __name__ == "__main__":
-    unique_algorithms = {"A", "B", "C"}
-    linestyles = create_linestyles(unique_algorithms)
-    print(linestyles)
+if __name__=="__main__":
+    import json 
+    with open("metrics.json") as f:
+        experiment_runs = json.load(f)
+        
+    raw = True 
+    x_scale = "linear"
+    y_scale = "linear"
+    x_axis_metric = "recall@k"
+    y_axis_metric = "qps"
+    linestyles = create_linestyles(set(experiment_runs.keys()))
+    plot_name = "plot.png"
+    
+    create_plot(
+        experiment_runs=experiment_runs, 
+        raw=raw, 
+        x_scale=x_scale, 
+        y_scale=y_scale, 
+        x_axis_metric=x_axis_metric, 
+        y_axis_metric=y_axis_metric, 
+        linestyles=linestyles, 
+        plot_name=plot_name
+    )
