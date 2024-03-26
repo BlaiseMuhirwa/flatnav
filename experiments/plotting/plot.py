@@ -270,28 +270,3 @@ def create_plot(
     ax.spines["bottom"]._adjust_location()
     plt.savefig(plot_name, bbox_inches="tight")
     plt.close()
-
-
-if __name__=="__main__":
-    import json 
-    with open("metrics.json") as f:
-        experiment_runs = json.load(f)
-        
-    raw = True 
-    x_scale = "linear"
-    y_scale = "linear"
-    x_axis_metric = "recall@k"
-    y_axis_metric = "qps"
-    linestyles = create_linestyles(set(experiment_runs.keys()))
-    plot_name = "plot.png"
-    
-    create_plot(
-        experiment_runs=experiment_runs, 
-        raw=raw, 
-        x_scale=x_scale, 
-        y_scale=y_scale, 
-        x_axis_metric=x_axis_metric, 
-        y_axis_metric=y_axis_metric, 
-        linestyles=linestyles, 
-        plot_name=plot_name
-    )

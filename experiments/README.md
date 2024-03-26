@@ -4,7 +4,7 @@
 We currently have two different ways to build the Python library and use the
 experiment runner:
 
-1. Building the python library directly from source and running the `run-big-bench.py`
+1. Building the python library directly from source and running the `run-benchmark.py`
 2. Using docker to build the library. 
 
 We highly recommend using the second option since it's good for reproducibility and you 
@@ -15,7 +15,7 @@ for whatever reason, you will need to first install [poetry](https://python-poet
 
 Here is the workflow for running experiments: 
 
-1. Make changes to the run-big-bench.py script per your needs.
+1. Make changes to the run-benchmark.py script per your needs.
 2. Add a make target in the [Makefile](/experiments/Makefile) if needed or edit an existing target
 3. Build a docker image to reflect these changes
 
@@ -56,7 +56,7 @@ to the dataset. What this means for you is that you have to place the dataset yo
 
 ```
 sift-bench: 
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
