@@ -541,25 +541,25 @@ def run_experiment():
 
     metrics_file_path = os.path.join(ROOT_DIR, "metrics", args.metrics_file)
 
-    # main(
-    #     train_dataset=train_data,
-    #     queries=queries,
-    #     gtruth=ground_truth,
-    #     ef_cons_params=args.ef_construction,
-    #     ef_search_params=args.ef_search,
-    #     num_node_links=args.num_node_links,
-    #     distance_type=args.metric.lower(),
-    #     dataset_name=args.dataset_name,
-    #     index_type=args.index_type.lower(),
-    #     use_hnsw_base_layer=args.use_hnsw_base_layer,
-    #     hnsw_base_layer_filename=args.hnsw_base_layer_filename,
-    #     reordering_strategies=args.reordering_strategies,
-    #     num_build_threads=args.num_build_threads,
-    #     num_search_threads=args.num_search_threads,
-    #     metrics_file=metrics_file_path,
-    #     num_initializations=num_initializations,
-    #     requested_metrics=args.requested_metrics,
-    # )
+    main(
+        train_dataset=train_data,
+        queries=queries,
+        gtruth=ground_truth,
+        ef_cons_params=args.ef_construction,
+        ef_search_params=args.ef_search,
+        num_node_links=args.num_node_links,
+        distance_type=args.metric.lower(),
+        dataset_name=args.dataset_name,
+        index_type=args.index_type.lower(),
+        use_hnsw_base_layer=args.use_hnsw_base_layer,
+        hnsw_base_layer_filename=args.hnsw_base_layer_filename,
+        reordering_strategies=args.reordering_strategies,
+        num_build_threads=args.num_build_threads,
+        num_search_threads=args.num_search_threads,
+        metrics_file=metrics_file_path,
+        num_initializations=num_initializations,
+        requested_metrics=args.requested_metrics,
+    )
 
     plot_all_metrics(
         metrics_file_path=metrics_file_path,
