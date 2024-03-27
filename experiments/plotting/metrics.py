@@ -1,7 +1,8 @@
 from typing import List, Optional
 import numpy as np
 from pydantic import BaseModel, validator
-import inspect 
+import inspect
+
 
 class MetricConfig(BaseModel):
     description: str
@@ -15,8 +16,10 @@ class MetricConfig(BaseModel):
                 "range must be a list of two values, where the first is less than the second"
             )
         return v
+
     class Config:
         extra = "forbid"
+
 
 class MetricManager:
     def __init__(self):
@@ -29,7 +32,7 @@ class MetricManager:
         self.metric_configs[name] = config
         if function:
             self.metric_functions[name] = function
-            
+
     def get_metric(self, name: str) -> MetricConfig:
         try:
             return self.metric_configs[name]
@@ -39,11 +42,11 @@ class MetricManager:
     def compute_metric(self, name: str, **kwargs):
         if name not in self.metric_functions:
             raise ValueError(f"Function for metric {name} not found")
-        
+
         eval_function = self.metric_functions[name]
         sig = inspect.signature(eval_function)
         function_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
-        
+
         return eval_function(**function_kwargs)
 
 
@@ -126,4 +129,3 @@ metric_manager.register_metric(
     name="build_time",
     config=MetricConfig(description="Index build time (s)", worst_value=float("inf")),
 )
-

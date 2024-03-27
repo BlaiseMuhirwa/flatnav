@@ -2,7 +2,7 @@
 
 # Run the yandex-deep benchmark and log everything to a logs.txt file 
 yandex-deep-bench: 
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset /media/scratch/yandex-deep/learn.350.fbin \
 		--queries /media/scratch/yandex-deep/queries.fbin \
 		--gtruth /media/scratch/yandex-deep/ground_truth.10K.bin \
@@ -12,7 +12,7 @@ yandex-deep-bench:
 # We use dataset-name for the name of the plots.
 
 fashion-mnist-bench-flatnav: 
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset-name fashion-mnist-784 \
 		--dataset /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.train.npy \
 		--queries /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.test.npy \
@@ -21,7 +21,7 @@ fashion-mnist-bench-flatnav:
 		--use-hnsw-base-layer \
 		--hnsw-base-layer-filename fashion-mnist.mtx \
 		--num-node-links 32 \
-		--ef-construction 100 200 300 \
+		--ef-construction 30 40 50 100 200 300 \
 		--ef-search 100 200 300 500 1000 \
 		--metric l2 \
 		--num-build-threads 16 \
@@ -29,21 +29,21 @@ fashion-mnist-bench-flatnav:
 
 
 fashion-mnist-bench-hnsw: 
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset-name fashion-mnist-784 \
 		--dataset /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.train.npy \
 		--queries /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.test.npy \
 		--gtruth /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.gtruth.npy \
 		--index-type hnsw \
 		--num-node-links 32 \
-		--ef-construction 100 200 300 \
+		--ef-construction 30 40 50 100 200 300 \
 		--ef-search 100 200 300 500 1000 \
 		--metric l2 \
 		--num-build-threads 16 \
 		--num-search-threads 1 
 
 gist-bench-flatnav: 
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset-name gist \
 		--dataset /root/data/gist-960-euclidean/gist-960-euclidean.train.npy \
 		--queries /root/data/gist-960-euclidean/gist-960-euclidean.test.npy \
@@ -60,7 +60,7 @@ gist-bench-flatnav:
 
 
 gist-bench-hnsw: 
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset-name gist \
 		--dataset /root/data/gist-960-euclidean/gist-960-euclidean.train.npy \
 		--queries /root/data/gist-960-euclidean/gist-960-euclidean.test.npy \
@@ -73,7 +73,7 @@ gist-bench-hnsw:
 		--num-build-threads 16 \
 		--num-search-threads 1 
 sift-bench-flatnav: 
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset-name sift \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
@@ -89,7 +89,7 @@ sift-bench-flatnav:
 		--num-search-threads 1 
 
 sift-bench-hnsw: 
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset-name sift \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
@@ -103,7 +103,7 @@ sift-bench-hnsw:
 		--num-search-threads 1
 
 glove100-bench-flatnav:
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
 		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
 		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
@@ -119,7 +119,7 @@ glove100-bench-flatnav:
 		--metric angular
 
 glove100-bench-hnsw:
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
 		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
 		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
@@ -134,7 +134,7 @@ glove100-bench-hnsw:
 
 
 glove25-bench-flatnav:
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
 		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
 		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
@@ -150,7 +150,7 @@ glove25-bench-flatnav:
 		--metric angular
 
 glove25-bench-hnsw:
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
 		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
 		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
@@ -164,7 +164,7 @@ glove25-bench-hnsw:
 		--metric angular
 
 nytimes-bench-flatnav:
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset /root/data/nytimes-256-angular/nytimes-256-angular.train.npy \
 		--queries /root/data/nytimes-256-angular/nytimes-256-angular.test.npy \
 		--gtruth /root/data/nytimes-256-angular/nytimes-256-angular.gtruth.npy \
@@ -180,7 +180,7 @@ nytimes-bench-flatnav:
 		--metric angular
 
 nytimes-bench-hnsw:
-	poetry run python run-big-bench.py \
+	poetry run python run-benchmark.py \
 		--dataset /root/data/nytimes-256-angular/nytimes-256-angular.train.npy \
 		--queries /root/data/nytimes-256-angular/nytimes-256-angular.test.npy \
 		--gtruth /root/data/nytimes-256-angular/nytimes-256-angular.gtruth.npy \
