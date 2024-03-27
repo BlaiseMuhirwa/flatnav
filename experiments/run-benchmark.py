@@ -37,9 +37,9 @@ def compute_metrics(
     k=100,
 ) -> Dict[str, float]:
     """
-    Compute metrics, possibly including recall, QPS, average per query distance computations, 
+    Compute metrics, possibly including recall, QPS, average per query distance computations,
     and latency percentiles for given queries, ground truth for the given index (FlatNav or HNSW).
-    
+
     :param requested_metrics: A list of metrics to compute. Options include `recall`, `qps`, `latency_p50`,
         `latency_p95`, `latency_p99`, and `latency_p999`.
     :param index: Either a FlatNav or HNSW index to search.
@@ -47,9 +47,9 @@ def compute_metrics(
     :param ground_truth: The ground truth indices for each query.
     :param ef_search: The size of the dynamic candidate list.
     :param k: Number of neighbors to search.
-    
+
     :return: Dictionary of metrics.
-        
+
     """
     is_flatnav_index = type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex)
     latencies = []
@@ -76,22 +76,21 @@ def compute_metrics(
 
     else:
         index.set_ef(ef_search)
-        for idx, query in enumerate(queries):
+        for query in queries:
             start = time.time()
             indices, _ = index.knn_query(data=np.array([query]), k=k)
             end = time.time()
             latencies.append(end - start)
             top_k_indices.append(indices[0])
-            
-            if idx == len(queries) - 1:
-                # HNSW aggregates distance computations across all queries.
-                distance_computations.append(index.get_distance_computations())
-            
+
+        else:
+            # HNSW aggregates distance computations across all queries.
+            distance_computations.append(index.get_distance_computations())
 
     querying_time = sum(latencies)
     distance_computations = sum(distance_computations)
     num_queries = len(queries)
-    
+
     # Construct a kwargs dictionary to pass to the metric functions.
     kwargs = {
         "querying_time": querying_time,
@@ -103,20 +102,20 @@ def compute_metrics(
         "top_k_indices": top_k_indices,
         "k": k,
     }
-    
+
     metrics = {}
-    
+
     for metric_name in requested_metrics:
         try:
             if metric_name in metric_manager.metric_functions:
                 metrics[metric_name] = metric_manager.compute_metric(
-                    metric_name,
-                    **kwargs
+                    metric_name, **kwargs
                 )
         except Exception:
             logging.error(f"Error computing metric {metric_name}", exc_info=True)
 
-    return metrics 
+    return metrics
+
 
 def create_and_train_hnsw_index(
     data: np.ndarray,
@@ -499,14 +498,13 @@ def plot_all_metrics(
         plot_name = os.path.join(
             metrics_dir, f"{dataset_name}_{y_metric}_v_{x_metric}.png"
         )
-        
+
         # Here we are aggregating the metrics across all runs in order
         # to get the x, y pairs. So, we need to create this list of tuples
         experiment_runs = {}
         for experiment_key, metrics in all_metrics.items():
             experiment_runs[experiment_key] = [
-                (experiment_key, run[x_metric], run[y_metric])
-                for run in metrics
+                (experiment_key, run[x_metric], run[y_metric]) for run in metrics
             ]
 
         create_plot(

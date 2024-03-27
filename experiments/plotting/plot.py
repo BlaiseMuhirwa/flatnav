@@ -43,7 +43,7 @@ def create_pointset(
 
     x_metric: MetricConfig = metric_manager.get_metric(x_axis_metric_name)
     y_metric: MetricConfig = metric_manager.get_metric(y_axis_metric_name)
-    
+
     rev_y = -1 if y_metric.worst_value < 0 else 1
     rev_x = -1 if x_metric.worst_value < 0 else 1
 
@@ -167,7 +167,7 @@ def create_plot(
     linestyles: dict,
     plot_name: str,
 ) -> None:
-    handles, labels = [], []
+    handles, plot_labels = [], []
     plt.figure(figsize=(12, 9))
 
     def mean_y(algorithm):
@@ -195,6 +195,7 @@ def create_plot(
             all_y_values,
             all_labels,
         ) = create_pointset(experiment_runs[algorithm], x_axis_metric, y_axis_metric)
+
         min_x = min([min_x] + [x for x in x_values if x > 0])
         max_x = max([max_x] + [x for x in x_values if x < 1])
         color, faded, linestyle, marker = linestyles[algorithm]
@@ -221,7 +222,7 @@ def create_plot(
                 lw=2,
                 marker=marker,
             )
-        labels.append(algorithm)
+        plot_labels.append(algorithm)
 
     x_metric: MetricConfig = metric_manager.get_metric(x_axis_metric)
     y_metric: MetricConfig = metric_manager.get_metric(y_axis_metric)
@@ -252,9 +253,12 @@ def create_plot(
     ax.set_yscale(y_scale)
     ax.set_title(get_plot_title(x_metric, y_metric))
     plt.gca().get_position()
-
     ax.legend(
-        handles, labels, loc="center left", bbox_to_anchor=(1, 0.5), prop={"size": 9}
+        handles,
+        plot_labels,
+        loc="center left",
+        bbox_to_anchor=(1, 0.5),
+        prop={"size": 9},
     )
     plt.grid(visible=True, which="major", color="0.65", linestyle="-")
     plt.setp(ax.get_xminorticklabels(), visible=True)
