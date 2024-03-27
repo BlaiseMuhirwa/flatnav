@@ -8,6 +8,38 @@ yandex-deep-bench:
 		--gtruth /media/scratch/yandex-deep/ground_truth.10K.bin \
 		--metric l2 > logs.txt 2>&1
 
+# Billion-scale benchmark for the Microsoft SpaceV1B dataset
+# Reference: https://github.com/microsoft/SPTAG/tree/main/datasets/SPACEV1B
+space-v1b-bench-flatnav:
+    poetry run python run-benchmark.py \
+        --dataset-name msft-space-v1b \
+        --dataset /root/data/SPACEV1B/collection.npy \
+        --queries /root/data/SPACEV1B/queries.npy \
+        --gtruth /root/data/SPACEV1B/ground_truth.npy \
+        --index-type flatnav \
+        --use-hnsw-base-layer \
+        --hnsw-base-layer-filename /scratch/brc7/space-v1b.mtx \
+        --num-node-links 32 \
+        --ef-construction 30 50 100 \
+        --ef-search 100 200 300 500 1000 \
+        --num-build-threads 45 \
+        --num-search-threads 1 \
+        --metric l2
+
+space-v1b-bench-hnsw:
+	poetry run python run-benchmark.py \
+		--dataset-name msft-space-v1b \
+		--dataset /root/data/SPACEV1B/collection.npy \
+		--queries /root/data/SPACEV1B/queries.npy \
+		--gtruth /root/data/SPACEV1B/ground_truth.npy \
+		--index-type hnsw \
+		--num-node-links 32 \
+		--ef-construction 30 50 100 \
+		--ef-search 100 200 300 500 1000 \
+		--num-build-threads 45 \
+		--num-search-threads 1 \
+		--metric l2
+
 # Other available options include: --index-type (hnsw, flatnav)
 # We use dataset-name for the name of the plots.
 
