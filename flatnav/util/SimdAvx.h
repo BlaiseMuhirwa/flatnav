@@ -1,0 +1,183 @@
+/**
+ * Adopted from
+ * https://github.com/facebookresearch/faiss/blob/main/faiss/utils/simdlib_avx2.h
+ *
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+#pragma once
+
+#include <flatnav/util/Macros.h>
+#include <immintrin.h>
+
+namespace flatnav::util {
+
+struct simd256bit {
+  union {
+    __m256 _float;
+    __m256i _int;
+  };
+
+  explicit simd256bit(__m256i x) : _int(x) {}
+  explicit simd256bit(__m256 x) : _float(x) {}
+  explicit simd256bit(const void *x)
+      : _int(_mm256_loadu_si256((const __m256i *)x)) {}
+
+  void storeu(void *pointer) const {
+    _mm256_storeu_si256((__m256i *)pointer, _int);
+  }
+  void store(void *pointer) const {
+    // This requires 32-byte alignment for pointer
+    _mm256_store_si256((__m256i *)pointer, _int);
+  }
+
+  void clear() { _int = _mm256_setzero_si256(); }
+
+  void loadu(const void *pointer) {
+    _int = _mm256_loadu_si256((const __m256i *)pointer);
+  }
+
+  bool operator=(const simd256bit &other) {
+    const __m256i eq = _mm256_cmpeq_epi32(_int, other._int);
+    return _mm256_movemask_epi8(eq) == 0xffffffffU;
+  }
+};
+
+struct simd512bit {
+  union {
+    __m512 _float;
+    __m512i _int;
+  };
+
+  explicit simd512bit(__m512i x) : _int(x) {}
+  explicit simd512bit(__m512 x) : _float(x) {}
+  explicit simd512bit(const void *x)
+      : _int(_mm512_loadu_si512((const __m512i *)x)) {}
+
+  // constructs from lower and upper halves
+  // NOTE: This implementation might be wrong!
+  simd512bit(const simd256bit &lo, const simd256bit &hi) {}
+
+  void storeu(void *pointer) const {
+    _mm512_storeu_si512((__m512i *)pointer, _int);
+  }
+  // void store(void *pointer) const {
+  //   // This requires 64-byte alignment for pointer
+  //   _mm512_store_si512((__m512i *)pointer, _int);
+  // }
+
+  void store(void *pointer) const {
+    // This requires 64-byte alignment for pointer
+    _mm512_store_ps((float *)pointer, _float);
+  }
+
+  void clear() { _int = _mm512_setzero_si512(); }
+
+  void loadu(const void *pointer) {
+    _float = _mm512_loadu_ps((const float *)pointer);
+  }
+
+  float reduce_add() const { return _mm512_reduce_add_ps(_float); }
+
+  // bool operator=(const simd512bit &other) {
+  //   const __m512i eq = _mm512_cmpeq_epi32(_int, other._int);
+  //   return _mm512_movemask_epi8(eq) == 0xffffffffU;
+  // }
+};
+
+// Vector of 8 32-bit floats
+struct simd8float32 : public simd256bit {
+  explicit simd8float32(__m256 x) : simd256bit(x) {}
+  explicit simd8float32(const void *x) : simd256bit(x) {}
+  explicit simd8float32(float x) : simd256bit(_mm256_set1_ps(x)) {}
+
+  explicit simd8float32(const float *x) : simd256bit(_mm256_loadu_ps(x)) {}
+
+  explicit simd8float32(float x0, float x1, float x2, float x3, float x4,
+                        float x5, float x6, float x7)
+      : simd256bit(_mm256_setr_ps(x7, x6, x5, x4, x3, x2, x1, x0)) {}
+
+  simd8float32 operator+(const simd8float32 &other) const {
+    __m256 result = _mm256_add_ps(_float, other._float);
+    return simd8float32(result);
+  }
+
+  simd8float32 operator*(const simd8float32 &other) const {
+    __m256 result = _mm256_mul_ps(_float, other._float);
+    return simd8float32(result);
+  }
+
+  simd8float32 operator/(const simd8float32 &other) const {
+    __m256 result = _mm256_div_ps(_float, other._float);
+    return simd8float32(result);
+  }
+
+  simd8float32 &operator+=(const simd8float32 &other) {
+    _float = _mm256_add_ps(_float, other._float);
+    return *this;
+  }
+
+  bool operator==(const simd8float32 &other) const {
+    const __m256i eq =
+        _mm256_castps_si256(_mm256_cmp_ps(_float, other._float, _CMP_EQ_OQ));
+    return _mm256_movemask_epi8(eq) == 0xffffffffU;
+  }
+};
+
+struct simd16float32 : public simd512bit {
+  simd16float32() : simd512bit(_mm512_setzero_ps()) {}
+  explicit simd16float32(__m512 x) : simd512bit(x) {}
+  explicit simd16float32(const void *x) : simd512bit(x) {}
+
+  // Set all elements to x
+  explicit simd16float32(float x) : simd512bit(_mm512_set1_ps(x)) {}
+
+  explicit simd16float32(const float *x) : simd512bit(_mm512_loadu_ps(x)) {}
+
+  explicit simd16float32(float x0, float x1, float x2, float x3, float x4,
+                         float x5, float x6, float x7, float x8, float x9,
+                         float x10, float x11, float x12, float x13, float x14,
+                         float x15)
+      : simd512bit(_mm512_setr_ps(x15, x14, x13, x12, x11, x10, x9, x8, x7, x6,
+                                  x5, x4, x3, x2, x1, x0)) {}
+
+  // Constructs from lower and upper halves
+  simd16float32(const simd8float32 &lo, const simd8float32 &hi)
+      : simd512bit(lo, hi) {}
+
+  simd16float32 operator+(const simd16float32 &other) const {
+    __m512 result = _mm512_add_ps(_float, other._float);
+    return simd16float32(result);
+  }
+
+  simd16float32 operator*(const simd16float32 &other) const {
+    __m512 result = _mm512_mul_ps(_float, other._float);
+    return simd16float32(result);
+  }
+
+  simd16float32 operator/(const simd16float32 &other) const {
+    __m512 result = _mm512_div_ps(_float, other._float);
+    return simd16float32(result);
+  }
+
+  simd16float32 &operator+=(const simd16float32 &other) {
+    _float = _mm512_add_ps(_float, other._float);
+    return *this;
+  }
+
+  simd16float32 operator-(const simd16float32 &other) const {
+    __m512 result = _mm512_sub_ps(_float, other._float);
+    return simd16float32(result);
+  }
+
+  // bool operator==(const simd16float32 &other) const {
+  //   const __m512i eq = _mm512_castps_si512(
+  //       _mm512_cmp_ps_mask(_float, other._float, _CMP_EQ_OQ));
+  //   return _mm512_mask2int(eq) == 0xffffffffU;
+  // }
+};
+
+} // namespace flatnav::util

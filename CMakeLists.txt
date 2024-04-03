@@ -74,12 +74,16 @@ endif()
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Extensions.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/DistanceFactory.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/VisitedSetPool.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/SIMDDistanceSpecializations.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ParallelConstructs.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/PreprocessorUtils.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h 
+    ${PROJECT_SOURCE_DIR}/flatnav/util/SimdAvx.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h
     ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h

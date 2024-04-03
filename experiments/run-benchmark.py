@@ -267,6 +267,68 @@ def main(
     num_build_threads: int = 1,
     num_search_threads: int = 1,
 ):
+    
+    def build_and_run_knn_search(ef_cons: int, node_links: int):
+        """
+        Build the index and run the KNN search.
+        This part is here to ensure that two indices are not in memory at the same time.
+        With large datasets, we might get an OOM error. 
+        """
+        index = train_index(
+            index_type=index_type,
+            train_dataset=train_dataset,
+            max_edges_per_node=node_links,
+            ef_construction=ef_cons,
+            dataset_size=dataset_size,
+            dim=dim,
+            distance_type=distance_type,
+            use_hnsw_base_layer=use_hnsw_base_layer,
+            hnsw_base_layer_filename=hnsw_base_layer_filename,
+            num_build_threads=num_build_threads,
+        )
+        
+        if reordering_strategies is not None:
+            if type(index) not in (
+                flatnav.index.L2Index,
+                flatnav.index.IPIndex,
+            ):
+                raise ValueError("Reordering only applies to the FlatNav index.")
+            index.reorder(strategies=reordering_strategies)
+        
+        index.set_num_threads(num_search_threads)
+        for ef_search in ef_search_params:
+            # Extend metrics with computed metrics
+            metrics.update(
+                compute_metrics(
+                    requested_metrics=requested_metrics,
+                    index=index,
+                    queries=queries,
+                    ground_truth=gtruth,
+                    ef_search=ef_search,
+                )
+            )
+            logging.info(f"Metrics: {metrics}")
+
+            # Add parameters to the metrics dictionary.
+            metrics["distance_type"] = distance_type
+            metrics["ef_search"] = ef_search
+            all_metrics = {experiment_key: []}
+
+            if os.path.exists(metrics_file) and os.path.getsize(metrics_file) > 0:
+                with open(metrics_file, "r") as file:
+                    try:
+                        all_metrics = json.load(file)
+                    except json.JSONDecodeError:
+                        logging.error(f"Error reading {metrics_file=}")
+
+            if experiment_key not in all_metrics:
+                all_metrics[experiment_key] = []
+
+            all_metrics[experiment_key].append(metrics)
+            with open(metrics_file, "w") as file:
+                json.dump(all_metrics, file, indent=4)
+    
+    
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
 
@@ -280,59 +342,7 @@ def main(
             metrics["ef_construction"] = ef_cons
 
             logging.info(f"Building {index_type=}")
-            index = train_index(
-                index_type=index_type,
-                train_dataset=train_dataset,
-                max_edges_per_node=node_links,
-                ef_construction=ef_cons,
-                dataset_size=dataset_size,
-                dim=dim,
-                distance_type=distance_type,
-                use_hnsw_base_layer=use_hnsw_base_layer,
-                hnsw_base_layer_filename=hnsw_base_layer_filename,
-                num_build_threads=num_build_threads,
-            )
-
-            if reordering_strategies is not None:
-                if type(index) not in (
-                    flatnav.index.L2Index,
-                    flatnav.index.IPIndex,
-                ):
-                    raise ValueError("Reordering only applies to the FlatNav index.")
-                index.reorder(strategies=reordering_strategies)
-
-            index.set_num_threads(num_search_threads)
-            for ef_search in ef_search_params:
-                # Extend metrics with computed metrics
-                metrics.update(
-                    compute_metrics(
-                        requested_metrics=requested_metrics,
-                        index=index,
-                        queries=queries,
-                        ground_truth=gtruth,
-                        ef_search=ef_search,
-                    )
-                )
-                logging.info(f"Metrics: {metrics}")
-
-                # Add parameters to the metrics dictionary.
-                metrics["distance_type"] = distance_type
-                metrics["ef_search"] = ef_search
-                all_metrics = {experiment_key: []}
-
-                if os.path.exists(metrics_file) and os.path.getsize(metrics_file) > 0:
-                    with open(metrics_file, "r") as file:
-                        try:
-                            all_metrics = json.load(file)
-                        except json.JSONDecodeError:
-                            logging.error(f"Error reading {metrics_file=}")
-
-                if experiment_key not in all_metrics:
-                    all_metrics[experiment_key] = []
-
-                all_metrics[experiment_key].append(metrics)
-                with open(metrics_file, "w") as file:
-                    json.dump(all_metrics, file, indent=4)
+            build_and_run_knn_search(ef_cons=ef_cons, node_links=node_links)
 
 
 def parse_arguments() -> argparse.Namespace:

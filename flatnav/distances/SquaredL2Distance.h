@@ -37,7 +37,7 @@ public:
     return _distance_computer(x, y, _dimension);
   }
 
-private:
+protected:
   size_t _dimension;
   size_t _data_size_bytes;
   std::function<float(const void *, const void *, const size_t &)>
@@ -109,6 +109,8 @@ private:
                             const size_t &dimension) const {
     // Default implementation of squared-L2 distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
+
+    std::cout << "Default" << std::endl;
     float *p_x = (float *)x;
     float *p_y = (float *)y;
     float squared_distance = 0;

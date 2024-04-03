@@ -6,6 +6,7 @@
 #include <flatnav/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/distances/DistanceFactory.h>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -24,6 +25,7 @@ using flatnav::Index;
 using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
 using flatnav::quantization::ProductQuantizer;
+using flatnav::SquaredL2DistanceFactory;
 
 template <typename dist_t>
 void buildIndex(float *data,
@@ -79,7 +81,8 @@ void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
 
   } else {
     if (metric_type == flatnav::METRIC_TYPE::EUCLIDEAN) {
-      auto distance = std::make_shared<SquaredL2Distance>(dim);
+      // auto distance = std::make_shared<SquaredL2Distance>(dim);
+      auto distance = SquaredL2DistanceFactory::create(dim);
       buildIndex<SquaredL2Distance>(data, std::move(distance), N, M, dim,
                                     ef_construction, save_file);
     } else if (metric_type == flatnav::METRIC_TYPE::INNER_PRODUCT) {
