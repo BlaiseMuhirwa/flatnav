@@ -37,8 +37,29 @@ struct simd256bit {
   void clear() { _int = _mm256_setzero_si256(); }
 
   void loadu(const void *pointer) {
-    _int = _mm256_loadu_si256((const __m256i *)pointer);
+    _float = _mm256_loadu_ps((const float *)pointer);
   }
+
+  // This is supposed to be faster than using _mm256_store_ps to store 
+  // a simd256bit type into a float array of size 8 and then performing
+  // scalar addition.
+  // TODO: Actually run some benchmarks to verify this.
+  float reduce_add() const { 
+    // Avx2 doesn't have an equivalent intrinsic for _mm512_reduce_add_ps, but
+    // we can achieve the same result as follows:
+    __m256 sum = _mm256_hadd_ps(_float, _float);
+    sum = _mm256_hadd_ps(sum, sum);
+
+    // Move the sum to the lower half of the register
+    __m128i low128 = _mm256_extractf128_si256(_mm256_castps_si256(sum), 0);
+
+    // Perform a final horizontal add if necessary (now on 128-bit lane)
+    // The elements in the lower 128 bits are now in the first and second positions
+    __m128 hsum128 = _mm_hadd_ps(_mm_castsi128_ps(low128), _mm_castsi128_ps(low128));
+
+    // Extract the first element from the 128-bit lane
+    return _mm_cvtss_f32(hsum128);
+   }
 
   bool operator=(const simd256bit &other) {
     const __m256i eq = _mm256_cmpeq_epi32(_int, other._int);
@@ -102,6 +123,11 @@ struct simd8float32 : public simd256bit {
 
   simd8float32 operator+(const simd8float32 &other) const {
     __m256 result = _mm256_add_ps(_float, other._float);
+    return simd8float32(result);
+  }
+
+  simd8float32 operator-(const simd8float32 &other) const {
+    __m256 result = _mm256_sub_ps(_float, other._float);
     return simd8float32(result);
   }
 

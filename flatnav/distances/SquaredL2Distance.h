@@ -31,11 +31,17 @@ public:
     setDistanceFunction();
   }
 
-  float distanceImpl(const void *x, const void *y,
-                     bool asymmetric = false) const {
+  virtual float distanceImpl(const void *x, const void *y,
+                             bool asymmetric = false) const {
     (void)asymmetric;
-    return _distance_computer(x, y, _dimension);
+    return defaultDistanceImpl(x, y, _dimension);
   }
+
+  // float distanceImpl(const void *x, const void *y,
+  //                    bool asymmetric = false) const {
+  //   (void)asymmetric;
+  //   return _distance_computer(x, y, _dimension);
+  // }
 
 protected:
   size_t _dimension;

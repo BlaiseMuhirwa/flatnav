@@ -4,15 +4,15 @@
 #include <cmath>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/Index.h>
+#include <flatnav/distances/DistanceFactory.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
-#include <flatnav/distances/DistanceFactory.h>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <numeric>
 #include <optional>
-#include <quantization/ProductQuantization.h>
+// #include <quantization/ProductQuantization.h>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -24,8 +24,8 @@ using flatnav::DistanceInterface;
 using flatnav::Index;
 using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
-using flatnav::quantization::ProductQuantizer;
 using flatnav::SquaredL2DistanceFactory;
+// using flatnav::quantization::ProductQuantizer;
 
 template <typename dist_t>
 void buildIndex(float *data,
@@ -64,20 +64,20 @@ void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
 
   if (quantize) {
     // Parameters M and nbits should be adjusted accordingly.
-    auto quantizer = std::make_shared<ProductQuantizer>(
-        /* dim = */ dim, /* M = */ 8, /* nbits = */ 8,
-        /* metric_type = */ metric_type);
+    // auto quantizer = std::make_shared<ProductQuantizer>(
+    //     /* dim = */ dim, /* M = */ 8, /* nbits = */ 8,
+    //     /* metric_type = */ metric_type);
 
-    auto start = std::chrono::high_resolution_clock::now();
-    quantizer->train(/* vectors = */ data, /* num_vectors = */ N);
-    auto stop = std::chrono::high_resolution_clock::now();
-    auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    std::clog << "Quantization time: " << (float)duration.count()
-              << " milliseconds" << std::endl;
+    // auto start = std::chrono::high_resolution_clock::now();
+    // quantizer->train(/* vectors = */ data, /* num_vectors = */ N);
+    // auto stop = std::chrono::high_resolution_clock::now();
+    // auto duration =
+    //     std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    // std::clog << "Quantization time: " << (float)duration.count()
+    //           << " milliseconds" << std::endl;
 
-    buildIndex<ProductQuantizer>(data, std::move(quantizer), N, M, dim,
-                                 ef_construction, save_file);
+    // buildIndex<ProductQuantizer>(data, std::move(quantizer), N, M, dim,
+    //                              ef_construction, save_file);
 
   } else {
     if (metric_type == flatnav::METRIC_TYPE::EUCLIDEAN) {

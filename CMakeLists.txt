@@ -82,12 +82,12 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/util/SIMDDistanceSpecializations.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ParallelConstructs.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/PreprocessorUtils.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h 
+    ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/SimdAvx.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h
-    ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
-    ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
+    # ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
+    # ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 
 # Interface here means that the library is header only

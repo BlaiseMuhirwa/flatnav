@@ -25,7 +25,8 @@
 #include <x86intrin.h>
 
 // void cpuid(int32_t cpu_info[4], int32_t eax, int32_t ecx) {
-//   __cpuid_count(eax, ecx, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
+//   __cpuid_count(eax, ecx, cpu_info[0], cpu_info[1], cpu_info[2],
+//   cpu_info[3]);
 // }
 
 // uint64_t xgetbv(unsigned int index) {
@@ -47,5 +48,63 @@
 #define PORTABLE_ALIGN32 __declspec(align(32))
 #define PORTABLE_ALIGN64 __declspec(align(64))
 #endif // __GNUC__
+
+bool platformSupportsAvx() {
+  int cpu_info[4];
+
+  // CPU support
+  cpuid(cpu_info, 0, 0);
+  int n_ids = cpu_info[0];
+
+  bool HW_AVX = false;
+  if (n_ids >= 0x00000001) {
+    cpuid(cpu_info, 0x00000001, 0);
+    HW_AVX = (cpu_info[2] & ((int)1 << 28)) != 0;
+  }
+
+  // OS support
+  cpuid(cpu_info, 1, 0);
+
+  bool osUsesXSAVE_XRSTORE = (cpu_info[2] & (1 << 27)) != 0;
+  bool cpuAVXSuport = (cpu_info[2] & (1 << 28)) != 0;
+
+  bool avxSupported = false;
+  if (osUsesXSAVE_XRSTORE && cpuAVXSuport) {
+    uint64_t xcrFeatureMask = xgetbv(_XCR_XFEATURE_ENABLED_MASK);
+    avxSupported = (xcrFeatureMask & 0x6) == 0x6;
+  }
+  return HW_AVX && avxSupported;
+}
+
+bool platformSupportsAvx512() {
+  if (!platformSupportsAvx()) {
+    return false;
+  }
+
+  int cpu_info[4];
+
+  // CPU support
+  cpuid(cpu_info, 0, 0);
+  int n_ids = cpu_info[0];
+
+  bool HW_AVX512F = false;
+  if (n_ids >= 0x00000007) { //  AVX512 Foundation
+    cpuid(cpu_info, 0x00000007, 0);
+    HW_AVX512F = (cpu_info[1] & ((int)1 << 16)) != 0;
+  }
+
+  // OS support
+  cpuid(cpu_info, 1, 0);
+
+  bool osUsesXSAVE_XRSTORE = (cpu_info[2] & (1 << 27)) != 0;
+  bool cpuAVXSuport = (cpu_info[2] & (1 << 28)) != 0;
+
+  bool avx512Supported = false;
+  if (osUsesXSAVE_XRSTORE && cpuAVXSuport) {
+    uint64_t xcrFeatureMask = xgetbv(_XCR_XFEATURE_ENABLED_MASK);
+    avx512Supported = (xcrFeatureMask & 0xe6) == 0xe6;
+  }
+  return HW_AVX512F && avx512Supported;
+}
 
 #endif
