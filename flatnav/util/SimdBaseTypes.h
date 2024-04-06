@@ -42,6 +42,8 @@ struct simd128bit {
 
   float reduce_add() const {
     __m128 sum = _mm_hadd_ps(_float, _float);
+
+    // This intrinsic requires SSE3
     sum = _mm_hadd_ps(sum, sum);
     return _mm_cvtss_f32(sum);
   }

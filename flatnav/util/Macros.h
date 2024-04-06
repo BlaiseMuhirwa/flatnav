@@ -3,7 +3,8 @@
 #ifndef NO_SIMD_VECTORIZATION
 
 // _M_AMD64, _M_X64: Code is being compiled for AMD64 or x64 processor.
-#if (defined(__SSE__) || defined(_M_AMD64) || defined(_M_X64))
+// #if (defined(__SSE__) || defined(_M_AMD64) || defined(_M_X64))
+#if defined(__SSE3__)
 #define USE_SSE
 
 #ifdef __AVX__
