@@ -6,7 +6,6 @@
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/SquaredL2SimdExtensions.h>
-// #include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <functional>
 #include <iostream>
 

@@ -2,10 +2,6 @@
 
 #include <flatnav/util/SimdBaseTypes.h>
 
-using flatnav::util::simd16float32;
-using flatnav::util::simd4float32;
-using flatnav::util::simd8float32;
-
 namespace flatnav::util {
 
 #if defined(USE_AVX512)

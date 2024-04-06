@@ -411,11 +411,11 @@ py::object createIndex(const std::string &distance_type, int dim,
                  [](unsigned char c) { return std::tolower(c); });
 
   if (dist_type == "l2") {
-    auto distance = std::make_shared<SquaredL2Distance>(/* dim = */ dim);
+    auto distance = std::make_unique<SquaredL2Distance>(/* dim = */ dim);
     return py::cast(std::make_shared<L2FlatNavIndex>(
         std::move(distance), std::forward<Args>(args)...));
   } else if (dist_type == "angular") {
-    auto distance = std::make_shared<InnerProductDistance>(/* dim = */ dim);
+    auto distance = std::make_unique<InnerProductDistance>(/* dim = */ dim);
     return py::cast(std::make_shared<InnerProductFlatNavIndex>(
         std::move(distance), std::forward<Args>(args)...));
   }
