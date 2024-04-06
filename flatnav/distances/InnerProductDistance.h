@@ -124,7 +124,7 @@ private:
                                     const size_t &dimension) {
           return flatnav::util::computeIP_Avx_4aligned(x, y, dimension);
         };
-#else
+#else if defined(USE_SSE)
         _distance_computer = [this](const void *x, const void *y,
                                     const size_t &dimension) {
           return flatnav::util::computeIP_Sse_4aligned(x, y, dimension);
