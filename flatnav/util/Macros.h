@@ -24,16 +24,15 @@
 #include <stdint.h>
 #include <x86intrin.h>
 
-// void cpuid(int32_t cpu_info[4], int32_t eax, int32_t ecx) {
-//   __cpuid_count(eax, ecx, cpu_info[0], cpu_info[1], cpu_info[2],
-//   cpu_info[3]);
-// }
+void cpuid(int32_t cpu_info[4], int32_t eax, int32_t ecx) {
+  __cpuid_count(eax, ecx, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
+}
 
-// uint64_t xgetbv(unsigned int index) {
-//   uint32_t eax, edx;
-//   __asm__ __volatile__("xgetbv" : "=a"(eax), "=d"(edx) : "c"(index));
-//   return ((uint64_t)edx << 32) | eax;
-// }
+uint64_t xgetbv(unsigned int index) {
+  uint32_t eax, edx;
+  __asm__ __volatile__("xgetbv" : "=a"(eax), "=d"(edx) : "c"(index));
+  return ((uint64_t)edx << 32) | eax;
+}
 
 #ifdef USE_AVX512
 #include <immintrin.h>
@@ -48,6 +47,8 @@
 #define PORTABLE_ALIGN32 __declspec(align(32))
 #define PORTABLE_ALIGN64 __declspec(align(64))
 #endif // __GNUC__
+
+#define _XCR_XFEATURE_ENABLED_MASK 0
 
 bool platformSupportsAvx() {
   int cpu_info[4];

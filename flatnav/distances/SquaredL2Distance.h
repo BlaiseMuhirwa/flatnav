@@ -5,7 +5,8 @@
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
-#include <flatnav/util/SIMDDistanceSpecializations.h>
+#include <flatnav/util/SquaredL2SimdExtensions.h>
+// #include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <functional>
 #include <iostream>
 
@@ -21,6 +22,10 @@ class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
   enum { DISTANCE_ID = 0 };
 
 public:
+  // This is public instead of protected because it is used in the
+  // in the index serialization. The index needs to invoke the default
+  // constructor in order to load the distance object from disk.
+  // Using "protected" would require the index to be a friend class.
   SquaredL2Distance() = default;
   explicit SquaredL2Distance(size_t dim)
       : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
@@ -31,19 +36,15 @@ public:
     setDistanceFunction();
   }
 
-  virtual float distanceImpl(const void *x, const void *y,
-                             bool asymmetric = false) const {
+  inline size_t getDimension() const { return _dimension; }
+
+  float distanceImpl(const void *x, const void *y,
+                     bool asymmetric = false) const {
     (void)asymmetric;
-    return defaultDistanceImpl(x, y, _dimension);
+    return _distance_computer(x, y, _dimension);
   }
 
-  // float distanceImpl(const void *x, const void *y,
-  //                    bool asymmetric = false) const {
-  //   (void)asymmetric;
-  //   return _distance_computer(x, y, _dimension);
-  // }
-
-protected:
+private:
   size_t _dimension;
   size_t _data_size_bytes;
   std::function<float(const void *, const void *, const size_t &)>
@@ -52,21 +53,16 @@ protected:
   friend class ::cereal::access;
 
   template <typename Archive> void serialize(Archive &ar) {
-    ar(_dimension);
+    ar(_dimension, _data_size_bytes);
 
-    // If loading, we need to set the data size bytes
     if (Archive::is_loading::value) {
-      _data_size_bytes = _dimension * sizeof(float);
       _distance_computer = [this](const void *x, const void *y,
                                   const size_t &dimension) {
         return defaultDistanceImpl(x, y, dimension);
       };
-
       setDistanceFunction();
     }
   }
-
-  inline size_t getDimension() const { return _dimension; }
 
   size_t dataSizeImpl() { return _data_size_bytes; }
 
@@ -83,32 +79,63 @@ protected:
   }
 
   void setDistanceFunction() {
-#ifndef NO_MANUAL_VECTORIZATION
-#if defined(USE_AVX512) || defined(USE_AVX) || defined(USE_SSE)
-    _distance_computer = distanceImplSquaredL2SIMD16ExtSSE;
+#ifndef NO_SIMD_VECTORIZATION
+    selectOptimalSimdStrategy();
+    adjustForNonOptimalDimensions();
+#endif // NO_SIMD_VECTORIZATION
+  }
+
+  void selectOptimalSimdStrategy() {
+    // Start with SSE implementation
+#if defined(USE_SSE)
+    _distance_computer = [this](const void *x, const void *y,
+                                const size_t &dimension) {
+      return flatnav::util::computeL2_Sse(x, y, dimension);
+    };
+#endif // USE_SSE
+
 #if defined(USE_AVX512)
-    if (platform_supports_avx512()) {
-      _distance_computer = distanceImplSquaredL2SIMD16ExtAVX512;
-    } else if (platform_supports_avx()) {
-      _distance_computer = distanceImplSquaredL2SIMD16ExtAVX;
-    }
-#elif defined(USE_AVX)
-    if (platform_supports_avx()) {
-      _distance_computer = distanceImplSquaredL2SIMD16ExtAVX;
-    }
-#endif
-    if (!(_dimension % 16 == 0)) {
-      if (_dimension % 4 == 0) {
-        _distance_computer = distanceImplSquaredL2SIMD4Ext;
-      } else if (_dimension > 16) {
-        _distance_computer = distanceImplSquaredL2SIMD16ExtResiduals;
-      } else if (_dimension > 4) {
-        _distance_computer = distanceImplSquaredL2SIMD4ExtResiduals;
-      }
+    if (platformSupportsAvx512) {
+      _distance_computer = [this](const void *x, const void *y,
+                                  const size_t &dimension) {
+        return flatnav::util::computeL2_Avx512(x, y, dimension);
+      };
+      return;
     }
 
-#endif
-#endif // NO_MANUAL_VECTORIZATION
+#endif // USE_AVX512
+
+#if defined(USE_AVX)
+    if (platformSupportsAvx) {
+      _distance_computer = [this](const void *x, const void *y,
+                                  const size_t &dimension) {
+        return flatnav::util::computeL2_Avx2(x, y, dimension);
+      };
+      return;
+    }
+
+#endif // USE_AVX
+  }
+
+  void adjustForNonOptimalDimensions() {
+    if (_dimension % 16 != 0) {
+      if (_dimension % 4 == 0) {
+        _distance_computer = [this](const void *x, const void *y,
+                                    const size_t &dimension) {
+          return flatnav::util::computeL2_Sse4Aligned(x, y, dimension);
+        };
+      } else if (_dimension > 16) {
+        _distance_computer = [this](const void *x, const void *y,
+                                    const size_t &dimension) {
+          return flatnav::util::computeL2_SseWithResidual_16(x, y, dimension);
+        };
+      } else if (_dimension > 4) {
+        _distance_computer = [this](const void *x, const void *y,
+                                    const size_t &dimension) {
+          return flatnav::util::computeL2_SseWithResidual_4(x, y, dimension);
+        };
+      }
+    }
   }
 
   float defaultDistanceImpl(const void *x, const void *y,
@@ -117,8 +144,8 @@ protected:
     // support the SIMD specializations for special input _dimension sizes.
 
     std::cout << "Default" << std::endl;
-    float *p_x = (float *)x;
-    float *p_y = (float *)y;
+    float *p_x = const_cast<float *>(static_cast<const float *>(x));
+    float *p_y = const_cast<float *>(static_cast<const float *>(y));
     float squared_distance = 0;
 
     for (size_t i = 0; i < dimension; i++) {

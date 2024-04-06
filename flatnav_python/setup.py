@@ -49,11 +49,11 @@ EXTRA_COMPILE_ARGS = [
     "-funroll-loops",  # Unroll loops
 ]
 
-# We don't include SIMD flags if the user has set the NO_MANUAL_VECTORIZATION
+# We don't include SIMD flags if the user has set the NO_SIMD_VECTORIZATION
 # environment variable to 1
-no_manual_vectorization = int(os.environ.get("NO_MANUAL_VECTORIZATION", "0"))
+no_simd_vectorization = int(os.environ.get("NO_SIMD_VECTORIZATION", "0"))
 
-if not no_manual_vectorization:
+if not no_simd_vectorization:
     SIMD_EXTENSIONS = ["sse", "avx", "avx512f"]
     found_single_extension = False
     for extension in SIMD_EXTENSIONS:

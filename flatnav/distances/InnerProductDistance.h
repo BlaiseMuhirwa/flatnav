@@ -5,7 +5,7 @@
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
-#include <flatnav/util/SIMDDistanceSpecializations.h>
+#include <flatnav/util/InnerProductSimdExtensions.h>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -78,36 +78,71 @@ private:
   }
 
   void setDistanceFunction() {
-#ifndef NO_MANUAL_VECTORIZATION
-#if defined(USE_AVX512) || defined(USE_AVX) || defined(USE_SSE)
-    _distance_computer = distanceImplInnerProductSIMD16ExtSSE;
+#ifndef NO_SIMD_VECTORIZATION
+    selectOptimalSimdStrategy();
+    adjustForNonOptimalDimensions();
+#endif
+  }
+
+  void selectOptimalSimdStrategy() {
+    // Start with SSE implementation
+#if defined(USE_SSE)
+    _distance_computer = [this](const void *x, const void *y,
+                                const size_t &dimension) {
+      return flatnav::util::computeIP_Sse(x, y, dimension);
+    };
+#endif // USE_SSE
+
 #if defined(USE_AVX512)
-    if (platform_supports_avx512()) {
-      _distance_computer = distanceImplInnerProductSIMD16ExtAVX512;
-    } else if (platform_supports_avx()) {
-      _distance_computer = distanceImplInnerProductSIMD16ExtAVX;
-    }
-#elif defined(USE_AVX)
-    if (platform_supports_avx()) {
-      _distance_computer = distanceImplInnerProductSIMD16ExtAVX;
-    }
-#endif
-    if (!(_dimension % 16 == 0)) {
-      if (_dimension % 4 == 0) {
-#if defined(USE_AVX)
-        _distance_computer = distanceImplInnerProductSIMD4ExtAVX;
-#else
-        _distance_computer = distanceImplInnerProductSIMD4ExtSSE;
-#endif
-      } else if (_dimension > 16) {
-        _distance_computer = distanceImplInnerProductSIMD16ExtResiduals;
-      } else if (_dimension > 4) {
-        _distance_computer = distanceImplInnerProductSIMD4ExtResiduals;
-      }
+    if (platformSupportsAvx512) {
+      _distance_computer = [this](const void *x, const void *y,
+                                  const size_t &dimension) {
+        return flatnav::util::computeIP_Avx512(x, y, dimension);
+      };
+      return;
     }
 
-#endif // USE_AVX512 || USE_AVX || USE_SSE
-#endif // NO_MANUAL_VECTORIZATION
+#endif // USE_AVX512
+
+#if defined(USE_AVX)
+    if (platformSupportsAvx) {
+      _distance_computer = [this](const void *x, const void *y,
+                                  const size_t &dimension) {
+        return flatnav::util::computeIP_Avx(x, y, dimension);
+      };
+      return;
+    }
+
+#endif // USE_AVX
+  }
+
+  void adjustForNonOptimalDimensions() {
+    if (_dimension % 16 != 0) {
+      if (_dimension % 4 == 0) {
+#if defined(USE_AVX)
+        _distance_computer = [this](const void *x, const void *y,
+                                    const size_t &dimension) {
+          return flatnav::util::computeIP_Avx_4aligned(x, y, dimension);
+        };
+#else
+        _distance_computer = [this](const void *x, const void *y,
+                                    const size_t &dimension) {
+          return flatnav::util::computeIP_Sse_4aligned(x, y, dimension);
+        };
+
+#endif // USE_AVX
+      } else if (_dimension > 16) {
+        _distance_computer = [this](const void *x, const void *y,
+                                    const size_t &dimension) {
+          return flatnav::util::computeIP_SseWithResidual_16(x, y, dimension);
+        };
+      } else if (_dimension > 4) {
+        _distance_computer = [this](const void *x, const void *y,
+                                    const size_t &dimension) {
+          return flatnav::util::computeIP_SseWithResidual_4(x, y, dimension);
+        };
+      }
+    }
   }
 
   float defaultDistanceImpl(const void *x, const void *y,

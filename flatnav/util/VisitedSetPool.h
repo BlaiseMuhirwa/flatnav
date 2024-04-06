@@ -1,8 +1,9 @@
 #pragma once
 
-#include <flatnav/util/SIMDDistanceSpecializations.h>
+// #include <flatnav/util/SIMDDistanceSpecializations.h>
 
 #include <cstring>
+#include <flatnav/util/Macros.h>
 #include <iostream>
 #include <memory>
 #include <mutex>
