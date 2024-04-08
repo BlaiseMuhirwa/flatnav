@@ -64,7 +64,6 @@ int main(int argc, char **argv) {
                                     ef_construction,
                                     std::string("l2_flatnav.bin"));
 
-  //
   auto inner_product_distance = std::make_unique<InnerProductDistance>(dim);
   serializeIndex<InnerProductDistance>(data, std::move(inner_product_distance),
                                        N, M, dim, ef_construction,
