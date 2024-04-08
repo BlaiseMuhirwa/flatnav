@@ -41,11 +41,18 @@ struct simd128bit {
   }
 
   float reduce_add() const {
+#if defined(USE_SSE3)
+    // _mm_hadd_ps is only available in SSE3
     __m128 sum = _mm_hadd_ps(_float, _float);
-
-    // This intrinsic requires SSE3
     sum = _mm_hadd_ps(sum, sum);
     return _mm_cvtss_f32(sum);
+#else
+    // We will store the result in a float array and then sum the elements
+    // This is supposed to be less efficient that using the _mm_hadd_ps intrinsic.
+    float result[4];
+    _mm_storeu_ps(result, _float);
+    return result[0] + result[1] + result[2] + result[3];
+#endif
   }
 
   bool operator=(const simd128bit &other) {

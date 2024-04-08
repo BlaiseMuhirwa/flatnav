@@ -19,7 +19,7 @@ function print_usage() {
     echo "  -v, --verbose:                  Make verbose"
     echo "  -b, --benchmark:                Build benchmarks"
     echo "  -bt, --build_type:              Build type (Debug, Release, RelWithDebInfo, MinSizeRel)"
-    echo "  -nmv, --no_simd_vectorization:Disable SIMD vectorization"
+    echo "  -nsv, --no_simd_vectorization:Disable SIMD vectorization"
     echo "  -h, --help:                     Print this help message"
     echo ""
     echo "Example Usage:"
@@ -41,7 +41,7 @@ while [[ "$#" -gt 0 ]]; do
         -e|--examples) BUILD_EXAMPLES=ON; shift ;; 
         -v|--verbose) MAKE_VERBOSE=1; shift ;;
         -b|--benchmark) BUILD_BENCHMARKS=ON; shift ;;
-        -nmv|--NO_SIMD_VECTORIZATION) NO_SIMD_VECTORIZATION=ON; shift ;;
+        -nsv|--NO_SIMD_VECTORIZATION) NO_SIMD_VECTORIZATION=ON; shift ;;
         -bt|--build_type) CMAKE_BUILD_TYPE=$2; shift; shift ;;
         *) print_usage ;;
     esac 

@@ -116,6 +116,9 @@ private:
 #endif // USE_AVX
   }
 
+
+#if defined(USE_SSE) || defined(USE_AVX) 
+
   void adjustForNonOptimalDimensions() {
     if (_dimension % 16 != 0) {
       if (_dimension % 4 == 0) {
@@ -124,7 +127,7 @@ private:
                                     const size_t &dimension) {
           return flatnav::util::computeIP_Avx_4aligned(x, y, dimension);
         };
-#elif defined(USE_SSE)
+#else
         _distance_computer = [this](const void *x, const void *y,
                                     const size_t &dimension) {
           return flatnav::util::computeIP_Sse_4aligned(x, y, dimension);
@@ -144,6 +147,8 @@ private:
       }
     }
   }
+
+#endif // USE_SSE || USE_AVX
 
   float defaultDistanceImpl(const void *x, const void *y,
                             const size_t &dimension) const {
