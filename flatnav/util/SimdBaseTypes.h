@@ -48,7 +48,8 @@ struct simd128bit {
     return _mm_cvtss_f32(sum);
 #else
     // We will store the result in a float array and then sum the elements
-    // This is supposed to be less efficient that using the _mm_hadd_ps intrinsic.
+    // This is supposed to be less efficient that using the _mm_hadd_ps
+    // intrinsic.
     float result[4];
     _mm_storeu_ps(result, _float);
     return result[0] + result[1] + result[2] + result[3];
@@ -198,7 +199,6 @@ struct simd8float32 : public simd256bit {
     _float = _mm256_add_ps(_float, other._float);
     return *this;
   }
-
 };
 
 #endif // USE_AVX
@@ -239,7 +239,6 @@ struct simd512bit {
   }
 
   float reduce_add() const { return _mm512_reduce_add_ps(_float); }
-
 };
 
 struct simd16float32 : public simd512bit {
@@ -287,7 +286,6 @@ struct simd16float32 : public simd512bit {
     __m512 result = _mm512_sub_ps(_float, other._float);
     return simd16float32(result);
   }
-
 };
 
 #endif // USE_AVX512
