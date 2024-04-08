@@ -112,8 +112,9 @@ private:
 #endif // USE_AVX
   }
 
-#if defined(USE_SSE)
   void adjustForNonOptimalDimensions() {
+#if defined(USE_SSE)
+
     if (_dimension % 16 != 0) {
       if (_dimension % 4 == 0) {
         _distance_computer = [this](const void *x, const void *y,
@@ -132,9 +133,8 @@ private:
         };
       }
     }
-  }
 #endif // USE_SSE
-
+  }
 
   float defaultDistanceImpl(const void *x, const void *y,
                             const size_t &dimension) const {

@@ -10,7 +10,6 @@
 #define USE_SSE3
 #endif // __SSE3__
 
-
 #ifdef __AVX__
 #define USE_AVX
 
@@ -32,7 +31,6 @@
 void cpuid(int32_t cpu_info[4], int32_t eax, int32_t ecx) {
   __cpuid_count(eax, ecx, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
 }
-
 
 /**
  * @brief Retrieves the value of an extended control register (XCR).

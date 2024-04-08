@@ -45,8 +45,8 @@ public:
     }
   }
 
-  PyIndex(std::unique_ptr<DistanceInterface<dist_t>>&& distance, int dataset_size,
-          int max_edges_per_node, bool verbose = false,
+  PyIndex(std::unique_ptr<DistanceInterface<dist_t>> &&distance,
+          int dataset_size, int max_edges_per_node, bool verbose = false,
           bool collect_stats = false)
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
@@ -60,7 +60,7 @@ public:
     }
   }
 
-  PyIndex(std::unique_ptr<DistanceInterface<dist_t>>&& distance,
+  PyIndex(std::unique_ptr<DistanceInterface<dist_t>> &&distance,
           const std::string &mtx_filename, bool verbose = false,
           bool collect_stats = false)
       : _label_id(0), _verbose(verbose),
