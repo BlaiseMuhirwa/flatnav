@@ -33,6 +33,30 @@ void cpuid(int32_t cpu_info[4], int32_t eax, int32_t ecx) {
   __cpuid_count(eax, ecx, cpu_info[0], cpu_info[1], cpu_info[2], cpu_info[3]);
 }
 
+
+/**
+ * @brief Retrieves the value of an extended control register (XCR).
+ * This is particularly useful for checking the status of advanced CPU features.
+ *
+ * @param index The index of the XCR to query. For example, 0 for XCR0, which
+ * contains flags for x87 state, SSE state, and AVX state.
+ *
+ * @return A 64-bit value with the state of the specified XCR. The lower 32 bits
+ * are from the EAX register, and the higher 32 bits from the EDX register after
+ * the instruction executes.
+ *
+ * Inline assembly breakdown:
+ * - __volatile__ tells the compiler not to optimize this assembly block as its
+ * side effects are important.
+ * - "xgetbv": The assembly instruction to execute.
+ * - "=a"(eax), "=d"(edx): Output operands; after executing 'xgetbv', store EAX
+ * in 'eax', and EDX in 'edx'.
+ * - "c"(index): Input operand; provides the 'index' parameter to the ECX
+ * register before executing 'xgetbv'.
+ *
+ * The result is constructed by shifting 'edx' left by 32 bits and combining it
+ * with 'eax' using bitwise OR.
+ */
 uint64_t xgetbv(unsigned int index) {
   uint32_t eax, edx;
   __asm__ __volatile__("xgetbv" : "=a"(eax), "=d"(edx) : "c"(index));

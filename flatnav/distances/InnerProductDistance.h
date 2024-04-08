@@ -154,8 +154,8 @@ private:
                             const size_t &dimension) const {
     // Default implementation of inner product distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
-    float *p_x = (float *)x;
-    float *p_y = (float *)y;
+    float *p_x = static_cast<float *>(const_cast<void *>(x));
+    float *p_y = static_cast<float *>(const_cast<void *>(y));
     float result = 0;
     for (size_t i = 0; i < dimension; i++) {
       result += p_x[i] * p_y[i];

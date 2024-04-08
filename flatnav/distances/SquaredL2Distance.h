@@ -21,10 +21,6 @@ class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
   enum { DISTANCE_ID = 0 };
 
 public:
-  // This is public instead of protected because it is used in the
-  // in the index serialization. The index needs to invoke the default
-  // constructor in order to load the distance object from disk.
-  // Using "protected" would require the index to be a friend class.
   SquaredL2Distance() = default;
   explicit SquaredL2Distance(size_t dim)
       : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
@@ -145,7 +141,6 @@ private:
     // Default implementation of squared-L2 distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
 
-    std::cout << "Default" << std::endl;
     float *p_x = const_cast<float *>(static_cast<const float *>(x));
     float *p_y = const_cast<float *>(static_cast<const float *>(y));
     float squared_distance = 0;
