@@ -29,3 +29,8 @@ echo "Installation of wheel completed"
 #Testing the wheel 
 poetry run python -c "import flatnav"
 
+# Build the sphinx documentation as well 
+# cd docs
+# poetry run make html
+# cd ..
+
