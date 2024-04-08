@@ -142,7 +142,7 @@ struct simd256bit {
   // scalar addition.
   // TODO: Actually run some benchmarks to verify this.
   float reduce_add() const {
-    // Avx2 doesn't have an equivalent intrinsic for _mm512_reduce_add_ps, but
+    // AVX doesn't have an equivalent intrinsic for _mm512_reduce_add_ps, but
     // we can achieve the same result as follows:
     __m256 sum = _mm256_hadd_ps(_float, _float);
     sum = _mm256_hadd_ps(sum, sum);
@@ -158,11 +158,6 @@ struct simd256bit {
 
     // Extract the first element from the 128-bit lane
     return _mm_cvtss_f32(hsum128);
-  }
-
-  bool operator=(const simd256bit &other) {
-    const __m256i eq = _mm256_cmpeq_epi32(_int, other._int);
-    return _mm256_movemask_epi8(eq) == 0xffffffffU;
   }
 };
 
@@ -204,11 +199,6 @@ struct simd8float32 : public simd256bit {
     return *this;
   }
 
-  bool operator==(const simd8float32 &other) const {
-    const __m256i eq =
-        _mm256_castps_si256(_mm256_cmp_ps(_float, other._float, _CMP_EQ_OQ));
-    return _mm256_movemask_epi8(eq) == 0xffffffffU;
-  }
 };
 
 #endif // USE_AVX
@@ -250,10 +240,6 @@ struct simd512bit {
 
   float reduce_add() const { return _mm512_reduce_add_ps(_float); }
 
-  // bool operator=(const simd512bit &other) {
-  //   const __m512i eq = _mm512_cmpeq_epi32(_int, other._int);
-  //   return _mm512_movemask_epi8(eq) == 0xffffffffU;
-  // }
 };
 
 struct simd16float32 : public simd512bit {
@@ -302,11 +288,6 @@ struct simd16float32 : public simd512bit {
     return simd16float32(result);
   }
 
-  // bool operator==(const simd16float32 &other) const {
-  //   const __m512i eq = _mm512_castps_si512(
-  //       _mm512_cmp_ps_mask(_float, other._float, _CMP_EQ_OQ));
-  //   return _mm512_mask2int(eq) == 0xffffffffU;
-  // }
 };
 
 #endif // USE_AVX512
