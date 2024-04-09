@@ -44,6 +44,7 @@ jobs:
           ./generate_docs.sh
 
       # This creates a branch called gh-pages and deploys the contents of the _build/html folder to GitHub Pages.
+      # # GitHub automatically creates the token to use in the workflow
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4.3.3
         with:
@@ -52,3 +53,4 @@ jobs:
           # Automatically remove deleted files from the deploy branch 
           clean: true  
           commit-message: "Deploy GitHub Pages"
+          token: ${{ secrets.GITHUB_TOKEN }}
