@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlatNav &mdash; FlatNav 0.0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=d45e8c67"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="FlatNav Index Module" href="flatnav_python.html" />
+    <link rel="prev" title="Welcome to FlatNav’s documentation!" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            FlatNav
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">FlatNav</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#near-neighbor-graph-reordering">Near Neighbor Graph Reordering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#support-for-simd-extensions">Support for SIMD Extensions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#datasets-from-ann-benchmarks">Datasets from ANN-Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#using-custom-datasets">Using Custom Datasets</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="flatnav_python.html">FlatNav Index Module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cpp_api.html">C++ API Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">FlatNav</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">FlatNav</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/include_readme.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="flatnav">
+<h1>FlatNav<a class="headerlink" href="#flatnav" title="Link to this heading"></a></h1>
+<p>FlatNav is a fast and header-only graph-based index for Approximate Nearest Neighbor Search (ANNS).
+Thanks to various graph re-ordering implementation techniques from <a class="reference external" href="https://arxiv.org/pdf/2104.03221.pdf">Coleman et al.</a>, optimization using SIMD intrinsics, and the design that leverages a single-layered
+in-memory index, FlatNav provides billion-scale vector search with high recall, SoTA query latency and
+significant memory savings.</p>
+<section id="near-neighbor-graph-reordering">
+<h2>Near Neighbor Graph Reordering<a class="headerlink" href="#near-neighbor-graph-reordering" title="Link to this heading"></a></h2>
+<p>We provide various ways to re-order nodes in the graph to improve query latency. To reproduce our experiments, there are three tools that can be run:</p>
+<ul class="simple">
+<li><p><strong>construct</strong> - creates a near neighbor index from a data file</p></li>
+<li><p><strong>reorder</strong> - applies graph reordering to permute the node ordering of the index</p></li>
+<li><p><strong>query</strong> - queries the index and computes recall and other performance metrics</p></li>
+</ul>
+<p>The tools are largely self-documenting and will provide help if run without any command line arguments. Note that the reordering tools can generally run without needing access to the dataset, queries or distance metrics (unless profile-guided reordering is used).</p>
+<p>For python examples that involve re-ordering, you can run <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/experiments/run-benchmark.py">run-benchmark.py</a> with <code class="docutils literal notranslate"><span class="pre">--reodering-strategies</span> <span class="pre">gorder</span> <span class="pre">rcm</span></code>. See example runs in the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/experiments/Makefile">Makefile</a>.</p>
+</section>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
+<p>FlatNav is implemented in C++ with a complete Python extension with <a class="reference external" href="https://uscilab.github.io/cereal/">cereal</a> as the only external dependency. The C++ library can be built from source using CMake.</p>
+<p>FlatNav is supported on x86-64 machines on linux and MacOS (we can extend this to windows if there is sufficient interest). To build from source
+you will need</p>
+<ul class="simple">
+<li><p>C++17 compiler with OpenMP support (version &gt;= 2.0)</p></li>
+<li><p>CMake (version &gt;= 3.14)</p></li>
+</ul>
+<p>We provide some helpful scripts for installing the above in the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav-experimental/tree/main/bin">bin</a> directory.</p>
+<p>To build the library with CMake, run</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/BlaiseMuhirwa/flatnav-experimental.git<span class="w"> </span>--recurse-submodules
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>flatnav-experimental
+$<span class="w"> </span>./bin/build.sh<span class="w"> </span>-h
+</pre></div>
+</div>
+<p>This will display all available build options:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>Usage<span class="w"> </span>./build.sh<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Available<span class="w"> </span>Options:
+<span class="w">  </span>-t,<span class="w"> </span>--tests:<span class="w">                    </span>Build<span class="w"> </span>tests
+<span class="w">  </span>-e,<span class="w"> </span>--examples:<span class="w">                 </span>Build<span class="w"> </span>examples
+<span class="w">  </span>-v,<span class="w"> </span>--verbose:<span class="w">                  </span>Make<span class="w"> </span>verbose
+<span class="w">  </span>-b,<span class="w"> </span>--benchmark:<span class="w">                </span>Build<span class="w"> </span>benchmarks
+<span class="w">  </span>-bt,<span class="w"> </span>--build_type:<span class="w">              </span>Build<span class="w"> </span><span class="nb">type</span><span class="w"> </span><span class="o">(</span>Debug,<span class="w"> </span>Release,<span class="w"> </span>RelWithDebInfo,<span class="w"> </span>MinSizeRel<span class="o">)</span>
+<span class="w">  </span>-nmv,<span class="w"> </span>--no_simd_vectorization:Disable<span class="w"> </span>SIMD<span class="w"> </span>instructions
+<span class="w">  </span>-h,<span class="w"> </span>--help:<span class="w">                     </span>Print<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+
+Example<span class="w"> </span>Usage:
+<span class="w">  </span>./build.sh<span class="w"> </span>-t<span class="w"> </span>-e<span class="w"> </span>-v
+</pre></div>
+</div>
+<p>To build the Python bindings, follow instructions <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/flatnav_python/README.md">here</a>. There are also examples for how to use the library to build an index and run queries on top of it <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/flatnav_python/unit_tests/test_index.py">here</a>.</p>
+</section>
+<section id="support-for-simd-extensions">
+<h2>Support for SIMD Extensions<a class="headerlink" href="#support-for-simd-extensions" title="Link to this heading"></a></h2>
+<p>We currently support SIMD extensions for certain platforms as detailed below.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Operation</p></th>
+<th class="head"><p>x86_64</p></th>
+<th class="head"><p>arm64v8</p></th>
+<th class="head"><p>Apple silicone</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>FP32 Inner product</p></td>
+<td><p>SSE, AVX, AVX512</p></td>
+<td><p>No SIMD support</p></td>
+<td><p>No SIMD support</p></td>
+</tr>
+<tr class="row-odd"><td><p>FP32 L2 distance</p></td>
+<td><p>SSE, AVX, AVX512</p></td>
+<td><p>No SIMD support</p></td>
+<td><p>No SIMD support</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="datasets-from-ann-benchmarks">
+<h2>Datasets from ANN-Benchmarks<a class="headerlink" href="#datasets-from-ann-benchmarks" title="Link to this heading"></a></h2>
+<p>ANN-Benchmarks provides HDF5 files for a standard benchmark of near-neighbor datasets, queries and ground-truth results. To run on these datasets, we provide a set of tools to process numpy (NPY) files: construct_npy, reorder_npy and query_npy.</p>
+<p>To generate the <a class="reference external" href="https://github.com/erikbern/ann-benchmarks?tab=readme-ov-file#data-sets">ANNS benchmark datasets</a>, run the following script</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./bin/download_anns_datasets.sh<span class="w"> </span>&lt;dataset-name&gt;<span class="w"> </span><span class="o">[</span>--normalize<span class="o">]</span>
+</pre></div>
+</div>
+<p>For datasets that use the angular/cosine similarity, you will need to use <code class="docutils literal notranslate"><span class="pre">--normalize</span></code> option so that the dataset is normalized.
+Available dataset names include:</p>
+<ul class="simple">
+<li><p>mnist-784-euclidean</p></li>
+<li><p>sift-128-euclidean</p></li>
+<li><p>glove-25-angular</p></li>
+<li><p>glove-50-angular</p></li>
+<li><p>glove-100-angular</p></li>
+<li><p>glove-200-angular</p></li>
+<li><p>deep-image-96-angular</p></li>
+<li><p>gist-960-euclidean</p></li>
+<li><p>nytimes-256-angular</p></li>
+</ul>
+</section>
+<section id="using-custom-datasets">
+<h2>Using Custom Datasets<a class="headerlink" href="#using-custom-datasets" title="Link to this heading"></a></h2>
+<p>The most straightforward way to include a new dataset for this evaluation is to put it into either the ANN-Benchmarks (NPY) format or to put it into the Big ANN-Benchmarks format. The NPY format requires a float32 2-D Numpy array for the train and test sets and an integer array for the ground truth. The Big ANN-Benchmarks format uses the following binary representation. For the train and test data, there is a 4-byte little-endian unsigned integer number of points followed by a 4-byte little-endian unsigned integer number of dimensions. This is followed by a flat list of <code class="docutils literal notranslate"><span class="pre">num_points</span> <span class="pre">*</span> <span class="pre">num_dimensions</span></code> values, where each value is a 32-bit float or an 8-bit integer (depending on the dataset type). The ground truth files consist of a 32-bit integer number of queries, followed by a 32-bit integer number of ground truth results for each query. This is followed by a flat list of ground truth results.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to FlatNav’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="flatnav_python.html" class="btn btn-neutral float-right" title="FlatNav Index Module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Benjamin Ray Coleman, Blaise Munyampirwa, Vihan Lakshman.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

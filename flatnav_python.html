@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlatNav Index Module &mdash; FlatNav 0.0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=d45e8c67"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="C++ API Documentation" href="cpp_api.html" />
+    <link rel="prev" title="FlatNav" href="include_readme.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            FlatNav
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="include_readme.html">FlatNav</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">FlatNav Index Module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#index-factory">index_factory</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#flatnav.index.index_factory"><code class="docutils literal notranslate"><span class="pre">index_factory()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#index-classes">Index Classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#l2index">L2Index</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#flatnav.index.L2Index"><code class="docutils literal notranslate"><span class="pre">L2Index</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.add"><code class="docutils literal notranslate"><span class="pre">L2Index.add()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.allocate_nodes"><code class="docutils literal notranslate"><span class="pre">L2Index.allocate_nodes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.build_graph_links"><code class="docutils literal notranslate"><span class="pre">L2Index.build_graph_links()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.get_graph_outdegree_table"><code class="docutils literal notranslate"><span class="pre">L2Index.get_graph_outdegree_table()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.get_query_distance_computations"><code class="docutils literal notranslate"><span class="pre">L2Index.get_query_distance_computations()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.load"><code class="docutils literal notranslate"><span class="pre">L2Index.load()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.max_edges_per_node"><code class="docutils literal notranslate"><span class="pre">L2Index.max_edges_per_node</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.num_threads"><code class="docutils literal notranslate"><span class="pre">L2Index.num_threads</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.reorder"><code class="docutils literal notranslate"><span class="pre">L2Index.reorder()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.save"><code class="docutils literal notranslate"><span class="pre">L2Index.save()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.search"><code class="docutils literal notranslate"><span class="pre">L2Index.search()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.search_single"><code class="docutils literal notranslate"><span class="pre">L2Index.search_single()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.L2Index.set_num_threads"><code class="docutils literal notranslate"><span class="pre">L2Index.set_num_threads()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ipindex">IPIndex</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#flatnav.index.IPIndex"><code class="docutils literal notranslate"><span class="pre">IPIndex</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.add"><code class="docutils literal notranslate"><span class="pre">IPIndex.add()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.allocate_nodes"><code class="docutils literal notranslate"><span class="pre">IPIndex.allocate_nodes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.build_graph_links"><code class="docutils literal notranslate"><span class="pre">IPIndex.build_graph_links()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.get_graph_outdegree_table"><code class="docutils literal notranslate"><span class="pre">IPIndex.get_graph_outdegree_table()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.get_query_distance_computations"><code class="docutils literal notranslate"><span class="pre">IPIndex.get_query_distance_computations()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.load"><code class="docutils literal notranslate"><span class="pre">IPIndex.load()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.max_edges_per_node"><code class="docutils literal notranslate"><span class="pre">IPIndex.max_edges_per_node</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.num_threads"><code class="docutils literal notranslate"><span class="pre">IPIndex.num_threads</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.reorder"><code class="docutils literal notranslate"><span class="pre">IPIndex.reorder()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.save"><code class="docutils literal notranslate"><span class="pre">IPIndex.save()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.search"><code class="docutils literal notranslate"><span class="pre">IPIndex.search()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.search_single"><code class="docutils literal notranslate"><span class="pre">IPIndex.search_single()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flatnav.index.IPIndex.set_num_threads"><code class="docutils literal notranslate"><span class="pre">IPIndex.set_num_threads()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cpp_api.html">C++ API Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">FlatNav</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">FlatNav Index Module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/flatnav_python.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="flatnav-index-module">
+<h1>FlatNav Index Module<a class="headerlink" href="#flatnav-index-module" title="Link to this heading"></a></h1>
+<p>This module provides interfaces to create and manipulate FlatNav index structures.</p>
+<section id="index-factory">
+<h2>index_factory<a class="headerlink" href="#index-factory" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="flatnav.index.index_factory">
+<span class="sig-prename descclassname"><span class="pre">flatnav.index.</span></span><span class="sig-name descname"><span class="pre">index_factory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#flatnav.index.index_factory" title="Link to this definition"></a></dt>
+<dd><p>Overloaded function.</p>
+<ol class="arabic simple">
+<li><p>index_factory(distance_type: str, dim: int, dataset_size: int, max_edges_per_node: int, verbose: bool = False, collect_stats: bool = False) -&gt; object</p></li>
+</ol>
+<dl>
+<dt>Creates a FlatNav index with the specified number of dimensions and dataset size.</dt><dd><blockquote>
+<div><p>The distance_type argument determines the kind of index created (either L2Index or IPIndex).</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Args:</dt><dd><p>distance_type (str): The type of distance metric to use (‘l2’ for Euclidean, ‘angular’ for inner product).
+dim (int): The number of dimensions in the dataset.
+dataset_size (str): The number of vectors in the dataset.
+max_edges_per_node (str): The maximum number of edges per node in the graph.
+verbose (bool, optional): Enables verbose output.
+collect_stats (bool, optional): Collects performance statistics. Currently, this is the number of distance computations.</p>
+</dd>
+<dt>Returns:</dt><dd><p>An object representing the FlatNav index.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<ol class="arabic" start="2">
+<li><p>index_factory(distance_type: str, dim: int, mtx_filename: str, verbose: bool = False, collect_stats: bool = False) -&gt; object</p>
+<blockquote>
+<div><blockquote>
+<div><p>Creates a FlatNav index from a Matrix Market file representing the graph’s edge connectivity.
+The distance_type argument determines the kind of index created (either L2Index or IPIndex).</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Args:</dt><dd><p>distance_type (str): The type of distance metric to use (‘l2’ for Euclidean, ‘angular’ for inner product).
+dim (int): The number of dimensions in the dataset.
+mtx_filename (str): The path to the Matrix Market file representing the graph’s edge connectivity.
+verbose (bool, optional): Enables verbose output.
+collect_stats (bool, optional): Collects performance statistics. Currently, this is the number of distance computations.</p>
+</dd>
+<dt>Returns:</dt><dd><p>An object representing the FlatNav index.</p>
+</dd>
+</dl>
+</div></blockquote>
+</li>
+</ol>
+</dd></dl>
+
+</section>
+<section id="index-classes">
+<h2>Index Classes<a class="headerlink" href="#index-classes" title="Link to this heading"></a></h2>
+<p>Classes for managing FlatNav indices.</p>
+</section>
+<section id="l2index">
+<h2>L2Index<a class="headerlink" href="#l2index" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="flatnav.index.L2Index">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">flatnav.index.</span></span><span class="sig-name descname"><span class="pre">L2Index</span></span><a class="headerlink" href="#flatnav.index.L2Index" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pybind11_object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.add">
+<span class="sig-name descname"><span class="pre">add</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ef_construction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_initializations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#flatnav.index.L2Index.add" title="Link to this definition"></a></dt>
+<dd><p>Add vectors(data) to the index with the given <cite>ef_construction</cite> parameter and optional labels. <cite>ef_construction</cite> determines how many vertices are visited while inserting every vector in the underlying graph structure.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.allocate_nodes">
+<span class="sig-name descname"><span class="pre">allocate_nodes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></span><a class="headerlink" href="#flatnav.index.L2Index.allocate_nodes" title="Link to this definition"></a></dt>
+<dd><p>Allocate nodes in the underlying graph structure for the given data. Unlike the add method, this method does not construct the edge connectivity. It only allocates memory for each node in the grpah. When using this method, you should invoke <cite>build_graph_links</cite> explicity. NOTE: In most cases you should not need to use this method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.build_graph_links">
+<span class="sig-name descname"><span class="pre">build_graph_links</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#flatnav.index.L2Index.build_graph_links" title="Link to this definition"></a></dt>
+<dd><p>Construct the edge connectivity of the underlying graph. This method should be invoked after allocating nodes using the <cite>allocate_nodes</cite> method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.get_graph_outdegree_table">
+<span class="sig-name descname"><span class="pre">get_graph_outdegree_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#flatnav.index.L2Index.get_graph_outdegree_table" title="Link to this definition"></a></dt>
+<dd><p>Returns the outdegree table (adjacency list) representation of the underlying graph.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.get_query_distance_computations">
+<span class="sig-name descname"><span class="pre">get_query_distance_computations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="headerlink" href="#flatnav.index.L2Index.get_query_distance_computations" title="Link to this definition"></a></dt>
+<dd><p>Returns the number of distance computations performed during the last search operation. This method also resets the distance computations counter.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.load">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></span><a class="headerlink" href="#flatnav.index.L2Index.load" title="Link to this definition"></a></dt>
+<dd><p>Load a FlatNav index from a given file location</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.max_edges_per_node">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">max_edges_per_node</span></span><a class="headerlink" href="#flatnav.index.L2Index.max_edges_per_node" title="Link to this definition"></a></dt>
+<dd><p>Maximum number of edges(links) per node in the underlying NSW graph data structure.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.num_threads">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_threads</span></span><a class="headerlink" href="#flatnav.index.L2Index.num_threads" title="Link to this definition"></a></dt>
+<dd><p>Returns the number of threads used for constructing the graph and/or performing KNN search.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.reorder">
+<span class="sig-name descname"><span class="pre">reorder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategies</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#flatnav.index.L2Index.reorder" title="Link to this definition"></a></dt>
+<dd><p>Perform graph re-ordering based on the given sequence of re-ordering strategies. Supported re-ordering strategies include <cite>gorder</cite> and <cite>rcm</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#flatnav.index.L2Index.save" title="Link to this definition"></a></dt>
+<dd><p>Save a FlatNav index at the given file location.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.search">
+<span class="sig-name descname"><span class="pre">search</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">queries</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">K</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ef_search</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_initializations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#flatnav.index.L2Index.search" title="Link to this definition"></a></dt>
+<dd><p>Return top <cite>K</cite> closest data points for every query in the provided <cite>queries</cite>. The results are returned as a Tuple of distances and label ID’s. The <cite>ef_search</cite> parameter determines how many neighbors are visited while finding the closest neighbors for every query.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.search_single">
+<span class="sig-name descname"><span class="pre">search_single</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">query</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">K</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ef_search</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_initializations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#flatnav.index.L2Index.search_single" title="Link to this definition"></a></dt>
+<dd><p>Return top <cite>K</cite> closest data points for the given <cite>query</cite>. The results are returned as a Tuple of distances and label ID’s. The <cite>ef_search</cite> parameter determines how many neighbors are visited while finding the closest neighbors for the query.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.L2Index.set_num_threads">
+<span class="sig-name descname"><span class="pre">set_num_threads</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.L2Index" title="flatnav.index.L2Index"><span class="pre">flatnav.index.L2Index</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_threads</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#flatnav.index.L2Index.set_num_threads" title="Link to this definition"></a></dt>
+<dd><p>Set the number of threads to use for constructing the graph and/or performing KNN search.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="ipindex">
+<h2>IPIndex<a class="headerlink" href="#ipindex" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">flatnav.index.</span></span><span class="sig-name descname"><span class="pre">IPIndex</span></span><a class="headerlink" href="#flatnav.index.IPIndex" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pybind11_object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.add">
+<span class="sig-name descname"><span class="pre">add</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ef_construction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_initializations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">labels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#flatnav.index.IPIndex.add" title="Link to this definition"></a></dt>
+<dd><p>Add vectors(data) to the index with the given <cite>ef_construction</cite> parameter and optional labels. <cite>ef_construction</cite> determines how many vertices are visited while inserting every vector in the underlying graph structure.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.allocate_nodes">
+<span class="sig-name descname"><span class="pre">allocate_nodes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></span><a class="headerlink" href="#flatnav.index.IPIndex.allocate_nodes" title="Link to this definition"></a></dt>
+<dd><p>Allocate nodes in the underlying graph structure for the given data. Unlike the add method, this method does not construct the edge connectivity. It only allocates memory for each node in the grpah. When using this method, you should invoke <cite>build_graph_links</cite> explicity. NOTE: In most cases you should not need to use this method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.build_graph_links">
+<span class="sig-name descname"><span class="pre">build_graph_links</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#flatnav.index.IPIndex.build_graph_links" title="Link to this definition"></a></dt>
+<dd><p>Construct the edge connectivity of the underlying graph. This method should be invoked after allocating nodes using the <cite>allocate_nodes</cite> method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.get_graph_outdegree_table">
+<span class="sig-name descname"><span class="pre">get_graph_outdegree_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#flatnav.index.IPIndex.get_graph_outdegree_table" title="Link to this definition"></a></dt>
+<dd><p>Returns the outdegree table (adjacency list) representation of the underlying graph.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.get_query_distance_computations">
+<span class="sig-name descname"><span class="pre">get_query_distance_computations</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="headerlink" href="#flatnav.index.IPIndex.get_query_distance_computations" title="Link to this definition"></a></dt>
+<dd><p>Returns the number of distance computations performed during the last search operation. This method also resets the distance computations counter.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.load">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></span><a class="headerlink" href="#flatnav.index.IPIndex.load" title="Link to this definition"></a></dt>
+<dd><p>Load a FlatNav index from a given file location</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.max_edges_per_node">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">max_edges_per_node</span></span><a class="headerlink" href="#flatnav.index.IPIndex.max_edges_per_node" title="Link to this definition"></a></dt>
+<dd><p>Maximum number of edges(links) per node in the underlying NSW graph data structure.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.num_threads">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">num_threads</span></span><a class="headerlink" href="#flatnav.index.IPIndex.num_threads" title="Link to this definition"></a></dt>
+<dd><p>Returns the number of threads used for constructing the graph and/or performing KNN search.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.reorder">
+<span class="sig-name descname"><span class="pre">reorder</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">strategies</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#flatnav.index.IPIndex.reorder" title="Link to this definition"></a></dt>
+<dd><p>Perform graph re-ordering based on the given sequence of re-ordering strategies. Supported re-ordering strategies include <cite>gorder</cite> and <cite>rcm</cite>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#flatnav.index.IPIndex.save" title="Link to this definition"></a></dt>
+<dd><p>Save a FlatNav index at the given file location.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.search">
+<span class="sig-name descname"><span class="pre">search</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">queries</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">K</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ef_search</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_initializations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#flatnav.index.IPIndex.search" title="Link to this definition"></a></dt>
+<dd><p>Return top <cite>K</cite> closest data points for every query in the provided <cite>queries</cite>. The results are returned as a Tuple of distances and label ID’s. The <cite>ef_search</cite> parameter determines how many neighbors are visited while finding the closest neighbors for every query.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.search_single">
+<span class="sig-name descname"><span class="pre">search_single</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">query</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">K</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ef_search</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_initializations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float32</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#flatnav.index.IPIndex.search_single" title="Link to this definition"></a></dt>
+<dd><p>Return top <cite>K</cite> closest data points for the given <cite>query</cite>. The results are returned as a Tuple of distances and label ID’s. The <cite>ef_search</cite> parameter determines how many neighbors are visited while finding the closest neighbors for the query.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="flatnav.index.IPIndex.set_num_threads">
+<span class="sig-name descname"><span class="pre">set_num_threads</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#flatnav.index.IPIndex" title="flatnav.index.IPIndex"><span class="pre">flatnav.index.IPIndex</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_threads</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#flatnav.index.IPIndex.set_num_threads" title="Link to this definition"></a></dt>
+<dd><p>Set the number of threads to use for constructing the graph and/or performing KNN search.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="include_readme.html" class="btn btn-neutral float-left" title="FlatNav" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="cpp_api.html" class="btn btn-neutral float-right" title="C++ API Documentation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Benjamin Ray Coleman, Blaise Munyampirwa, Vihan Lakshman.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
