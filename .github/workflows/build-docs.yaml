@@ -20,8 +20,10 @@ jobs:
         working-directory: docs
 
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
 
       - name: Set up Python
         uses: actions/setup-python@v4
