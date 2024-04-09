@@ -4,7 +4,6 @@ name: Publish Documentation
 #   push:
 #     branches:
 #       - main 
-
 on: [pull_request]
 
 env:
