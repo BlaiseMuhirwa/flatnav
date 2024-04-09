@@ -41,16 +41,7 @@ jobs:
       - name: Generate Doxygen & Sphinx documentation
         run: |
           ./generate_docs.sh
-
-      - name: Cleanup Old Documentation
-        run: |
-          git fetch origin gh-pages
-          git checkout gh-pages
-          git pull origin gh-pages
-          git rm -rf docs/_build/html
-          git commit -m "Cleanup old documentation"
-          git push origin gh-pages
-
+          
       # This creates a branch called gh-pages and deploys the contents of the _build/html folder to GitHub Pages.
       # # GitHub automatically creates the token to use in the workflow
       - name: Deploy to GitHub Pages
