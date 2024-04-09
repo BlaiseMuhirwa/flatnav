@@ -695,6 +695,16 @@ private:
     }
   }
 
+  /**
+   * @brief Connects neighbors according to the HNSW heuristic.
+   * The heuristic can be found in the HNSW paper.
+   * Reference:
+   *  Malkov, Yu A., and D. A. Yashunin. "Efficient and robust approximate
+   * nearest neighbor search using Hierarchical Navigable Small World graphs."
+   * 
+   * @param neighbors 
+   * @param new_node_id 
+   */
   void connectNeighbors(PriorityQueue &neighbors, node_id_t new_node_id) {
     // connects neighbors according to the HSNW heuristic
 
