@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace flatnav {
+namespace flatnav::util {
 
 template <typename node_id_t> class GorderPriorityQueue {
 
@@ -111,4 +111,4 @@ public:
   size_t size() { return _list.size(); }
 };
 
-} // namespace flatnav
+} // namespace flatnav::util

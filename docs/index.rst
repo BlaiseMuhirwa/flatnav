@@ -6,40 +6,12 @@
 Welcome to FlatNav's documentation!
 ===================================
 
+Version: |release|
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-
-
-FlatNav Module
-==============
-
-.. automodule:: flatnav.index
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-Index Factory
--------------
-
-The `index` submodule provides factory functions to create index objects with specific configurations.
-
-.. autofunction:: flatnav.index.index_factory
-
-L2Index Class
--------------
-
-The `L2Index` class represents an index with L2 distance metric.
-
-.. autoclass:: flatnav.index.L2Index
-    :members:
-
-IPIndex Class
--------------
-
-The `IPIndex` class represents an index with inner product metric.
-
-.. autoclass:: flatnav.index.IPIndex
-    :members:
-
+   include_readme
+   flatnav_python 
+   cpp_api

@@ -11,7 +11,7 @@
 #include <thread>
 #include <vector>
 
-namespace flatnav {
+namespace flatnav::util {
 
 class VisitedSet {
 private:
@@ -203,4 +203,4 @@ public:
   }
 };
 
-} // namespace flatnav
+} // namespace flatnav::util

@@ -436,9 +436,21 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
       py::arg("max_edges_per_node"), py::arg("verbose") = false,
       py::arg("collect_stats") = false,
-      "Creates a FlatNav index given the corresponding "
-      "parameters. The `distance_type` argument determines the "
-      "kind of index created (either L2Index or IPIndex)");
+      R"pbdoc(Creates a FlatNav index with the specified number of dimensions and dataset size.
+        The distance_type argument determines the kind of index created (either L2Index or IPIndex).
+
+      Args:
+        distance_type (str): The type of distance metric to use ('l2' for Euclidean, 'angular' for inner product).
+        dim (int): The number of dimensions in the dataset.
+        dataset_size (str): The number of vectors in the dataset.
+        max_edges_per_node (str): The maximum number of edges per node in the graph.
+        verbose (bool, optional): Enables verbose output.
+        collect_stats (bool, optional): Collects performance statistics. Currently, this is the number of distance computations.
+
+      Returns:
+        An object representing the FlatNav index.
+      )pbdoc"
+    );
 
   index_submodule.def(
       "index_factory",
@@ -450,11 +462,21 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
       py::arg("verbose") = false, py::arg("collect_stats") = false,
-      "Creates a FlatNav index given the corresponding "
-      "parameters. The `distance_type` argument determines the "
-      "kind of index created (either L2Index or IPIndex). The "
-      "mtx_filename argument is the path to a Matrix Market "
-      "file representing the underlying graph's edge connectivity.");
+      R"pbdoc(
+        Creates a FlatNav index from a Matrix Market file representing the graph’s edge connectivity.
+        The distance_type argument determines the kind of index created (either L2Index or IPIndex).
+        
+      Args:
+        distance_type (str): The type of distance metric to use ('l2' for Euclidean, 'angular' for inner product).
+        dim (int): The number of dimensions in the dataset.
+        mtx_filename (str): The path to the Matrix Market file representing the graph's edge connectivity.
+        verbose (bool, optional): Enables verbose output.
+        collect_stats (bool, optional): Collects performance statistics. Currently, this is the number of distance computations.
+
+      Returns:
+        An object representing the FlatNav index.
+      )pbdoc"
+    );
 
   py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
       index_submodule, "L2Index");

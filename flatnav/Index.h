@@ -24,6 +24,10 @@
 #include <utility>
 #include <vector>
 
+
+using flatnav::util::VisitedSet;
+using flatnav::util::VisitedSetPool;
+
 namespace flatnav {
 
 // dist_t: A distance function implementing DistanceInterface.
@@ -393,29 +397,15 @@ public:
       auto outdegree_table = getGraphOutdegreeTable();
       std::vector<node_id_t> P;
       if (method == "gorder") {
-        P = std::move(flatnav::gOrder<node_id_t>(outdegree_table, 5));
+        P = std::move(flatnav::util::gOrder<node_id_t>(outdegree_table, 5));
       } else if (method == "rcm") {
-        P = std::move(flatnav::rcmOrder<node_id_t>(outdegree_table));
+        P = std::move(flatnav::util::rcmOrder<node_id_t>(outdegree_table));
       } else {
         throw std::invalid_argument("Invalid reordering method: " + method);
       }
 
       relabel(P);
     }
-  }
-
-  void reorderGOrder(const int window_size = 5) {
-    auto outdegree_table = getGraphOutdegreeTable();
-    std::vector<node_id_t> P =
-        flatnav::gOrder<node_id_t>(outdegree_table, window_size);
-
-    relabel(P);
-  }
-
-  void reorderRCM() {
-    auto outdegree_table = getGraphOutdegreeTable();
-    std::vector<node_id_t> P = flatnav::rcmOrder<node_id_t>(outdegree_table);
-    relabel(P);
   }
 
   static std::unique_ptr<Index<dist_t, label_t>>
