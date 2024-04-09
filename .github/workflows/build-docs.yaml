@@ -48,7 +48,7 @@ jobs:
         uses: JamesIves/github-pages-deploy-action@v4.3.3
         with:
           branch: gh-pages  
-          folder: _build/html 
+          folder: docs/_build/html 
           # Automatically remove deleted files from the deploy branch 
           clean: true  
           commit-message: "Deploy GitHub Pages"
