@@ -215,14 +215,18 @@ def train_index(
         index = flatnav.index.index_factory(
             distance_type=distance_type,
             dim=dim,
-            mtx_filename=hnsw_base_layer_filename,
+            dataset_size=dataset_size,
+            max_edges_per_node=max_edges_per_node,
+            verbose=False,
             collect_stats=True,
         )
 
         # Here we will first allocate memory for the index and then build edge connectivity
         # using the HNSW base layer graph. We do not use the ef-construction parameter since
         # it's assumed to have been used when building the HNSW base layer.
-        index.allocate_nodes(data=train_dataset).build_graph_links()
+        index.allocate_nodes(data=train_dataset).build_graph_links(
+            mtx_filename=hnsw_base_layer_filename
+        )
         os.remove(hnsw_base_layer_filename)
 
     else:

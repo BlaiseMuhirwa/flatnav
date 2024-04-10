@@ -344,10 +344,11 @@ void bindIndexMethods(
           "underlying graph.")
       .def(
           "build_graph_links",
-          [](IndexType &index_type) {
+          [](IndexType &index_type, const std::string& mtx_filename) {
             auto index = index_type.getIndex();
-            index->buildGraphLinks();
+            index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
           },
+          py::arg("mtx_filename"),
           "Construct the edge connectivity of the underlying graph. This "
           "method "
           "should be invoked after allocating nodes using the "
@@ -439,22 +440,6 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       "Creates a FlatNav index given the corresponding "
       "parameters. The `distance_type` argument determines the "
       "kind of index created (either L2Index or IPIndex)");
-
-  index_submodule.def(
-      "index_factory",
-      [](const std::string &distance_type, int dim,
-         const std::string &mtx_filename, bool verbose = false,
-         bool collect_stats = false) {
-        return createIndex(distance_type, dim, mtx_filename, verbose,
-                           collect_stats);
-      },
-      py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
-      py::arg("verbose") = false, py::arg("collect_stats") = false,
-      "Creates a FlatNav index given the corresponding "
-      "parameters. The `distance_type` argument determines the "
-      "kind of index created (either L2Index or IPIndex). The "
-      "mtx_filename argument is the path to a Matrix Market "
-      "file representing the underlying graph's edge connectivity.");
 
   py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
       index_submodule, "L2Index");
