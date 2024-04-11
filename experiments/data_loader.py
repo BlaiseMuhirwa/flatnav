@@ -114,12 +114,12 @@ class BvecsDatasetLoader(DatasetLoader):
             return v.reshape((end - start + 1, dimension + 4))[:, 4:]
 
     def load_data(self) -> Tuple[np.ndarray]:
-        ground_truth = self._read_ivecs_file(self.gtruth_path, self.range)
+        ground_truth = self._read_ivecs_file(self.gtruth_path)
         # Ground truth has shape (10000, 1000) but we only need the first 100 queries
         ground_truth = ground_truth[:, 0:100]
 
-        train_data = self._read_bvecs_file(self.train_dataset_path, self.range)
-        queries_data = self._read_bvecs_file(self.queries_path, self.range)
+        train_data = self._read_bvecs_file(self.train_dataset_path)
+        queries_data = self._read_bvecs_file(self.queries_path)
 
         return train_data, queries_data, ground_truth
 
@@ -216,7 +216,7 @@ def get_data_loader(**kwargs) -> DatasetLoader:
     if train_dataset_path.endswith(".npy"):
         return NpyDatasetLoader(**kwargs)
     elif train_dataset_path.endswith(".bvecs"):
-        return BvecsDatasetLoader(DatasetLoader)(**kwargs)
+        return BvecsDatasetLoader(**kwargs)
     elif train_dataset_path.endswith(".fbin"):
         return FbinDatasetLoader(**kwargs)
 
