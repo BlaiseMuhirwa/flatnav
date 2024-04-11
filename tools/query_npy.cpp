@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
                           /* num_gtruth = */ n_gt, /* dim = */ dim,
                           /* reorder = */ reorder);
   } else if (space_ID == 0) {
-    run<SquaredL2Distance>(/* queries = */ queries, /* gtruth = */ gtruth,
+    run<SquaredL2Distance<float>>(/* queries = */ queries, /* gtruth = */ gtruth,
                            /* index_filename = */ indexfilename,
                            /* ef_searches = */ ef_searches, /* K = */ k,
                            /* num_queries = */ num_queries,

@@ -35,7 +35,8 @@ void buildIndex(float *data,
       /* dist = */ std::move(distance), /* dataset_size = */ N,
       /* max_edges = */ M);
 
-  index->setNumThreads(std::thread::hardware_concurrency());
+  // index->setNumThreads(std::thread::hardware_concurrency());
+  index->setNumThreads(1); 
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -79,8 +80,8 @@ void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
 
   } else {
     if (metric_type == flatnav::METRIC_TYPE::EUCLIDEAN) {
-      auto distance = std::make_unique<SquaredL2Distance>(dim);
-      buildIndex<SquaredL2Distance>(data, std::move(distance), N, M, dim,
+      auto distance = std::make_unique<SquaredL2Distance<float>>(dim);
+      buildIndex<SquaredL2Distance<float>>(data, std::move(distance), N, M, dim,
                                     ef_construction, save_file);
     } else if (metric_type == flatnav::METRIC_TYPE::INNER_PRODUCT) {
       auto distance = std::make_unique<InnerProductDistance>(dim);

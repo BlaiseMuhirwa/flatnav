@@ -6,6 +6,7 @@
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/SquaredL2SimdExtensions.h>
+#include <type_traits>
 #include <functional>
 #include <iostream>
 
@@ -15,15 +16,16 @@
 
 namespace flatnav {
 
-class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
+template<typename data_type>
+class SquaredL2Distance : public DistanceInterface<SquaredL2Distance<data_type>> {
 
-  friend class DistanceInterface<SquaredL2Distance>;
+  friend class DistanceInterface<SquaredL2Distance<data_type>>;
   enum { DISTANCE_ID = 0 };
 
 public:
   SquaredL2Distance() = default;
   explicit SquaredL2Distance(size_t dim)
-      : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
+      : _dimension(dim), _data_size_bytes(dim * sizeof(data_type)),
         _distance_computer(
             [this](const void *x, const void *y, const size_t &dimension) {
               return defaultDistanceImpl(x, y, dimension);
@@ -74,6 +76,12 @@ private:
   }
 
   void setDistanceFunction() {
+// For now if the data_type is not float, we will use the default
+// implementation.  
+    if (std::is_same<data_type, float>::value == false) {
+      return;
+    }
+
 #ifndef NO_SIMD_VECTORIZATION
     selectOptimalSimdStrategy();
     adjustForNonOptimalDimensions();
@@ -141,12 +149,12 @@ private:
     // Default implementation of squared-L2 distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
 
-    float *p_x = const_cast<float *>(static_cast<const float *>(x));
-    float *p_y = const_cast<float *>(static_cast<const float *>(y));
+    data_type *p_x = const_cast<data_type *>(static_cast<const data_type *>(x));
+    data_type *p_y = const_cast<data_type *>(static_cast<const data_type *>(y));
     float squared_distance = 0;
 
     for (size_t i = 0; i < dimension; i++) {
-      float difference = *p_x - *p_y;
+      data_type difference = *p_x - *p_y;
       p_x++;
       p_y++;
       squared_distance += difference * difference;

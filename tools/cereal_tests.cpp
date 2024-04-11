@@ -59,8 +59,8 @@ int main(int argc, char **argv) {
   int dim = 784;
   int N = 60000;
   float *data = datafile.data<float>();
-  auto l2_distance = std::make_unique<SquaredL2Distance>(dim);
-  serializeIndex<SquaredL2Distance>(data, std::move(l2_distance), N, M, dim,
+  auto l2_distance = std::make_unique<SquaredL2Distance<float>>(dim);
+  serializeIndex<SquaredL2Distance<float>>(data, std::move(l2_distance), N, M, dim,
                                     ef_construction,
                                     std::string("l2_flatnav.bin"));
 
