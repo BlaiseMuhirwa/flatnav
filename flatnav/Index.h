@@ -11,14 +11,12 @@
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/Macros.h>
 #include <flatnav/util/ParallelConstructs.h>
-#include <flatnav/util/PreprocessorUtils.h>
 #include <flatnav/util/Reordering.h>
 #include <flatnav/util/VisitedSetPool.h>
 #include <fstream>
 #include <limits>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <queue>
 #include <thread>
 #include <utility>
@@ -59,7 +57,6 @@ template <typename dist_t, typename label_t> class Index {
   // Remembers which nodes we've visited, to avoid re-computing distances.
   VisitedSetPool *_visited_set_pool;
   std::vector<std::mutex> _node_links_mutexes;
-  std::optional<std::vector<std::vector<uint32_t>>> _outdegree_table;
 
   bool _collect_stats = false;
 
@@ -87,8 +84,7 @@ template <typename dist_t, typename label_t> class Index {
         _index_data_guard(std::move(other._index_data_guard)),
         _num_threads(other._num_threads),
         _visited_set_pool(std::move(other._visited_set_pool)),
-        _node_links_mutexes(std::move(other._node_links_mutexes)),
-        _outdegree_table(std::move(other._outdegree_table)) {
+        _node_links_mutexes(std::move(other._node_links_mutexes)) {
     other._index_memory = nullptr;
     other._visited_set_pool = nullptr;
   }
@@ -109,7 +105,6 @@ template <typename dist_t, typename label_t> class Index {
       _num_threads = other._num_threads;
       _visited_set_pool = std::move(other._visited_set_pool);
       _node_links_mutexes = std::move(other._node_links_mutexes);
-      _outdegree_table = std::move(other._outdegree_table);
 
       other._index_memory = nullptr;
       other._visited_set_pool = nullptr;
@@ -156,62 +151,61 @@ public:
     _index_memory = new char[index_memory_size];
   }
 
-  /**
-   * @brief Construct a new Index object using a pre-computed outdegree table.
-   * The outdegree table is extracted from a Matrix Market file.
-   *
-   * @param dist              A distance metric for the specific index
-   * distance. Options include l2(euclidean) and inner product.
-   * @param outdegree_table  A table of outdegrees for each node in the graph.
-   * Each vector in the table contains the IDs of the nodes to which it is
-   * connected.
-   */
-
-  Index(std::unique_ptr<DistanceInterface<dist_t>> dist,
-        const std::string &mtx_filename, bool collect_stats = false)
-      : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1),
-        _collect_stats(collect_stats) {
-    auto mtx_graph =
-        flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
-    _outdegree_table = std::move(mtx_graph.adjacency_list);
-    _max_node_count = _outdegree_table.value().size();
-    _M = mtx_graph.max_num_edges;
-
-    _visited_set_pool = new VisitedSetPool(
-        /* initial_pool_size = */ 1,
-        /* num_elements = */ _max_node_count);
-
-    _node_links_mutexes = std::vector<std::mutex>(_max_node_count);
-
-    _data_size_bytes = _distance->dataSize();
-    _node_size_bytes =
-        _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
-    size_t index_memory_size = _node_size_bytes * _max_node_count;
-    _index_memory = new char[index_memory_size];
-  }
-
   ~Index() {
     delete[] _index_memory;
     delete _visited_set_pool;
   }
 
-  void buildGraphLinks() {
-    if (!_outdegree_table.has_value()) {
-      throw std::runtime_error("Cannot build graph links without outdegree "
-                               "table. Please construct index with outdegree "
-                               "table.");
+  void buildGraphLinks(const std::string &mtx_filename) {
+    std::ifstream input_file(mtx_filename);
+    if (!input_file.is_open()) {
+      throw std::runtime_error("Unable to open file for reading: " +
+                               mtx_filename);
     }
 
-    for (node_id_t node = 0; node < _outdegree_table.value().size(); node++) {
-      node_id_t *links = getNodeLinks(node);
-      for (int i = 0; i < _M; i++) {
-        if (i >= _outdegree_table.value()[node].size()) {
-          links[i] = node;
-        } else {
-          links[i] = _outdegree_table.value()[node][i];
+    std::string line;
+    // Skip the header
+    while (std::getline(input_file, line)) {
+      if (line[0] != '%')
+        break;
+    }
+
+    std::istringstream iss(line);
+    int num_vertices, num_edges;
+    iss >> num_vertices >> num_vertices >> num_edges;
+
+    // check that the number of vertices in the mtx file matches the number of
+    // nodes in the index and that the number of edges is equal to the number of
+    // links per node.
+    if (num_vertices != _max_node_count) {
+      throw std::runtime_error("Number of vertices in the mtx file does not "
+                               "match the size allocated for the index.");
+    }
+
+    if (num_edges != _M) {
+      throw std::runtime_error("Number of edges in the mtx file does not match "
+                               "the number of links per node.");
+    }
+
+    int u, v;
+    while (input_file >> u >> v) {
+      // Adjust for 1-based indexing in Matrix Market format
+      u--;
+      v--;
+      node_id_t *links = getNodeLinks(u);
+      // Now add a directed edge from u to v. We need to check for the first
+      // available slot in the links array since there might be other edges
+      // added before this one. By definition, a slot is available if and only
+      // if it points to the node itself.
+      for (size_t i = 0; i < _M; i++) {
+        if (links[i] == u) {
+          links[i] = v;
+          break;
         }
       }
     }
+
+    input_file.close();
   }
 
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {

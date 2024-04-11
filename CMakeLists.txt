@@ -80,7 +80,6 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ParallelConstructs.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/PreprocessorUtils.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/SimdBaseTypes.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
