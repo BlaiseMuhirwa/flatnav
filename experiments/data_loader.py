@@ -114,7 +114,7 @@ class BvecsDatasetLoader(DatasetLoader):
             return v.reshape((end - start + 1, dimension + 4))[:, 4:]
 
     def load_data(self) -> Tuple[np.ndarray]:
-        ground_truth = self._read_ivecs_file(self.gtruth_path)
+        ground_truth = self._read_ivecs_file(self.ground_truth_path)
         # Ground truth has shape (10000, 1000) but we only need the first 100 queries
         ground_truth = ground_truth[:, 0:100]
 

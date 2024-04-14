@@ -56,6 +56,20 @@ public:
             /* collect_stats = */ collect_stats)) {
 
     if (_verbose) {
+      uint64_t total_index_memory = _index->getTotalIndexMemory();
+      uint64_t visited_set_allocated_memory =
+          _index->visitedSetPoolAllocatedMemory();
+      uint64_t mutexes_allocated_memory = _index->mutexesAllocatedMemory();
+
+      auto total_memory = total_index_memory + visited_set_allocated_memory +
+                          mutexes_allocated_memory;
+
+      std::cout << "Total allocated index memory: " << total_memory / 1e9
+                << " GB \n"
+                << std::flush;
+      std::cout << "[WARN]: More memory might be allocated due to visited sets "
+                   "in multi-threaded environments.\n"
+                << std::flush;
       _index->getIndexSummary();
     }
   }
@@ -344,7 +358,7 @@ void bindIndexMethods(
           "underlying graph.")
       .def(
           "build_graph_links",
-          [](IndexType &index_type, const std::string& mtx_filename) {
+          [](IndexType &index_type, const std::string &mtx_filename) {
             auto index = index_type.getIndex();
             index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
           },

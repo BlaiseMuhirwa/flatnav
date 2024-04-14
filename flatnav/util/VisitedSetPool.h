@@ -170,6 +170,8 @@ public:
     }
   }
 
+  size_t poolSize() const { return _visisted_set_pool.size(); }
+
   void pushVisitedSet(VisitedSet *visited_set) {
     std::unique_lock<std::mutex> lock(_pool_guard);
 

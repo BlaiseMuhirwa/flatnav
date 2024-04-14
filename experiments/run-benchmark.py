@@ -217,7 +217,7 @@ def train_index(
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
-            verbose=False,
+            verbose=True,
             collect_stats=True,
         )
 
@@ -235,7 +235,7 @@ def train_index(
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
-            verbose=False,
+            verbose=True,
             collect_stats=True,
         )
         index.set_num_threads(num_build_threads)
