@@ -15,16 +15,18 @@ namespace flatnav {
 // This is the base distance function implementation for inner product distances
 // on floating-point inputs.
 
-class InnerProductDistance : public DistanceInterface<InnerProductDistance> {
+template <typename data_type>
+class InnerProductDistance
+    : public DistanceInterface<InnerProductDistance<data_type>> {
 
-  friend class DistanceInterface<InnerProductDistance>;
+  friend class DistanceInterface<InnerProductDistance<data_type>>;
   // Enum for compile-time constant
   enum { DISTANCE_ID = 1 };
 
 public:
   InnerProductDistance() = default;
   explicit InnerProductDistance(size_t dim)
-      : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
+      : _dimension(dim), _data_size_bytes(dim * sizeof(data_type)),
         _distance_computer(
             [this](const void *x, const void *y, const size_t &dimension) {
               return defaultDistanceImpl(x, y, dimension);
@@ -47,11 +49,10 @@ private:
   friend class cereal::access;
 
   template <typename Archive> void serialize(Archive &ar) {
-    ar(_dimension);
+    ar(_dimension, _data_size_bytes);
 
     // If loading, we need to set the data size bytes
     if (Archive::is_loading::value) {
-      _data_size_bytes = _dimension * sizeof(float);
       _distance_computer = [this](const void *x, const void *y,
                                   const size_t &dimension) {
         return defaultDistanceImpl(x, y, dimension);
@@ -78,6 +79,11 @@ private:
   }
 
   void setDistanceFunction() {
+    // For now if the data_type is not float, we will use the default
+    // implementation.
+    if (std::is_same<data_type, float>::value == false) {
+      return;
+    }
 #ifndef NO_SIMD_VECTORIZATION
     selectOptimalSimdStrategy();
     adjustForNonOptimalDimensions();
@@ -152,13 +158,14 @@ private:
                             const size_t &dimension) const {
     // Default implementation of inner product distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
-    float *p_x = static_cast<float *>(const_cast<void *>(x));
-    float *p_y = static_cast<float *>(const_cast<void *>(y));
+    data_type *p_x = static_cast<data_type *>(const_cast<void *>(x));
+    data_type *p_y = static_cast<data_type *>(const_cast<void *>(y));
+
     float result = 0;
     for (size_t i = 0; i < dimension; i++) {
       result += p_x[i] * p_y[i];
     }
-    return 1.0 - result;
+    return 1.0f - result;
   }
 };
 

@@ -6,9 +6,9 @@
 #include <cstring> // for memcpy
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/util/SquaredL2SimdExtensions.h>
-#include <type_traits>
 #include <functional>
 #include <iostream>
+#include <type_traits>
 
 // This is the base distance function implementation for the L2 distance on
 // floating-point inputs. We provide specializations that use SIMD when
@@ -16,8 +16,9 @@
 
 namespace flatnav {
 
-template<typename data_type>
-class SquaredL2Distance : public DistanceInterface<SquaredL2Distance<data_type>> {
+template <typename data_type>
+class SquaredL2Distance
+    : public DistanceInterface<SquaredL2Distance<data_type>> {
 
   friend class DistanceInterface<SquaredL2Distance<data_type>>;
   enum { DISTANCE_ID = 0 };
@@ -76,8 +77,8 @@ private:
   }
 
   void setDistanceFunction() {
-// For now if the data_type is not float, we will use the default
-// implementation.  
+    // For now if the data_type is not float, we will use the default
+    // implementation.
     if (std::is_same<data_type, float>::value == false) {
       return;
     }

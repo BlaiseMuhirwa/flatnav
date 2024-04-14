@@ -60,12 +60,13 @@ int main(int argc, char **argv) {
   int N = 60000;
   float *data = datafile.data<float>();
   auto l2_distance = std::make_unique<SquaredL2Distance<float>>(dim);
-  serializeIndex<SquaredL2Distance<float>>(data, std::move(l2_distance), N, M, dim,
-                                    ef_construction,
-                                    std::string("l2_flatnav.bin"));
+  serializeIndex<SquaredL2Distance<float>>(data, std::move(l2_distance), N, M,
+                                           dim, ef_construction,
+                                           std::string("l2_flatnav.bin"));
 
-  auto inner_product_distance = std::make_unique<InnerProductDistance>(dim);
-  serializeIndex<InnerProductDistance>(data, std::move(inner_product_distance),
-                                       N, M, dim, ef_construction,
-                                       std::string("ip_flatnav.bin"));
+  auto inner_product_distance =
+      std::make_unique<InnerProductDistance<float>>(dim);
+  serializeIndex<InnerProductDistance<float>>(
+      data, std::move(inner_product_distance), N, M, dim, ef_construction,
+      std::string("ip_flatnav.bin"));
 }

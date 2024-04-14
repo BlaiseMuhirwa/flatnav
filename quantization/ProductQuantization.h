@@ -118,7 +118,7 @@ public:
     if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
       _distance = SquaredL2Distance<float>(_subvector_dim);
     } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
-      _distance = InnerProductDistance(_subvector_dim);
+      _distance = InnerProductDistance<float>(_subvector_dim);
     } else {
       throw std::invalid_argument("Invalid metric type");
     }
@@ -457,13 +457,15 @@ private:
     if (_distance.index() == 0) {
       return [local_distance = _distance](const float *a,
                                           const float *b) -> float {
-        return std::get<SquaredL2Distance<float>>(local_distance).distanceImpl(a, b);
+        return std::get<SquaredL2Distance<float>>(local_distance)
+            .distanceImpl(a, b);
       };
     }
-    return [local_distance = _distance](const float *a,
-                                        const float *b) -> float {
-      return std::get<InnerProductDistance>(local_distance).distanceImpl(a, b);
-    };
+    return
+        [local_distance = _distance](const float *a, const float *b) -> float {
+          return std::get<InnerProductDistance<float>>(local_distance)
+              .distanceImpl(a, b);
+        };
   }
 
   /**
@@ -556,7 +558,7 @@ private:
 
   TrainType _train_type;
 
-  std::variant<SquaredL2Distance<float>, InnerProductDistance> _distance;
+  std::variant<SquaredL2Distance<float>, InnerProductDistance<float>> _distance;
 
   std::function<float(const float *, const float *)> _dist_func;
 
@@ -573,7 +575,7 @@ private:
       if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
         _distance = SquaredL2Distance<float>(_subvector_dim);
       } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
-        _distance = InnerProductDistance(_subvector_dim);
+        _distance = InnerProductDistance<float>(_subvector_dim);
       } else {
         throw std::invalid_argument("Invalid metric type");
       }

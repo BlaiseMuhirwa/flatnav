@@ -142,21 +142,23 @@ int main(int argc, char **argv) {
                           /* num_gtruth = */ n_gt, /* dim = */ dim,
                           /* reorder = */ reorder);
   } else if (space_ID == 0) {
-    run<SquaredL2Distance<float>>(/* queries = */ queries, /* gtruth = */ gtruth,
-                           /* index_filename = */ indexfilename,
-                           /* ef_searches = */ ef_searches, /* K = */ k,
-                           /* num_queries = */ num_queries,
-                           /* num_gtruth = */ n_gt, /* dim = */ dim,
-                           /* reorder = */ reorder);
+    run<SquaredL2Distance<float>>(/* queries = */ queries,
+                                  /* gtruth = */ gtruth,
+                                  /* index_filename = */ indexfilename,
+                                  /* ef_searches = */ ef_searches, /* K = */ k,
+                                  /* num_queries = */ num_queries,
+                                  /* num_gtruth = */ n_gt, /* dim = */ dim,
+                                  /* reorder = */ reorder);
 
   } else if (space_ID == 1) {
-    run<InnerProductDistance>(/* queries = */ queries, /* gtruth = */
-                              gtruth,
-                              /* index_filename = */ indexfilename,
-                              /* ef_searches = */ ef_searches, /* K = */ k,
-                              /* num_queries = */ num_queries,
-                              /* num_gtruth = */ n_gt, /* dim = */ dim,
-                              /* reorder = */ reorder);
+    run<InnerProductDistance<float>>(/* queries = */ queries, /* gtruth = */
+                                     gtruth,
+                                     /* index_filename = */ indexfilename,
+                                     /* ef_searches = */ ef_searches,
+                                     /* K = */ k,
+                                     /* num_queries = */ num_queries,
+                                     /* num_gtruth = */ n_gt, /* dim = */ dim,
+                                     /* reorder = */ reorder);
 
   } else {
     throw std::invalid_argument("Invalid space ID. Valid IDs are 0 and 1.");
