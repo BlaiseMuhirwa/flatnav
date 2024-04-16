@@ -2,12 +2,12 @@
 
 #include <atomic>
 #include <cstdint>
-#include <mutex>
+#include <functional>
 #include <thread>
 #include <tuple>
 #include <utility>
 
-namespace flatnav {
+namespace flatnav::util {
 
 /**
  * @brief Variadic template for executing a function in parallel using STL's
@@ -18,6 +18,7 @@ namespace flatnav {
 template <typename Function, typename... Args>
 void executeInParallel(uint32_t start_index, uint32_t end_index,
                        uint32_t num_threads, Function function,
+                       std::function<void(double)> progress_callback = nullptr,
                        Args... additional_args) {
   if (num_threads == 0) {
     throw std::invalid_argument("Invalid number of threads");
@@ -26,6 +27,8 @@ void executeInParallel(uint32_t start_index, uint32_t end_index,
   // This needs to be an atomic because mutliple threads will be
   // modifying it concurrently.
   std::atomic<uint32_t> current(start_index);
+  std::atomic<uint32_t> progress_counter(start_index);
+  uint32_t total_items = end_index - start_index;
   std::thread thread_objects[num_threads];
 
   auto parallel_executor = [&] {
@@ -37,6 +40,16 @@ void executeInParallel(uint32_t start_index, uint32_t end_index,
       // Use std::apply to pass arguments to the function
       std::apply(function, std::tuple_cat(std::make_tuple(current_vector_idx),
                                           std::make_tuple(additional_args...)));
+
+      // Update the progress counter
+      if (progress_callback) {
+        uint32_t current_progress = progress_counter.fetch_add(1) + 1;
+        // Update every 10% of the progress
+        if (current_progress % (total_items / 10) == 0) {
+          progress_callback(static_cast<double>(current_progress) /
+                            total_items * 100.0);
+        }
+      }
     }
   };
 
@@ -48,4 +61,4 @@ void executeInParallel(uint32_t start_index, uint32_t end_index,
   }
 }
 
-} // namespace flatnav
+} // namespace flatnav::util

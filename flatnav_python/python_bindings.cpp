@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <atomic>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
@@ -7,6 +8,7 @@
 #include <iostream>
 #include <memory>
 #include <ostream>
+#include <pybind11/functional.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -28,7 +30,6 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
 
 private:
   int _dim;
-  label_t _label_id;
   bool _verbose;
   Index<dist_t, label_t> *_index;
 
@@ -37,8 +38,7 @@ public:
       DistancesLabelsPair;
 
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
-      : _dim(index->dataDimension()), _label_id(0), _verbose(false),
-        _index(index.release()) {
+      : _dim(index->dataDimension()), _verbose(false), _index(index.release()) {
 
     if (_verbose) {
       _index->getIndexSummary();
@@ -48,7 +48,7 @@ public:
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dataset_size,
           int max_edges_per_node, bool verbose = false,
           bool collect_stats = false)
-      : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
+      : _dim(distance->dimension()), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
@@ -61,11 +61,11 @@ public:
           _index->visitedSetPoolAllocatedMemory();
       uint64_t mutexes_allocated_memory = _index->mutexesAllocatedMemory();
 
-      auto total_memory = total_index_memory + visited_set_allocated_memory +
-                          mutexes_allocated_memory;
+      double total_memory = total_index_memory + visited_set_allocated_memory +
+                            mutexes_allocated_memory;
+      total_memory /= 1e9;
 
-      std::cout << "Total allocated index memory: " << total_memory / 1e9
-                << " GB \n"
+      std::cout << "Total allocated index memory: " << total_memory << " GB \n"
                 << std::flush;
       std::cout << "[WARN]: More memory might be allocated due to visited sets "
                    "in multi-threaded environments.\n"
@@ -77,11 +77,10 @@ public:
   PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
           const std::string &mtx_filename, bool verbose = false,
           bool collect_stats = false)
-      : _label_id(0), _verbose(verbose),
-        _index(
-            new Index<dist_t, label_t>(/* dist = */ std::move(distance),
-                                       /* mtx_filename = */ mtx_filename,
-                                       /* collect_stats = */ collect_stats)) {
+      : _verbose(verbose), _index(new Index<dist_t, label_t>(
+                               /* dist = */ std::move(distance),
+                               /* mtx_filename = */ mtx_filename,
+                               /* collect_stats = */ collect_stats)) {
     _dim = _index->dataDimension();
   }
 
@@ -109,13 +108,15 @@ public:
     if (data.ndim() != 2 || data_dim != _dim) {
       throw std::invalid_argument("Data has incorrect dimensions.");
     }
+
+    label_t label_id = 0;
     for (size_t vec_index = 0; vec_index < num_vectors; vec_index++) {
       uint32_t new_node_id;
-
       this->_index->allocateNode(/* data = */ (void *)data.data(vec_index),
-                                 /* label = */ _label_id,
+                                 /* label = */ label_id,
                                  /* new_node_id = */ new_node_id);
-      _label_id++;
+
+      label_id++;
     }
     return this->shared_from_this();
   }
@@ -123,7 +124,8 @@ public:
   void
   add(const py::array_t<float, py::array::c_style | py::array::forcecast> &data,
       int ef_construction, int num_initializations = 100,
-      py::object labels = py::none()) {
+      py::object labels = py::none(),
+      std::function<void(double)> progress_callback = nullptr) {
     // py::array_t<float, py::array::c_style | py::array::forcecast> means that
     // the functions expects either a Numpy array of floats or a castable type
     // to that type. If the given type can't be casted, pybind11 will throw an
@@ -155,7 +157,8 @@ public:
             /* data = */ (void *)data.data(0),
             /* labels = */ vec_labels,
             /* ef_construction = */ ef_construction,
-            /* num_initializations = */ num_initializations);
+            /* num_initializations = */ num_initializations,
+            /* progress_callback = */ progress_callback);
       }
       return;
     }
@@ -172,7 +175,8 @@ public:
         this->_index->addBatch(
             /* data = */ (void *)data.data(0), /* labels = */ vec_labels,
             /* ef_construction = */ ef_construction,
-            /* num_initializations = */ num_initializations);
+            /* num_initializations = */ num_initializations,
+            /* progress_callback = */ progress_callback);
       }
     } catch (const py::cast_error &error) {
       throw std::invalid_argument("Invalid labels provided.");
@@ -259,7 +263,7 @@ public:
       }
     } else {
       // Parallelize the search
-      flatnav::executeInParallel(
+      flatnav::util::executeInParallel(
           /* start_index = */ 0, /* end_index = */ num_queries,
           /* num_threads = */ num_threads,
           /* function = */ [&](uint32_t row_index) {
@@ -296,8 +300,8 @@ public:
   }
 };
 
-using L2FlatNavIndex = PyIndex<SquaredL2Distance, int>;
-using InnerProductFlatNavIndex = PyIndex<InnerProductDistance, int>;
+using L2FlatNavIndex = PyIndex<SquaredL2Distance, uint32_t>;
+using InnerProductFlatNavIndex = PyIndex<InnerProductDistance, uint32_t>;
 
 template <typename IndexType>
 void bindIndexMethods(
@@ -315,6 +319,7 @@ void bindIndexMethods(
                   "Load a FlatNav index from a given file location")
       .def("add", &IndexType::add, py::arg("data"), py::arg("ef_construction"),
            py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
+           py::arg("progress_callback") = nullptr,
            "Add vectors(data) to the index with the given `ef_construction` "
            "parameter and optional labels. `ef_construction` determines how "
            "many "

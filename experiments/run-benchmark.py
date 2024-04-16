@@ -224,9 +224,9 @@ def train_index(
         # Here we will first allocate memory for the index and then build edge connectivity
         # using the HNSW base layer graph. We do not use the ef-construction parameter since
         # it's assumed to have been used when building the HNSW base layer.
-        index.allocate_nodes(data=train_dataset).build_graph_links(
-            mtx_filename=hnsw_base_layer_filename
-        )
+        index.allocate_nodes(
+            data=train_dataset,
+        ).build_graph_links(mtx_filename=hnsw_base_layer_filename)
         os.remove(hnsw_base_layer_filename)
 
     else:
@@ -243,7 +243,12 @@ def train_index(
         # Train the index.
         start = time.time()
         index.add(
-            data=train_dataset, ef_construction=ef_construction, num_initializations=100
+            data=train_dataset,
+            ef_construction=ef_construction,
+            num_initializations=100,
+            # progress_callback=lambda x: logging.info(
+            #     f"[Building Index] current progress: {x}%"
+            # ),
         )
         end = time.time()
 

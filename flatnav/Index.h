@@ -272,7 +272,8 @@ public:
    * index is reached.
    */
   void addBatch(void *data, std::vector<label_t> &labels, int ef_construction,
-                int num_initializations = 100) {
+                int num_initializations = 100,
+                std::function<void(double)> progress_callback = nullptr) {
     if (num_initializations <= 0) {
       throw std::invalid_argument(
           "num_initializations must be greater than 0.");
@@ -290,14 +291,15 @@ public:
       return;
     }
 
-    flatnav::executeInParallel(
+    flatnav::util::executeInParallel(
         /* start_index = */ 0, /* end_index = */ total_num_nodes,
         /* num_threads = */ _num_threads, /* function = */
         [&](uint32_t row_index) {
           void *vector = (float *)data + (row_index * data_dimension);
           label_t label = labels[row_index];
           this->add(vector, label, ef_construction, num_initializations);
-        });
+        },
+        /* progress_callback = */ progress_callback);
   }
 
   /**
