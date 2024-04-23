@@ -245,6 +245,62 @@ public:
   }
 
   /**
+   * @brief Adds vectors to the index in batches.
+   *
+   * This method is responsible for adding vectors in batches, represented by
+   * `data`, to the underlying graph. Each vector is associated with a label
+   * provided in the `labels` vector. The method efficiently handles concurrent
+   * additions by dividing the workload among multiple threads, defined by
+   * `_num_threads`.
+   *
+   * The method ensures thread safety by employing locking mechanisms at the
+   * node level in the underlying `connectNeighbors` and `beamSearch` methods.
+   * This allows multiple threads to safely add vectors to the index without
+   * causing data races or inconsistencies in the graph structure.
+   *
+   * @param data Pointer to the array of vectors to be added.
+   * @param labels A vector of labels corresponding to each vector in `data`.
+   * @param ef_construction Parameter for controlling the size of the dynamic
+   * candidate list during the construction of the graph.
+   * @param num_initializations Number of initializations for the search
+   * algorithm. Must be greater than 0.
+   *
+   * @exception std::invalid_argument Thrown if `num_initializations` is less
+   * than or equal to 0.
+   * @exception std::runtime_error Thrown if the maximum number of nodes in the
+   * index is reached.
+   */
+  template <typename data_type>
+  void addBatch(void *data, std::vector<label_t> &labels, int ef_construction,
+                int num_initializations = 100) {
+    if (num_initializations <= 0) {
+      throw std::invalid_argument(
+          "num_initializations must be greater than 0.");
+    }
+    uint32_t total_num_nodes = labels.size();
+    uint32_t data_dimension = _distance->dimension();
+
+    // Don't spawn any threads if we are only using one.
+    if (_num_threads == 1) {
+      for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
+        void *vector = (data_type *)data + (row_id * data_dimension);
+        label_t label = labels[row_id];
+        this->add(vector, label, ef_construction, num_initializations);
+      }
+      return;
+    }
+
+    flatnav::executeInParallel(
+        /* start_index = */ 0, /* end_index = */ total_num_nodes,
+        /* num_threads = */ _num_threads, /* function = */
+        [&](uint32_t row_index) {
+          void *vector = (data_type *)data + (row_index * data_dimension);
+          label_t label = labels[row_index];
+          this->add(vector, label, ef_construction, num_initializations);
+        });
+  }
+
+  /**
    * @brief Adds a single vector to the index.
    *
    * This method is called internally by `addBatch` for each vector in the
@@ -428,6 +484,10 @@ public:
 
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
+
+  inline constexpr util::DataType dataType() const {
+    return _distance->dataType();
+  }
 
   inline uint64_t distanceComputations() const {
     return _distance_computations.load();

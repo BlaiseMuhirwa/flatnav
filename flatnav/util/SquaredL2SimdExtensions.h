@@ -27,6 +27,53 @@ static float computeL2_Avx512(const void *x, const void *y,
   return sum.reduce_add();
 }
 
+static float computeL2_Avx512_int8(const void *x, const void *y,
+                                   const size_t &dimension) {
+  int8_t *pointer_x = static_cast<int8_t *>(const_cast<void *>(x));
+  int8_t *pointer_y = static_cast<int8_t *>(const_cast<void *>(y));
+
+  // Align to 64-int8s boundary
+  // // Mask the lower 6 bits to align down to the nearest multiple of 64
+  const int8_t *end_x = pointer_x + (dimension & ~63);
+
+  simd64int8 difference, v1, v2;
+
+  __m512i sum = _mm512_setzero_si512();
+
+  while (pointer_x != end_x) {
+    v1.loadu(pointer_x);
+    v2.loadu(pointer_y);
+    difference = v1 - v2;
+
+    // Squaring the difference and accumulating
+    __m512i diff_int = difference.get();
+    __m512i diff_squared = _mm512_mullo_epi16(diff_int, diff_int);
+
+    // Convert squared differences from 16-bit to 32-bit before summing to avoid
+    // overflow
+    __m512i diff_squared_lo =
+        _mm512_cvtepi16_epi32(_mm512_extracti64x4_epi64(diff_squared, 0));
+    __m512i diff_squared_hi =
+        _mm512_cvtepi16_epi32(_mm512_extracti64x4_epi64(diff_squared, 1));
+
+    // Summing the squared differences
+    sum = _mm512_add_epi32(sum, diff_squared_lo);
+    sum = _mm512_add_epi32(sum, diff_squared_hi);
+    pointer_x += 64;
+    pointer_y += 64;
+  }
+
+  // Reduce the sum to a single float result
+  int32_t sum_array[16];
+  _mm512_storeu_si512(sum_array, sum);
+  int32_t result = 0;
+  for (int i = 0; i < 16; i++) {
+    result += sum_array[i];
+  }
+
+  return static_cast<float>(result);
+}
+
 #endif // USE_AVX512
 
 #if defined(USE_AVX)
@@ -96,6 +143,44 @@ static float computeL2_Sse(const void *x, const void *y,
   }
 
   return sum.reduce_add();
+}
+
+// This function computes the L2 distance between two int8 vectors using SSE2
+// instructions.
+static float computeL2_Sse_int8(const void *x, const void *y,
+                                const size_t &dimension) {
+  int8_t *pointer_x = static_cast<int8_t *>(const_cast<void *>(x));
+  int8_t *pointer_y = static_cast<int8_t *>(const_cast<void *>(y));
+
+  __m128i sum = _mm_setzero_si128();
+  size_t aligned_dimension = dimension & ~0xF;
+  size_t i = 0;
+
+  for (; i < aligned_dimension; i += 16) {
+    __m128i vx = _mm_loadu_si128(reinterpret_cast<__m128i *>(pointer_x + i));
+    __m128i vy = _mm_loadu_si128(reinterpret_cast<__m128i *>(pointer_y + i));
+    __m128i diff = _mm_sub_epi8(vx, vy);
+
+    // Convert to 16-bit and square
+    __m128i diff_squared =
+        _mm_madd_epi16(_mm_cvtepi8_epi16(diff), _mm_cvtepi8_epi16(diff));
+
+    // Accumulate in 32-bit integer
+    sum = _mm_add_epi32(sum, diff_squared);
+  }
+
+  // Handle the remaining elements
+  int32_t partial_sum = 0;
+  for (; i < dimension; i++) {
+    int diff = pointer_x[i] - pointer_y[i];
+    partial_sum += diff * diff;
+  }
+
+  // Reduce sum
+  int32_t buffer[4];
+  _mm_storeu_si128(reinterpret_cast<__m128i *>(buffer), sum);
+  return static_cast<float>(buffer[0] + buffer[1] + buffer[2] + buffer[3] +
+                            partial_sum);
 }
 
 static float computeL2_Sse4Aligned(const void *x, const void *y,

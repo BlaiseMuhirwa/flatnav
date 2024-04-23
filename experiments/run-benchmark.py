@@ -282,6 +282,7 @@ def main(
         This part is here to ensure that two indices are not in memory at the same time.
         With large datasets, we might get an OOM error. 
         """
+        
         index = train_index(
             index_type=index_type,
             data_type=data_type,
@@ -560,7 +561,7 @@ def run_experiment():
             raise ValueError("HNSW does not support num_initializations.")
 
     metrics_file_path = os.path.join(ROOT_DIR, "metrics", args.metrics_file)
-
+    
     main(
         train_dataset=train_data,
         queries=queries,

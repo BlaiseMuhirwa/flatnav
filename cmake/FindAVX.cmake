@@ -42,7 +42,7 @@ function(check_compiler_and_hardware_support FLAG CODE_VAR EXTENSION_NAME)
       set(CMAKE_CXX_FLAGS
           "${CMAKE_CXX_FLAGS} ${FLAG}"
           PARENT_SCOPE)
-      message(STATUS "Building with ${EXTENSION_NAME}")
+      message(STATUS "Building with ${FLAG}")
     else()
       message(
         STATUS "Compiler supports ${FLAG} flag but the target machine does not "
@@ -54,6 +54,7 @@ endfunction()
 # Build SSE/AVX/AVX512 code only on x86-64 processors.
 if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "(x86_64)|(AMD64|amd64)|(^i.86$)")
   check_compiler_and_hardware_support("-mavx512f" "AVX512_CODE" "AVX512")
+  check_compiler_and_hardware_support("-mavx512bw" "AVX512_CODE" "AVX512")
   check_compiler_and_hardware_support("-mavx" "AVX_CODE" "AVX")
 
   check_cxx_compiler_flag("-msse" CXX_SSE)

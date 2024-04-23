@@ -13,6 +13,7 @@
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/util/Datatype.h>
 #include <memory>
 
 #ifdef _OPENMP
@@ -116,9 +117,10 @@ public:
     _subvector_dim = dim / _num_subquantizers;
 
     if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
-      _distance = SquaredL2Distance<float>(_subvector_dim);
+      _distance = SquaredL2Distance::create<DataType::float32>(_subvector_dim);
     } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
-      _distance = InnerProductDistance<float>(_subvector_dim);
+      _distance =
+          InnerProductDistance::create<DataType::float32>(_subvector_dim);
     } else {
       throw std::invalid_argument("Invalid metric type");
     }
@@ -457,15 +459,13 @@ private:
     if (_distance.index() == 0) {
       return [local_distance = _distance](const float *a,
                                           const float *b) -> float {
-        return std::get<SquaredL2Distance<float>>(local_distance)
-            .distanceImpl(a, b);
+        return std::get<SquaredL2Distance>(local_distance).distanceImpl(a, b);
       };
     }
-    return
-        [local_distance = _distance](const float *a, const float *b) -> float {
-          return std::get<InnerProductDistance<float>>(local_distance)
-              .distanceImpl(a, b);
-        };
+    return [local_distance = _distance](const float *a,
+                                        const float *b) -> float {
+      return std::get<InnerProductDistance>(local_distance).distanceImpl(a, b);
+    };
   }
 
   /**
@@ -558,7 +558,7 @@ private:
 
   TrainType _train_type;
 
-  std::variant<SquaredL2Distance<float>, InnerProductDistance<float>> _distance;
+  std::variant<SquaredL2Distance, InnerProductDistance> _distance;
 
   std::function<float(const float *, const float *)> _dist_func;
 
@@ -573,9 +573,11 @@ private:
     if constexpr (Archive::is_loading::value) {
       // loading PQ
       if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
-        _distance = SquaredL2Distance<float>(_subvector_dim);
+        _distance =
+            SquaredL2Distance::create<DataType::float32>(_subvector_dim);
       } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
-        _distance = InnerProductDistance<float>(_subvector_dim);
+        _distance =
+            InnerProductDistance::create<DataType::float32>(_subvector_dim);
       } else {
         throw std::invalid_argument("Invalid metric type");
       }

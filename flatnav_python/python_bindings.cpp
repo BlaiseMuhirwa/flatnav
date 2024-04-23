@@ -4,6 +4,7 @@
 #include <flatnav/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/util/Datatype.h>
 #include <flatnav/util/ParallelConstructs.h>
 #include <iostream>
 #include <memory>
@@ -20,31 +21,26 @@ using flatnav::DistanceInterface;
 using flatnav::Index;
 using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
+using flatnav::util::DataType;
 
 namespace py = pybind11;
 
-using SquaredL2DistanceInt8 = SquaredL2Distance<int8_t>;
-using SquaredL2DistanceUint8 = SquaredL2Distance<uint8_t>;
-using SquaredL2DistanceFloat = SquaredL2Distance<float>;
-using InnerProductDistanceFloat = InnerProductDistance<float>;
-
-template <template <typename> class dist_t, typename data_type,
-          typename label_t>
-class PyIndex
-    : public std::enable_shared_from_this<PyIndex<dist_t, data_type, label_t>> {
+template <typename dist_t, typename label_t>
+class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   const uint32_t NUM_LOG_STEPS = 10000;
 
 private:
   int _dim;
   label_t _label_id;
   bool _verbose;
-  Index<dist_t<data_type>, label_t> *_index;
+  Index<dist_t, label_t> *_index;
+  std::string _data_type = "float32";
 
 public:
   typedef std::pair<py::array_t<float>, py::array_t<label_t>>
       DistancesLabelsPair;
 
-  explicit PyIndex(std::unique_ptr<Index<dist_t<data_type>, label_t>> index)
+  explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), _label_id(0), _verbose(false),
         _index(index.release()) {
 
@@ -53,33 +49,23 @@ public:
     }
   }
 
-  PyIndex(std::unique_ptr<DistanceInterface<dist_t<data_type>>> &&distance,
+  PyIndex(std::unique_ptr<DistanceInterface<dist_t>> &&distance,
           int dataset_size, int max_edges_per_node, bool verbose = false,
-          bool collect_stats = false)
+          bool collect_stats = false, const std::string &data_type = "float32")
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
-        _index(new Index<dist_t<data_type>, label_t>(
+        _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
             /* max_edges_per_node = */ max_edges_per_node,
-            /* collect_stats = */ collect_stats)) {
+            /* collect_stats = */ collect_stats)),
+        _data_type(data_type) {
 
     if (_verbose) {
       _index->getIndexSummary();
     }
   }
 
-  PyIndex(std::unique_ptr<DistanceInterface<dist_t<data_type>>> &&distance,
-          const std::string &mtx_filename, bool verbose = false,
-          bool collect_stats = false)
-      : _label_id(0), _verbose(verbose),
-        _index(new Index<dist_t<data_type>, label_t>(
-            /* dist = */ std::move(distance),
-            /* mtx_filename = */ mtx_filename,
-            /* collect_stats = */ collect_stats)) {
-    _dim = _index->dataDimension();
-  }
-
-  Index<dist_t<data_type>, label_t> *getIndex() { return _index; }
+  Index<dist_t, label_t> *getIndex() { return _index; }
 
   ~PyIndex() { delete _index; }
 
@@ -89,16 +75,14 @@ public:
     return distance_computations;
   }
 
-  static std::shared_ptr<PyIndex<dist_t, data_type, label_t>>
+  static std::shared_ptr<PyIndex<dist_t, label_t>>
   loadIndex(const std::string &filename) {
-    auto index =
-        Index<dist_t<data_type>, label_t>::loadIndex(/* filename = */ filename);
-    return std::make_shared<PyIndex<dist_t, data_type, label_t>>(
-        std::move(index));
+    auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename);
+    return std::make_shared<PyIndex<dist_t, label_t>>(std::move(index));
   }
 
-  std::shared_ptr<PyIndex<dist_t, data_type, label_t>> allocateNodes(
-      const py::array_t<data_type, py::array::c_style | py::array::forcecast>
+  std::shared_ptr<PyIndex<dist_t, label_t>> allocateNodes(
+      const py::array_t<float, py::array::c_style | py::array::forcecast>
           &data) {
     auto num_vectors = data.shape(0);
     auto data_dim = data.shape(1);
@@ -116,61 +100,7 @@ public:
     return this->shared_from_this();
   }
 
-  /**
-   * @brief Adds vectors to the index in batches.
-   *
-   * This method is responsible for adding vectors in batches, represented by
-   * `data`, to the underlying graph. Each vector is associated with a label
-   * provided in the `labels` vector. The method efficiently handles concurrent
-   * additions by dividing the workload among multiple threads, defined by
-   * `_num_threads`.
-   *
-   * The method ensures thread safety by employing locking mechanisms at the
-   * node level in the underlying `connectNeighbors` and `beamSearch` methods.
-   * This allows multiple threads to safely add vectors to the index without
-   * causing data races or inconsistencies in the graph structure.
-   *
-   * @param data Pointer to the array of vectors to be added.
-   * @param labels A vector of labels corresponding to each vector in `data`.
-   * @param ef_construction Parameter for controlling the size of the dynamic
-   * candidate list during the construction of the graph.
-   * @param num_initializations Number of initializations for the search
-   * algorithm. Must be greater than 0.
-   *
-   * @exception std::invalid_argument Thrown if `num_initializations` is less
-   * than or equal to 0.
-   * @exception std::runtime_error Thrown if the maximum number of nodes in the
-   * index is reached.
-   */
-  void addBatch(void *data, std::vector<label_t> &labels, int ef_construction,
-                int num_initializations = 100) {
-    if (num_initializations <= 0) {
-      throw std::invalid_argument(
-          "num_initializations must be greater than 0.");
-    }
-    uint32_t total_num_nodes = labels.size();
-    auto threads = _index->getNumThreads();
-
-    // Don't spawn any threads if we are only using one.
-    if (threads == 1) {
-      for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
-        void *vector = (data_type *)data + (row_id * _dim);
-        label_t label = labels[row_id];
-        this->_index->add(vector, label, ef_construction, num_initializations);
-      }
-      return;
-    }
-
-    flatnav::executeInParallel(
-        /* start_index = */ 0, /* end_index = */ total_num_nodes,
-        /* num_threads = */ threads, /* function = */
-        [&](uint32_t row_index) {
-          void *vector = (data_type *)data + (row_index * _dim);
-          label_t label = labels[row_index];
-          this->_index->add(vector, label, ef_construction, num_initializations);
-        });
-  }
-
+  template <typename data_type>
   void add(const py::array_t<data_type,
                              py::array::c_style | py::array::forcecast> &data,
            int ef_construction, int num_initializations = 100,
@@ -202,7 +132,7 @@ public:
       {
         // Release python GIL while threads are running
         py::gil_scoped_release gil;
-        addBatch(
+        this->_index->template addBatch<data_type>(
             /* data = */ (void *)data.data(0),
             /* labels = */ vec_labels,
             /* ef_construction = */ ef_construction,
@@ -220,7 +150,7 @@ public:
       {
         // Relase python GIL while threads are running
         py::gil_scoped_release gil;
-        addBatch(
+        this->_index->template addBatch<data_type>(
             /* data = */ (void *)data.data(0), /* labels = */ vec_labels,
             /* ef_construction = */ ef_construction,
             /* num_initializations = */ num_initializations);
@@ -230,10 +160,11 @@ public:
     }
   }
 
-  DistancesLabelsPair searchSingle(
-      const py::array_t<data_type, py::array::c_style | py::array::forcecast>
-          &query,
-      int K, int ef_search, int num_initializations = 100) {
+  template <typename data_type>
+  DistancesLabelsPair
+  searchSingle(const py::array_t<data_type, py::array::c_style |
+                                                py::array::forcecast> &query,
+               int K, int ef_search, int num_initializations = 100) {
     if (query.ndim() != 1 || query.shape(0) != _dim) {
       throw std::invalid_argument("Query has incorrect dimensions.");
     }
@@ -273,6 +204,7 @@ public:
     return {distances_array, labels_array};
   }
 
+  template <typename data_type>
   DistancesLabelsPair
   search(const py::array_t<data_type, py::array::c_style | py::array::forcecast>
              &queries,
@@ -347,17 +279,75 @@ public:
   }
 };
 
-using L2FlatNavIndex = PyIndex<SquaredL2Distance, float, int>;
-using L2FlatNavIndexInt8 = PyIndex<SquaredL2Distance, int8_t, int>;
-using L2FlatNavIndexUint8 = PyIndex<SquaredL2Distance, uint8_t, int>;
-using InnerProductFlatNavIndex = PyIndex<InnerProductDistance, float, int>;
-using InnerProductFlatNavIndexInt8 = PyIndex<InnerProductDistance, int8_t, int>;
-using InnerProductFlatNavIndexUint8 =
-    PyIndex<InnerProductDistance, uint8_t, int>;
+using L2FlatNavIndex = PyIndex<SquaredL2Distance, int>;
+using InnerProductFlatNavIndex = PyIndex<InnerProductDistance, int>;
+
+/**
+ * Dispatches the given function based on the data type of the index.
+ */
+template <typename IndexType, typename Function, typename... Args>
+auto dispatch(IndexType &index_type, DataType data_type, Function function,
+              Args &&...args) {
+  switch (data_type) {
+  case DataType::float32:
+    return function.template operator()<float>(index_type,
+                                               std::forward<Args>(args)...);
+  case DataType::int8:
+    return function.template operator()<int8_t>(index_type,
+                                                std::forward<Args>(args)...);
+  case DataType::uint8:
+    return function.template operator()<uint8_t>(index_type,
+                                                 std::forward<Args>(args)...);
+  default:
+    throw std::runtime_error("Unsupported data type");
+  }
+}
+
+template <typename IndexType> struct SearchSingle {
+  /**
+   * @note: One less nice thing here is that we might still incur cost due to
+   * a copy of the vector if data_type is not float32. A to-do item is to
+   * figure out how to avoid this.
+   */
+  template <typename data_type>
+  auto operator()(IndexType &index_type,
+                  const py::array_t<data_type, py::array::c_style |
+                                                   py::array::forcecast> &query,
+                  int K, int ef_search, int num_initializations)
+      -> decltype(auto) {
+    return index_type.template searchSingle<data_type>(query, K, ef_search,
+                                                       num_initializations);
+  }
+};
+
+template <typename IndexType> struct BatchedSearch {
+  template <typename data_type>
+  auto
+  operator()(IndexType &index_type,
+             const py::array_t<data_type, py::array::c_style |
+                                              py::array::forcecast> &queries,
+             int K, int ef_search, int num_initializations) -> decltype(auto) {
+    return index_type.template search<data_type>(queries, K, ef_search,
+                                                 num_initializations);
+  }
+};
+
+template <typename IndexType> struct Add {
+  template <typename data_type>
+  void operator()(IndexType &index_type,
+                  const py::array_t<data_type, py::array::c_style |
+                                                   py::array::forcecast> &data,
+                  int ef_construction, int num_initializations,
+                  py::object labels) {
+    index_type.template add<data_type>(data, ef_construction,
+                                       num_initializations, labels);
+  }
+};
 
 template <typename IndexType>
 void bindIndexMethods(
     py::class_<IndexType, std::shared_ptr<IndexType>> &index_class) {
+
   index_class
       .def(
           "save",
@@ -369,13 +359,24 @@ void bindIndexMethods(
           "Save a FlatNav index at the given file location.")
       .def_static("load", &IndexType::loadIndex, py::arg("filename"),
                   "Load a FlatNav index from a given file location")
-      .def("add", &IndexType::add, py::arg("data"), py::arg("ef_construction"),
-           py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
-           "Add vectors(data) to the index with the given `ef_construction` "
-           "parameter and optional labels. `ef_construction` determines how "
-           "many "
-           "vertices are visited while inserting every vector in the "
-           "underlying graph structure.")
+      .def(
+          "add",
+          [](IndexType &index_type,
+             const py::array_t<float, py::array::c_style | py::array::forcecast>
+                 &data,
+             int ef_construction, int num_initializations = 100,
+             py::object labels = py::none()) {
+            DataType data_type = index_type.getIndex()->dataType();
+            dispatch(index_type, data_type, Add<IndexType>{}, data,
+                     ef_construction, num_initializations, labels);
+          },
+          py::arg("data"), py::arg("ef_construction"),
+          py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
+          "Add vectors(data) to the index with the given `ef_construction` "
+          "parameter and optional labels. `ef_construction` determines how "
+          "many "
+          "vertices are visited while inserting every vector in the "
+          "underlying graph structure.")
       .def("allocate_nodes", &IndexType::allocateNodes, py::arg("data"),
            "Allocate nodes in the underlying graph structure for the given "
            "data. Unlike the add method, this method does not construct the "
@@ -383,26 +384,45 @@ void bindIndexMethods(
            "grpah. When using this method, you should invoke "
            "`build_graph_links` explicity. NOTE: In most cases you should not "
            "need to use this method.")
-      .def("search_single", &IndexType::searchSingle, py::arg("query"),
-           py::arg("K"), py::arg("ef_search"),
-           py::arg("num_initializations") = 100,
-           "Return top `K` closest data points for the given `query`. The "
-           "results are returned as a Tuple of distances and label ID's. The "
-           "`ef_search` parameter determines how many neighbors are visited "
-           "while finding the closest neighbors for the query.")
+      .def(
+          "search_single",
+          [](IndexType &index_type,
+             const py::array_t<float, py::array::c_style | py::array::forcecast>
+                 &query,
+             int K, int ef_search, int num_initializations = 100) {
+            DataType data_type = index_type.getIndex()->dataType();
+            return dispatch(index_type, data_type, SearchSingle<IndexType>{},
+                            query, K, ef_search, num_initializations);
+          },
+          py::arg("query"), py::arg("K"), py::arg("ef_search"),
+          py::arg("num_initializations") = 100,
+          "Return top `K` closest data points for the given `query`. The "
+          "results are returned as a Tuple of distances and label ID's. The "
+          "`ef_search` parameter determines how many neighbors are visited "
+          "while finding the closest neighbors for the query.")
       .def("get_query_distance_computations",
            &IndexType::getQueryDistanceComputations,
            "Returns the number of distance computations performed during the "
            "last search operation. This method also resets the distance "
            "computations counter.")
-      .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
-           py::arg("ef_search"), py::arg("num_initializations") = 100,
-           "Return top `K` closest data points for every query in the "
-           "provided `queries`. The results are returned as a Tuple of "
-           "distances and label ID's. The `ef_search` parameter determines "
-           "how "
-           "many neighbors are visited while finding the closest neighbors "
-           "for every query.")
+      .def(
+          "search",
+          [](IndexType &index_type,
+             const py::array_t<float, py::array::c_style | py::array::forcecast>
+                 &queries,
+             int K, int ef_search, int num_initializations = 100) {
+            DataType data_type = index_type.getIndex()->dataType();
+            return dispatch(index_type, data_type, BatchedSearch<IndexType>{},
+                            queries, K, ef_search, num_initializations);
+          },
+          py::arg("queries"), py::arg("K"), py::arg("ef_search"),
+          py::arg("num_initializations") = 100,
+          "Return top `K` closest data points for every query in the "
+          "provided `queries`. The results are returned as a Tuple of "
+          "distances and label ID's. The `ef_search` parameter determines "
+          "how "
+          "many neighbors are visited while finding the closest neighbors "
+          "for every query.")
       .def(
           "get_graph_outdegree_table",
           [](IndexType &index_type) -> std::vector<std::vector<uint32_t>> {
@@ -498,6 +518,34 @@ void validateIndexDataType(const std::string &index_data_type) {
   }
 }
 
+std::unique_ptr<SquaredL2Distance> createL2Distance(DataType data_type,
+                                                    int dim) {
+  switch (data_type) {
+  case DataType::float32:
+    return SquaredL2Distance::create<DataType::float32>(dim);
+  case DataType::int8:
+    return SquaredL2Distance::create<DataType::int8>(dim);
+  case DataType::uint8:
+    return SquaredL2Distance::create<DataType::uint8>(dim);
+  default:
+    throw std::runtime_error("Unsupported data type");
+  }
+}
+
+std::unique_ptr<InnerProductDistance>
+createInnerProductDistance(DataType data_type, int dim) {
+  switch (data_type) {
+  case DataType::float32:
+    return InnerProductDistance::create<DataType::float32>(dim);
+  case DataType::int8:
+    return InnerProductDistance::create<DataType::int8>(dim);
+  case DataType::uint8:
+    return InnerProductDistance::create<DataType::uint8>(dim);
+  default:
+    throw std::runtime_error("Unsupported data type");
+  }
+}
+
 template <typename... Args>
 py::object createIndex(const std::string &distance_type,
                        const std::string &index_data_type, int dim,
@@ -505,34 +553,19 @@ py::object createIndex(const std::string &distance_type,
   validateDistanceType(distance_type);
   validateIndexDataType(index_data_type);
 
-  if (distance_type == "l2") {
-    if (index_data_type == "int8") {
-      return py::cast(std::make_shared<L2FlatNavIndexInt8>(
-          std::make_unique<SquaredL2Distance<int8_t>>(dim),
-          std::forward<Args>(args)...));
-    } else if (index_data_type == "uint8") {
-      return py::cast(std::make_shared<L2FlatNavIndexUint8>(
-          std::make_unique<SquaredL2Distance<uint8_t>>(dim),
-          std::forward<Args>(args)...));
-    }
-    return py::cast(std::make_shared<L2FlatNavIndex>(
-        std::make_unique<SquaredL2Distance<float>>(dim),
-        std::forward<Args>(args)...));
+  DataType type = flatnav::util::type(index_data_type);
 
-  } else if (distance_type == "angular") {
-    if (index_data_type == "int8") {
-      return py::cast(std::make_shared<InnerProductFlatNavIndexInt8>(
-          std::make_unique<InnerProductDistance<int8_t>>(dim),
-          std::forward<Args>(args)...));
-    } else if (index_data_type == "uint8") {
-      return py::cast(std::make_shared<InnerProductFlatNavIndexUint8>(
-          std::make_unique<InnerProductDistance<uint8_t>>(dim),
-          std::forward<Args>(args)...));
-    }
-    return py::cast(std::make_shared<InnerProductFlatNavIndex>(
-        std::make_unique<InnerProductDistance<float>>(dim),
-        std::forward<Args>(args)...));
+  if (distance_type == "l2") {
+    auto distance = createL2Distance(type, dim);
+    distance->setDistanceFunctionWithType();
+    return py::cast(std::make_shared<L2FlatNavIndex>(
+        std::move(distance), std::forward<Args>(args)...));
   }
+
+  auto distance = createInnerProductDistance(type, dim);
+  distance->setDistanceFunctionWithType();
+  return py::cast(std::make_shared<InnerProductFlatNavIndex>(
+      std::move(distance), std::forward<Args>(args)...));
 }
 
 void defineIndexSubmodule(py::module_ &index_submodule) {
@@ -554,25 +587,6 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
       index_submodule, "L2Index");
   bindIndexMethods(l2_index_class);
-
-  py::class_<L2FlatNavIndexInt8, std::shared_ptr<L2FlatNavIndexInt8>>
-      l2_index_int8_class(index_submodule, "L2IndexInt8");
-  bindIndexMethods(l2_index_int8_class);
-
-  py::class_<L2FlatNavIndexUint8, std::shared_ptr<L2FlatNavIndexUint8>>
-      l2_index_uint8_class(index_submodule, "L2IndexUint8");
-  bindIndexMethods(l2_index_uint8_class);
-
-  py::class_<InnerProductFlatNavIndexInt8,
-             std::shared_ptr<InnerProductFlatNavIndexInt8>>
-      ip_index_int8_class(index_submodule, "IPIndexInt8");
-  bindIndexMethods(ip_index_int8_class);
-
-  py::class_<InnerProductFlatNavIndexUint8,
-             std::shared_ptr<InnerProductFlatNavIndexUint8>>
-      ip_index_uint8_class(index_submodule, "IPIndexUint8");
-
-  bindIndexMethods(ip_index_uint8_class);
 
   py::class_<InnerProductFlatNavIndex,
              std::shared_ptr<InnerProductFlatNavIndex>>

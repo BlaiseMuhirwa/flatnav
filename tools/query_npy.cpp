@@ -3,9 +3,10 @@
 #include <flatnav/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/util/Datatype.h>
 #include <fstream>
 #include <iostream>
-#include <quantization/ProductQuantization.h>
+// #include <quantization/ProductQuantization.h>
 #include <random>
 #include <utility>
 #include <vector>
@@ -18,7 +19,8 @@
 using flatnav::Index;
 using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
-using flatnav::quantization::ProductQuantizer;
+// using flatnav::quantization::ProductQuantizer;
+using flatnav::util::DataType;
 
 template <typename dist_t>
 void run(float *queries, int *gtruth, const std::string &index_filename,
@@ -134,31 +136,31 @@ int main(int argc, char **argv) {
   int *gtruth = truthfile.data<int>();
 
   if (quantized) {
-    run<ProductQuantizer>(/* queries = */ queries, /* gtruth = */
-                          gtruth,
-                          /* index_filename = */ indexfilename,
-                          /* ef_searches = */ ef_searches, /* K = */ k,
-                          /* num_queries = */ num_queries,
-                          /* num_gtruth = */ n_gt, /* dim = */ dim,
-                          /* reorder = */ reorder);
+    // run<ProductQuantizer>(/* queries = */ queries, /* gtruth = */
+    //                       gtruth,
+    //                       /* index_filename = */ indexfilename,
+    //                       /* ef_searches = */ ef_searches, /* K = */ k,
+    //                       /* num_queries = */ num_queries,
+    //                       /* num_gtruth = */ n_gt, /* dim = */ dim,
+    //                       /* reorder = */ reorder);
   } else if (space_ID == 0) {
-    run<SquaredL2Distance<float>>(/* queries = */ queries,
-                                  /* gtruth = */ gtruth,
-                                  /* index_filename = */ indexfilename,
-                                  /* ef_searches = */ ef_searches, /* K = */ k,
-                                  /* num_queries = */ num_queries,
-                                  /* num_gtruth = */ n_gt, /* dim = */ dim,
-                                  /* reorder = */ reorder);
+    run<SquaredL2Distance>(/* queries = */ queries,
+                           /* gtruth = */ gtruth,
+                           /* index_filename = */ indexfilename,
+                           /* ef_searches = */ ef_searches, /* K = */ k,
+                           /* num_queries = */ num_queries,
+                           /* num_gtruth = */ n_gt, /* dim = */ dim,
+                           /* reorder = */ reorder);
 
   } else if (space_ID == 1) {
-    run<InnerProductDistance<float>>(/* queries = */ queries, /* gtruth = */
-                                     gtruth,
-                                     /* index_filename = */ indexfilename,
-                                     /* ef_searches = */ ef_searches,
-                                     /* K = */ k,
-                                     /* num_queries = */ num_queries,
-                                     /* num_gtruth = */ n_gt, /* dim = */ dim,
-                                     /* reorder = */ reorder);
+    run<InnerProductDistance>(/* queries = */ queries, /* gtruth = */
+                              gtruth,
+                              /* index_filename = */ indexfilename,
+                              /* ef_searches = */ ef_searches,
+                              /* K = */ k,
+                              /* num_queries = */ num_queries,
+                              /* num_gtruth = */ n_gt, /* dim = */ dim,
+                              /* reorder = */ reorder);
 
   } else {
     throw std::invalid_argument("Invalid space ID. Valid IDs are 0 and 1.");

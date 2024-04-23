@@ -111,7 +111,7 @@ sift-bench-flatnav:
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
 		--index-type flatnav \
-		--data-type uint8 \
+		--data-type float32 \
 		--num-node-links 32 \
 		--ef-construction 100 \
 		--ef-search 100 200 300 500 1000 \
