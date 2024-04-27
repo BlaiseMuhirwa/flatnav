@@ -125,7 +125,7 @@ public:
   add(const py::array_t<float, py::array::c_style | py::array::forcecast> &data,
       int ef_construction, int num_initializations = 100,
       py::object labels = py::none(),
-      std::function<void(double)> progress_callback = nullptr) {
+      std::function<void(float)> progress_callback = nullptr) {
     // py::array_t<float, py::array::c_style | py::array::forcecast> means that
     // the functions expects either a Numpy array of floats or a castable type
     // to that type. If the given type can't be casted, pybind11 will throw an

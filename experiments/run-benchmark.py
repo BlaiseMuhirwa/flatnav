@@ -246,9 +246,9 @@ def train_index(
             data=train_dataset,
             ef_construction=ef_construction,
             num_initializations=100,
-            # progress_callback=lambda x: logging.info(
-            #     f"[Building Index] current progress: {x}%"
-            # ),
+            progress_callback=lambda x: logging.info(
+                f"[Building Index] current progress: {x}%"
+            ),
         )
         end = time.time()
 
