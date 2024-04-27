@@ -74,16 +74,6 @@ public:
     }
   }
 
-  PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
-          const std::string &mtx_filename, bool verbose = false,
-          bool collect_stats = false)
-      : _verbose(verbose), _index(new Index<dist_t, label_t>(
-                               /* dist = */ std::move(distance),
-                               /* mtx_filename = */ mtx_filename,
-                               /* collect_stats = */ collect_stats)) {
-    _dim = _index->dataDimension();
-  }
-
   Index<dist_t, label_t> *getIndex() { return _index; }
 
   ~PyIndex() { delete _index; }

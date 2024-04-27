@@ -43,9 +43,8 @@ void executeInParallel(uint32_t start_index, uint32_t end_index,
       // Update the progress counter
       if (progress_callback) {
         // Update every 10% of the progress
-        auto progress = current.load();
-        if ((progress + 1) % (total_items / 10) == 0) {
-          progress_callback(static_cast<float>(progress) /
+        if ((current_vector_idx + 1) % (total_items / 10) == 0) {
+          progress_callback(static_cast<float>(current_vector_idx + 1) /
                             total_items * 100.0);
         }
       }
