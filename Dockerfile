@@ -92,6 +92,7 @@ COPY external/ ./external/
 
 # Copy and set up the cron file 
 # Set up a cron job to push snapshots to s3 every minute
+# * * * * * * means every minute
 RUN * * * * * poetry run python \
     ${ROOT_DIR}/experiments/push_snapshot_to_s3.py >> /var/log/cron.log 2>&1
 

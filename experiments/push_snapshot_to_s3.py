@@ -53,7 +53,7 @@ def find_most_recent_file(directory: str, file_extension: str) -> str:
 
 
 if __name__ == "__main__":
-    directory = "/app"
+    directory = "/root"
     bucket_name = "hnsw-index-snapshots"
     file_extension = ".hnsw"
 
