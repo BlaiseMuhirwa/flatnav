@@ -36,6 +36,8 @@ RUN apt-get update -y \
         libxmlsec1-dev \
         libffi-dev \
         liblzma-dev \
+        # Installation necessary for running a cronjob inside the container
+        cron \
         # Install the rest
         git \
         gcc \
@@ -88,6 +90,21 @@ COPY quantization/ ./quantization/
 # Copy external dependencies (for now only cereal)
 COPY external/ ./external/
 
+# Copy and set up the cron file 
+# Set up a cron job to push snapshots to s3 every minute
+RUN * * * * * poetry run python \
+    ${ROOT_DIR}/experiments/push_snapshot_to_s3.py >> /var/log/cron.log 2>&1
+
+COPY cronjob /etc/cron.d/upload-cron
+
+# Give the correct permissions to the cron job 
+RUN chmod 0644 /etc/cron.d/upload-cron \
+    && crontab /etc/cron.d/upload-cron
+RUN touch /var/log/cron.log
+
+# Start the cron and keep the container running by tailing the log. 
+CMD cron && tail -f /var/log/cron.log 
+
 
 # Install needed dependencies including flatnav. 
 # This installs numpy as well, which is a large dependency. 
@@ -111,8 +128,4 @@ WORKDIR ${FLATNAV_PATH}/experiments
 RUN poetry add ${FLATNAV_WHEEL} \
     && poetry add ${HNSWLIB_WHEEL} \
     && poetry install --no-root
-
-
-
-
 

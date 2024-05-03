@@ -86,8 +86,10 @@ fi
 
 # Run the container and mount the data/ directory as volume to /root/data
 # Pass the make target as argument to the container. 
+# Start cron and run the make target (the cronjob saves the indexes to s3.)
 docker run \
         -it \
         --volume ${DATA_DIR}:/root/data \
         --volume ${METRICS_DIR}:/root/metrics \
-        --rm flatnav:$TAG_NAME make $1
+        --rm flatnav:$TAG_NAME \
+        cron & make $1
