@@ -49,16 +49,9 @@ template <DataType data_type = DataType::float32> struct OptimalL2SimdSelector {
                          const size_t &dimension) {
 #if defined(USE_AVX512)
     if (platformSupportsAvx512) {
-      if (dimension % 64 == 0) {
-        distance_function = std::make_unique<DistanceFunction>(
-            std::bind(&util::computeL2_Avx512_int8, std::placeholders::_1,
-                      std::placeholders::_2, std::cref(dimension)));
-      } else {
-        distance_function = std::make_unique<DistanceFunction>(
-            std::bind(&util::computeL2_Sse_int8, std::placeholders::_1,
-                      std::placeholders::_2, std::cref(dimension)));
-      }
-      return;
+      distance_function = std::make_unique<DistanceFunction>(
+          std::bind(&util::computeL2_Sse_int8, std::placeholders::_1,
+                    std::placeholders::_2, std::cref(dimension)));
     }
 #endif // USE_AVX512
   }

@@ -27,52 +27,74 @@ static float computeL2_Avx512(const void *x, const void *y,
   return sum.reduce_add();
 }
 
+#if defined(USE_AVX512BW) && defined(USE_AVX512VNNI)
+
+// template <size_t N> static inline __mmask32 create_mask(const size_t &length)
+// {
+//   __mmask32 mask = 0;
+//   for (size_t i = 0; i < N; ++i) {
+//     mask |= (i < length) ? (1UL << i) : 0;
+//   }
+//   return mask;
+// }
+
+constexpr __mmask32 create_mask(size_t remaining) {
+  // If remaining is 32 or more, we want to load everything, so the mask is all
+  // 1s. If remaining is less, shift a 1 up to the remaining bit, subtracting
+  // one to get a mask with that many 1s.
+  // return remaining >= 32 ? static_cast<__mmask32>(-1) : (1UL << remaining) -
+  // 1;
+  return (1UL << remaining) - 1;
+}
+
+static constexpr size_t div_round_up(size_t x, size_t y) {
+  return (x / y) + static_cast<size_t>((x % y) != 0);
+}
+
+template <size_t Step> static constexpr bool islast(size_t N, size_t i) {
+  // size_t last_iter = Step * (div_round_up(N, Step) - 1);
+  // return i == last_iter;
+  return i + Step >= N;
+}
+
+static float compute(const int8_t *a, const int8_t *b, const size_t &length) {
+  auto sum = _mm512_setzero_epi32();
+  size_t j = 0;
+
+  // Process full 32-byte blocks using SIMD
+  size_t last_full_block = length - (length % 32);
+  for (; j < last_full_block; j += 32) {
+    auto temp_a = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(a + j));
+    auto va = _mm512_cvtepi8_epi16(temp_a);
+
+    auto temp_b = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(b + j));
+    auto vb = _mm512_cvtepi8_epi16(temp_b);
+
+    auto diff = _mm512_sub_epi16(va, vb);
+    sum = _mm512_dpwssd_epi32(sum, diff, diff);
+  }
+
+  // Handle remaining bytes with a simple loop to avoid reading out of bounds
+  int32_t scalar_sum = 0;
+  for (; j < length; ++j) {
+    int32_t diff = a[j] - b[j];
+    scalar_sum += diff * diff;
+  }
+
+  // Combine the SIMD results and scalar results
+  sum = _mm512_add_epi32(sum, _mm512_set1_epi32(scalar_sum));
+  return static_cast<float>(_mm512_reduce_add_epi32(sum));
+}
+
 static float computeL2_Avx512_int8(const void *x, const void *y,
                                    const size_t &dimension) {
   int8_t *pointer_x = static_cast<int8_t *>(const_cast<void *>(x));
   int8_t *pointer_y = static_cast<int8_t *>(const_cast<void *>(y));
 
-  // Align to 64-int8s boundary
-  // // Mask the lower 6 bits to align down to the nearest multiple of 64
-  const int8_t *end_x = pointer_x + (dimension & ~63);
-
-  simd64int8 difference, v1, v2;
-
-  __m512i sum = _mm512_setzero_si512();
-
-  while (pointer_x != end_x) {
-    v1.loadu(pointer_x);
-    v2.loadu(pointer_y);
-    difference = v1 - v2;
-
-    // Squaring the difference and accumulating
-    __m512i diff_int = difference.get();
-    __m512i diff_squared = _mm512_mullo_epi16(diff_int, diff_int);
-
-    // Convert squared differences from 16-bit to 32-bit before summing to avoid
-    // overflow
-    __m512i diff_squared_lo =
-        _mm512_cvtepi16_epi32(_mm512_extracti64x4_epi64(diff_squared, 0));
-    __m512i diff_squared_hi =
-        _mm512_cvtepi16_epi32(_mm512_extracti64x4_epi64(diff_squared, 1));
-
-    // Summing the squared differences
-    sum = _mm512_add_epi32(sum, diff_squared_lo);
-    sum = _mm512_add_epi32(sum, diff_squared_hi);
-    pointer_x += 64;
-    pointer_y += 64;
-  }
-
-  // Reduce the sum to a single float result
-  int32_t sum_array[16];
-  _mm512_storeu_si512(sum_array, sum);
-  int32_t result = 0;
-  for (int i = 0; i < 16; i++) {
-    result += sum_array[i];
-  }
-
-  return static_cast<float>(result);
+  return flatnav::util::compute(pointer_x, pointer_y, dimension);
 }
+
+#endif // USE_AVX512BW && USE_AVX512VNNI
 
 #endif // USE_AVX512
 
