@@ -120,7 +120,10 @@ if __name__ == "__main__":
     DISABLE_PUSH_TO_S3 = bool(int(os.environ.get("DISABLE_PUSH_TO_S3", "0")))
 
     if DISABLE_PUSH_TO_S3:
-        logger.info("DISABLE_PUSH_TO_S3 environment variable is set. Exiting.")
-        sys.exit(0)
+        logger.info("DISABLE_PUSH_TO_S3 environment variable is set. No indexes will be pushed.")
+        while True:
+            # Delete any indexes that have accumulated
+            delete_old_indices(directory=os.getcwd(), file_extension=os.environ.get("FILE_EXTENSION", ".hnsw"))
+            time.sleep(30)
 
     run()
