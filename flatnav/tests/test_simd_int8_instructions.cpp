@@ -16,7 +16,7 @@ using flatnav::util::DataType;
 namespace flatnav::testing {
 
 static const uint32_t INDEXED_VECTORS = 2;
-static const uint32_t VEC_DIM = 32;
+static const uint32_t VEC_DIM = 100;
 
 void printVector(void *vector, uint32_t dim) {
   for (uint32_t i = 0; i < dim; i++) {
