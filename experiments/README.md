@@ -79,7 +79,8 @@ You may want to log the experiment logs to a file on disk. You can do so by runn
 This requires the following
 
 * Saving the AWS credentials to a `~/.aws/credentials` file. Let's put these under the `s3-bucket-reader-writer` profile to 
-be consistent with what the [.env](/bin/.env) file expects as environment variable. 
+be consistent with what the [.env](/bin/.env) file expects as environment variable. The `~/.aws` will be mounted as a volume 
+inside docker as a read-only directory. `boto3` will use these credentials to authenticate with AWS. 
 * Turn on S3 push feature. You can do this by setting `DISABLE_PUSH_TO_S3` to `0` in the [.env](/bin/.env) file. 
 
 Then, run `./bin/docker-run.sh <make-target>` as usual. We run two processes concurrently using supervisor. One process

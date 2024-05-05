@@ -86,7 +86,6 @@ fi
 
 # Run the container and mount the data/ directory as volume to /root/data
 # Pass the make target as argument to the container. 
-# Start cron and run the make target (the cronjob saves the indexes to s3.)
 # NOTE: Mounting the ~/.aws directory so that the container can access the aws credentials
 # to upload the indexes to s3. This is not the most secure thing to do, but it's the easiest.
 source bin/.env
