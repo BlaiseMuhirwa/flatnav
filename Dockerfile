@@ -3,16 +3,16 @@
 # alpine in the future if image size becomes an issue.
 ARG BASE_IMAGE=ubuntu:22.04
 
-# Base image
-FROM ${BASE_IMAGE} AS base
+FROM ${BASE_IMAGE} as base
 
-ARG POETRY_VERSION=1.7.1
+
+ARG POETRY_VERSION=1.8.2
 ARG PYTHON_VERSION=3.11.6
 ARG POETRY_HOME="/opt/poetry"
 ARG ROOT_DIR="/root"
 ARG FLATNAV_PATH="${ROOT_DIR}/flatnavlib"
 
-# Install base system dependencies
+
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
@@ -38,6 +38,8 @@ RUN apt-get update -y \
         liblzma-dev \
         # Installation necessary for running a cronjob inside the container
         cron \
+        # Multi-process manager inside docker 
+        supervisor \
         # Install the rest
         git \
         gcc \
@@ -90,13 +92,19 @@ COPY quantization/ ./quantization/
 # Copy external dependencies (for now only cereal)
 COPY external/ ./external/
 
+# Copy the configuration for supervisor 
+COPY bin/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
 # Copy and set up the cron file 
 # Set up a cron job to push snapshots to s3 every minute
-# * * * * * * means every minute
-RUN * * * * * poetry run python \
-    ${ROOT_DIR}/experiments/push_snapshot_to_s3.py >> /var/log/cron.log 2>&1
+# RUN chmod +x ${FLATNAV_PATH}/experiments/push-snapshot-to-s3.py
 
-COPY cronjob /etc/cron.d/upload-cron
+COPY bin/create-cronjob.sh /usr/local/bin/create-cronjob.sh
+RUN chmod +x /usr/local/bin/create-cronjob.sh
+
+
+# Copy and set up the cron file
+COPY bin/cronjob /etc/cron.d/upload-cron
 
 # Give the correct permissions to the cron job 
 RUN chmod 0644 /etc/cron.d/upload-cron \
