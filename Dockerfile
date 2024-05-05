@@ -36,8 +36,6 @@ RUN apt-get update -y \
         libxmlsec1-dev \
         libffi-dev \
         liblzma-dev \
-        # Installation necessary for running a cronjob inside the container
-        cron \
         # Multi-process manager inside docker 
         supervisor \
         # Install the rest
@@ -94,26 +92,6 @@ COPY external/ ./external/
 
 # Copy the configuration for supervisor 
 COPY bin/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Copy and set up the cron file 
-# Set up a cron job to push snapshots to s3 every minute
-# RUN chmod +x ${FLATNAV_PATH}/experiments/push-snapshot-to-s3.py
-
-COPY bin/create-cronjob.sh /usr/local/bin/create-cronjob.sh
-RUN chmod +x /usr/local/bin/create-cronjob.sh
-
-
-# Copy and set up the cron file
-COPY bin/cronjob /etc/cron.d/upload-cron
-
-# Give the correct permissions to the cron job 
-RUN chmod 0644 /etc/cron.d/upload-cron \
-    && crontab /etc/cron.d/upload-cron
-RUN touch /var/log/cron.log
-
-# Start the cron and keep the container running by tailing the log. 
-CMD cron && tail -f /var/log/cron.log 
-
 
 # Install needed dependencies including flatnav. 
 # This installs numpy as well, which is a large dependency. 

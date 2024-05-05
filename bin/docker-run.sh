@@ -90,13 +90,11 @@ fi
 # NOTE: Mounting the ~/.aws directory so that the container can access the aws credentials
 # to upload the indexes to s3. This is not the most secure thing to do, but it's the easiest.
 source bin/.env
-export MAKE_TARGET=$1
 docker run \
+        --name benchmark-runner \
         -it \
-        -e MAKE_TARGET=${MAKE_TARGET} \
-        -e AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME} \
-        -e DISABLE_PUSH_TO_S3=${DISABLE_PUSH_TO_S3} \
-        -e FILE_EXTENSION=${FILE_EXTENSION} \
+        -e MAKE_TARGET=$1 \
+        --env-file bin/.env \
         --volume ~/.aws:/root/.aws:ro \
         --volume ${DATA_DIR}:/root/data \
         --volume ${METRICS_DIR}:/root/metrics \

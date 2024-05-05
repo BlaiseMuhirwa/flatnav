@@ -27,7 +27,7 @@ To build the docker image, run the following commands:
 ```shell
 # Go to the root level
 > cd ..
-> ./bin/docker-test.sh 
+> ./bin/docker-build.sh 
 ```
 
 If you don't provide a target, this will build the image and print the available targets in the [Makefile](/experiments/Makefile) like so:
@@ -47,7 +47,7 @@ Targets:
 You can specify whatever target you want by running, for example
 
 ```
-./bin/docker-test.sh sift-bench
+./bin/docker-test.sh sift-bench-flatnav
 ```
 
 **NOTE:** We currently mount the data as a volume so that the experiment runner script has access 
@@ -76,6 +76,25 @@ You may want to log the experiment logs to a file on disk. You can do so by runn
 
 ### Pushing Index Snapshots to S3
 
+This requires the following
+
+* Saving the AWS credentials to a `~/.aws/credentials` file. Let's put these under the `s3-bucket-reader-writer` profile to 
+be consistent with what the [.env](/bin/.env) file expects as environment variable. 
+* Turn on S3 push feature. You can do this by setting `DISABLE_PUSH_TO_S3` to `0` in the [.env](/bin/.env) file. 
+
+Then, run `./bin/docker-run.sh <make-target>` as usual. We run two processes concurrently using supervisor. One process
+will run the benchmark while the other one continuously looks for indexes inside the container, retrieves the most
+recent snapshot, and pushes it to the pre-defined S3 bucket defined in the .env file. 
+
+To see the logs from this second process, run 
+
+```shell
+docker exec -it benchmark-runner tail -f /var/log/cron_stderr.log
+```
+
+or replace `/var/log/cron_stderr.log` with `/var/log/cron_stdout.log`. 
+
+This process runs like a "cronjob" that polls for HNSW indexes every 30 seconds. 
 
 
 
