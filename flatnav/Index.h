@@ -7,12 +7,11 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
-#include <condition_variable>
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
+#include <flatnav/util/Macros.h>
 #include <flatnav/util/ParallelConstructs.h>
 #include <flatnav/util/Reordering.h>
-#include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <flatnav/util/VisitedSetPool.h>
 #include <fstream>
 #include <limits>
@@ -50,7 +49,7 @@ template <typename dist_t, typename label_t> class Index {
   size_t _node_size_bytes;
   size_t _max_node_count; // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
-  std::shared_ptr<DistanceInterface<dist_t>> _distance;
+  std::unique_ptr<DistanceInterface<dist_t>> _distance;
   std::mutex _index_data_guard;
 
   uint32_t _num_threads;
@@ -132,10 +131,10 @@ public:
    * inserted in the index.
    * @param max_edges_per_node  The maximum number of links per node.
    */
-  Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
+  Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node, bool collect_stats = false)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(dist), _num_threads(1),
+        _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
@@ -424,8 +423,8 @@ public:
     cereal::BinaryInputArchive archive(stream);
     std::unique_ptr<Index<dist_t, label_t>> index(new Index<dist_t, label_t>());
 
-    std::shared_ptr<DistanceInterface<dist_t>> dist =
-        std::make_shared<dist_t>();
+    std::unique_ptr<DistanceInterface<dist_t>> dist =
+        std::make_unique<dist_t>();
 
     // 1. Deserialize metadata
     archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
@@ -433,7 +432,7 @@ public:
     index->_visited_set_pool = new VisitedSetPool(
         /* initial_pool_size = */ 1,
         /* num_elements = */ index->_max_node_count);
-    index->_distance = dist;
+    index->_distance = std::move(dist);
     index->_num_threads = std::thread::hardware_concurrency();
     index->_node_links_mutexes =
         std::vector<std::mutex>(index->_max_node_count);

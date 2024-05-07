@@ -27,7 +27,7 @@ using flatnav::quantization::ProductQuantizer;
 
 template <typename dist_t>
 void buildIndex(float *data,
-                std::shared_ptr<DistanceInterface<dist_t>> distance, int N,
+                std::unique_ptr<DistanceInterface<dist_t>> distance, int N,
                 int M, int dim, int ef_construction,
                 const std::string &save_file) {
 
@@ -62,7 +62,7 @@ void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
 
   if (quantize) {
     // Parameters M and nbits should be adjusted accordingly.
-    auto quantizer = std::make_shared<ProductQuantizer>(
+    auto quantizer = std::make_unique<ProductQuantizer>(
         /* dim = */ dim, /* M = */ 8, /* nbits = */ 8,
         /* metric_type = */ metric_type);
 
@@ -79,11 +79,11 @@ void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
 
   } else {
     if (metric_type == flatnav::METRIC_TYPE::EUCLIDEAN) {
-      auto distance = std::make_shared<SquaredL2Distance>(dim);
+      auto distance = std::make_unique<SquaredL2Distance>(dim);
       buildIndex<SquaredL2Distance>(data, std::move(distance), N, M, dim,
                                     ef_construction, save_file);
     } else if (metric_type == flatnav::METRIC_TYPE::INNER_PRODUCT) {
-      auto distance = std::make_shared<InnerProductDistance>(dim);
+      auto distance = std::make_unique<InnerProductDistance>(dim);
       buildIndex<InnerProductDistance>(data, std::move(distance), N, M, dim,
                                        ef_construction, save_file);
     }

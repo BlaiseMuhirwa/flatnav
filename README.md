@@ -37,7 +37,7 @@ Available Options:
   -v, --verbose:                  Make verbose
   -b, --benchmark:                Build benchmarks
   -bt, --build_type:              Build type (Debug, Release, RelWithDebInfo, MinSizeRel)
-  -nmv, --no_manual_vectorization:Disable manual vectorization (SIMD)
+  -nmv, --no_simd_vectorization:Disable SIMD instructions
   -h, --help:                     Print this help message
 
 Example Usage:
