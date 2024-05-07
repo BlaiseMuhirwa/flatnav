@@ -472,6 +472,19 @@ public:
     }
   }
 
+  inline uint64_t getTotalIndexMemory() const {
+    return static_cast<uint64_t>(_node_size_bytes * _max_node_count);
+  }
+  inline uint64_t mutexesAllocatedMemory() const {
+    return static_cast<uint64_t>(_node_links_mutexes.size() *
+                                 sizeof(std::mutex));
+  }
+
+  inline uint64_t visitedSetPoolAllocatedMemory() const {
+    size_t pool_size = _visited_set_pool->poolSize();
+    return static_cast<uint64_t>(pool_size * sizeof(VisitedSet));
+  }
+
   inline uint32_t getNumThreads() const { return _num_threads; }
 
   inline size_t maxEdgesPerNode() const { return _M; }
