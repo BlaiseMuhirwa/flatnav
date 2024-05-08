@@ -3,17 +3,17 @@
 # alpine in the future if image size becomes an issue.
 ARG BASE_IMAGE=ubuntu:22.04
 
-# Base image
-FROM ${BASE_IMAGE} AS base
+FROM ${BASE_IMAGE} as base
 
-ARG POETRY_VERSION=1.7.1
+
+ARG POETRY_VERSION=1.8.2
 ARG PYTHON_VERSION=3.11.6
 ARG POETRY_HOME="/opt/poetry"
 ARG ROOT_DIR="/root"
 ARG FLATNAV_PATH="${ROOT_DIR}/flatnavlib"
 ARG INCLUDE_HNSWLIB=true
 
-# Install base system dependencies
+
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
@@ -37,6 +37,8 @@ RUN apt-get update -y \
         libxmlsec1-dev \
         libffi-dev \
         liblzma-dev \
+        # Multi-process manager inside docker 
+        supervisor \
         # Install the rest
         git \
         gcc \
@@ -89,6 +91,8 @@ COPY quantization/ ./quantization/
 # Copy external dependencies (for now only cereal)
 COPY external/ ./external/
 
+# Copy the configuration for supervisor 
+COPY bin/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Install needed dependencies including flatnav. 
 # This installs numpy as well, which is a large dependency. 
