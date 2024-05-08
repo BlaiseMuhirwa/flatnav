@@ -1,6 +1,11 @@
 #!/bin/bash 
 
-PYTHON="poetry run python"
+PYTHON=$(which python3)
+
+if [[ -z $PYTHON ]]; then 
+    echo "Python not found. Please install python3."
+    exit 1
+fi
 
 # Make sure we are in this directory before runnin
 
@@ -28,37 +33,6 @@ function print_help() {
     exit 1
 }
 
-function check_poetry_install() {
-    # check if poetry is already in PATH
-    if ! command -v poetry &> /dev/null; then 
-        echo "Poetry not found. Installing it now..."
-
-        curl -sSL https://install.python-poetry.org | python3 -
-
-        # Check the shell and append to poetry to PATH 
-        SHELL_NAME=$(basename "$SHELL")
-        # For newer poetry versions, this might be different. 
-        # On ubuntu x86-64, for instance, I found this to be instead
-        # $HOME/.local/share/pypoetry/venv/bin 
-        POETRY_PATH="$HOME/.poetry/bin"
-
-        if [[ "$SHELL_NAME" == "zsh" ]]; then 
-            echo "Detected zsh shell."
-            echo "export PATH=\"$POETRY_PATH:\$PATH\"" >> $HOME/.zshrc
-            source $HOME/.zshrc
-
-        elif [[ "$SHELL_NAME" == "bash" ]]; then 
-            echo "Detected bash shell."
-            echo "export PATH=\"$POETRY_PATH:\$PATH\"" >> $HOME/.bashrc
-            source $HOME/.bashrc 
-
-        else 
-            echo "Unsupported shell for poetry installation. $SHELL_NAME"
-            exit 1
-        fi 
-    fi
-}
-
 
 function download_dataset() {
     # Downloads a single benchmark dataset for Approximate Nearest Neighbor
@@ -76,12 +50,9 @@ function download_dataset() {
         exit 0
     fi
 
-    if [ -f "${dataset}.hdf5" ]; then
-        echo "${dataset}.hdf5 already exists. Skipping download."
-    else
-        echo "Downloading ${dataset}..."
-        curl -L -o ${dataset}.hdf5 http://ann-benchmarks.com/${dataset}.hdf5
-    fi
+
+    echo "Downloading ${dataset}..."
+    curl -L -o ${dataset}.hdf5 http://ann-benchmarks.com/${dataset}.hdf5
 
     # Create directory and move dataset to data/dataset_name.
     mkdir -p data/${dataset}
@@ -105,9 +76,6 @@ if [[ $1 == "-h" || $1 == "--help" ]]; then
 fi
 
 
-# Ensure we have poetry before running `download_dataset`
-check_poetry_install
-
 
 # Check if a user ran the script like this: ./download_anns_datasets.sh <dataset> --normalize 
 # If so, then download only the specified dataset and normalize it.
@@ -123,15 +91,3 @@ elif [[ $# -eq 1 ]]; then
     exit 0 
 fi
 
-
-echo "No dataset specified. Downloading all datasets."
-
-# Download each dataset in the list.
-for dataset in "${ANN_BENCHMARK_DATASETS[@]}"; do
-    # If dataset name contains a substring "angular", then normalize the dataset.
-    if [[ $dataset == *"angular"* ]]; then
-        download_dataset ${dataset} 1
-        continue
-    fi
-    download_dataset ${dataset} 0
-done

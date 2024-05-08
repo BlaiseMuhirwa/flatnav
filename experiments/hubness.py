@@ -65,13 +65,14 @@ def generate_iid_normal_dataset(
         dataset_without_queries
     )
     ground_truth_labels = neighbors.kneighbors(query_set, return_distance=False)
-    
-    # Normalize the dataset and queries if using cosine distance 
+
+    # Normalize the dataset and queries if using cosine distance
     if metric in ["cosine", "angular", "ip"]:
-        dataset_without_queries /= ( np.linalg.norm(dataset_without_queries, axis=1, keepdims=True) + 1e-30 )
-        query_set /= (np.linalg.norm(query_set, axis=1, keepdims=True) + 1e-30)
-        
-        
+        dataset_without_queries /= (
+            np.linalg.norm(dataset_without_queries, axis=1, keepdims=True) + 1e-30
+        )
+        query_set /= np.linalg.norm(query_set, axis=1, keepdims=True) + 1e-30
+
     # Create directory if it doesn't exist
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
@@ -202,7 +203,7 @@ def aggregate_metrics(
         - Latency
         - QPS
         - Hubness score as measured by the skewness of the k-occurence distribution (N_k)
-        
+
     NOTE: Index construction is done in parallel, but search is single-threaded.
 
     :param train_dataset: The dataset to compute the skewness for.
@@ -247,7 +248,7 @@ def aggregate_metrics(
 
     # Now delete the HNSW base layer graph since we don't need it anymore
     os.remove(hnsw_base_layer_filename)
-    
+
     flatnav_index.set_num_threads(num_threads=1)
     hnsw_index.set_num_threads(num_threads=1)
 
@@ -277,15 +278,15 @@ def aggregate_metrics(
         ef_search=ef_search,
         k=k,
     )
-    
+
     flatnav_metrics["skewness"] = skewness_flatnav
     hnsw_metrics["skewness"] = skewness_hnsw
-    
+
     logging.info(f"FlatNav metrics: {flatnav_metrics}")
     logging.info(f"HNSW metrics: {hnsw_metrics}")
-    
+
     return flatnav_metrics, hnsw_metrics
-    
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Compute hubness of a dataset")
@@ -430,7 +431,7 @@ def plot_metrics_plotly(metrics: dict, k: int):
         legend_title_text="Algorithm",
         xaxis_title="Skewness",
         yaxis_title="Latency",
-        legend=dict(orientation="h", yanchor="top", y=0.01, xanchor="left", x=0.01),
+        legend=dict(orientation="h", yanchor="top", y=0.99, xanchor="right", x=1),
     )
     fig.show()
     fig.write_html("hubness__.html")
@@ -438,10 +439,9 @@ def plot_metrics_plotly(metrics: dict, k: int):
 
 
 if __name__ == "__main__":
-
     args = parse_args()
 
-    # Initialize a metrics dictionary to contain recall values for FlatNav and HNSW and the skewness values for FlatNav and HNSW
+    # # Initialize a metrics dictionary to contain recall values for FlatNav and HNSW and the skewness values for FlatNav and HNSW
     metrics = {
         "latency_flatnav": [],
         "latency_hnsw": [],
@@ -474,26 +474,26 @@ if __name__ == "__main__":
                 directory_path=base_path,
                 dataset_name=dataset_name,
             )
-        train_dataset, queries, ground_truth = load_dataset(
-            base_path=base_path, dataset_name=dataset_name
-        )
+    train_dataset, queries, ground_truth = load_dataset(
+        base_path=base_path, dataset_name=dataset_name
+    )
 
-        flatnav_metrics, hnsw_metrics = aggregate_metrics(
-            train_dataset=train_dataset,
-            queries=queries,
-            ground_truth=ground_truth,
-            distance_type=metric,
-            max_edges_per_node=args.num_node_links,
-            ef_construction=args.ef_construction,
-            ef_search=args.ef_search,
-            k=args.k,
-        )
+    flatnav_metrics, hnsw_metrics = aggregate_metrics(
+        train_dataset=train_dataset,
+        queries=queries,
+        ground_truth=ground_truth,
+        distance_type=metric,
+        max_edges_per_node=args.num_node_links,
+        ef_construction=args.ef_construction,
+        ef_search=args.ef_search,
+        k=args.k,
+    )
 
-        metrics["latency_flatnav"].append(flatnav_metrics["latency"])
-        metrics["latency_hnsw"].append(hnsw_metrics["latency"])
-        metrics["skewness_flatnav"].append(flatnav_metrics["skewness"])
-        metrics["skewness_hnsw"].append(hnsw_metrics["skewness"])
-        metrics["dataset_names"].append(DATASET_NAMES[dataset_name])
+    metrics["latency_flatnav"].append(flatnav_metrics["latency"])
+    metrics["latency_hnsw"].append(hnsw_metrics["latency"])
+    metrics["skewness_flatnav"].append(flatnav_metrics["skewness"])
+    metrics["skewness_hnsw"].append(hnsw_metrics["skewness"])
+    metrics["dataset_names"].append(DATASET_NAMES[dataset_name])
 
     # Serialize metrics as JSON
     with open("hubness.json", "w") as f:
@@ -502,11 +502,7 @@ if __name__ == "__main__":
     # read json file to metrics dictionary
     # with open("hubness.json", "r") as f:
     #     metrics = json.load(f)
-        
-    # # Multiply latency by 1000 to convert to milliseconds
-    # metrics["latency_flatnav"] = [latency * 1000 for latency in metrics["latency_flatnav"]]
-    # metrics["latency_hnsw"] = [latency * 1000 for latency in metrics["latency_hnsw"]]
 
     # Plot the metrics using seaborn
     plot_metrics_plotly(metrics=metrics, k=args.k)
-    # plot_metrics_seaborn(metrics=metrics, k=args.k)
+    plot_metrics_seaborn(metrics=metrics, k=args.k)

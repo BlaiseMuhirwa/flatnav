@@ -16,6 +16,7 @@
 #include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <flatnav/util/VisitedSetPool.h>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -28,6 +29,17 @@
 #include <vector>
 
 namespace flatnav {
+
+// Define a custom hash function for std::pair<uint32_t, uint32_t>
+struct pair_hash {
+  template <class T1, class T2>
+  std::size_t operator()(const std::pair<T1, T2> &pair) const {
+    auto hash1 = std::hash<T1>{}(pair.first);
+    auto hash2 = std::hash<T2>{}(pair.second);
+    // Combine the two hash values. (This is just one possible way to do it.)
+    return hash1 ^ hash2;
+  }
+};
 
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
@@ -68,6 +80,24 @@ template <typename dist_t, typename label_t> class Index {
   // record how many times each node is visited during search. The key is the
   // node id and the value is the number of times the node is visited.
   std::unordered_map<uint32_t, uint32_t> _node_access_counts;
+  std::mutex _node_access_counts_guard;
+
+  // Tracking metrics for the edge length distribution. This unordered map is
+  // used to record the length of each edge in the graph. The key is the hash of
+  // the sum of the two node IDs and the value is the length of the edge
+  // connecting them.
+  std::unordered_map<size_t, float> _edge_length_distribution;
+
+  // Track the number of times each edge is visited during search. This
+  // unordered map is used to record how many times each edge is visited during
+  // search.
+  std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t, pair_hash>
+      _edge_access_counts;
+  std::mutex _edge_access_counts_guard;
+
+  // Hasher for the node ID's. We add two node IDs and compute their hashes
+  // and use the hash as the key in the edge length distribution map.
+  std::hash<uint64_t> _hasher;
 
   // Randomization parameters
   bool _use_random_initialization = false;
@@ -188,6 +218,36 @@ public:
       }
     }
     return outdegree_table;
+  }
+
+  void computeEdgeLengthDistribution() {
+    // #pragma omp parallel for default(none)                                         \
+//     shared(_edge_length_distribution, _cur_num_nodes, _M, _hasher, _distance)
+    for (node_id_t node = 0; node < _cur_num_nodes; node++) {
+      node_id_t *links = getNodeLinks(node);
+      for (size_t i = 0; i < _M; i++) {
+        if (links[i] == node) {
+          continue;
+        }
+        size_t hash = _hasher(node + links[i]);
+
+        // #pragma omp critical {
+        bool item_exists = _edge_length_distribution.find(hash) !=
+                           _edge_length_distribution.end();
+        if (item_exists) {
+          continue;
+        }
+        // }
+
+        // compute the distance between the two nodes
+        float distance = _distance->distance(/* x = */ getNodeData(node),
+                                             /* y = */ getNodeData(links[i]));
+
+        // #pragma omp critical
+        _edge_length_distribution[hash] = distance;
+        // }
+      }
+    }
   }
 
   /**
@@ -437,8 +497,20 @@ public:
   inline size_t dataDimension() const { return _distance->dimension(); }
 
   // Return a reference to the node access counts
-  inline std::unordered_map<uint32_t, uint32_t> &getNodeAccessCounts() {
+  inline const std::unordered_map<uint32_t, uint32_t> &
+  getNodeAccessCounts() const {
     return _node_access_counts;
+  }
+
+  inline const std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t,
+                                  pair_hash> &
+  getEdgeAccessCounts() const {
+    return _edge_access_counts;
+  }
+
+  inline const std::unordered_map<size_t, float> &
+  getEdgeLengthDistribution() const {
+    return _edge_length_distribution;
   }
 
   void getIndexSummary() const {
@@ -564,6 +636,15 @@ private:
       std::unique_lock<std::mutex> neighbor_lock(
           _node_links_mutexes[neighbor_node_id]);
       _node_access_counts[neighbor_node_id]++;
+      // _node_access_counts_guard.lock();
+      // // Increment the counter in the visited map
+      // _node_access_counts[neighbor_node_id]++;
+      // _node_access_counts_guard.unlock();
+
+      _edge_access_counts_guard.lock();
+      auto key = std::make_pair(node, neighbor_node_id);
+      _edge_access_counts[key]++;
+      _edge_access_counts_guard.unlock();
 
       neighbor_lock.unlock();
 
@@ -829,6 +910,6 @@ private:
     delete[] temp_links;
     delete temp_label;
   }
-};
+}; // namespace flatnav
 
 } // namespace flatnav

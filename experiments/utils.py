@@ -1,10 +1,40 @@
-from typing import Tuple, Union, List
+from typing import Tuple, Union, List, Optional
 import numpy as np
 import hnswlib
 import time
 import flatnav
-import os 
+import os
 from sklearn.neighbors import NearestNeighbors
+import powerlaw
+import matplotlib.pyplot as plt
+
+
+def fit_power_law(distribution: dict, save_path: Optional[str] = None) -> None:
+    data = np.array(list(distribution.values()))
+
+    # Fit the power-law distribution
+    fit = powerlaw.Fit(data, discrete=True)
+    xmin = fit.xmin
+    alpha = fit.power_law.alpha
+    sigma = fit.power_law.sigma
+    
+    print(f"Xmin: {xmin}, alpha: {alpha}, sigma: {sigma}")
+
+    R, p = fit.distribution_compare("power_law", "lognormal")
+    print(f"Likelihood Ratio R: {R}, p-value: {p}")
+
+    # Plot the PDF
+    fig = fit.plot_pdf(color="b", linewidth=2)
+    fit.power_law.plot_pdf(color="b", linestyle="--", ax=fig)
+
+    # Add alpha and sigma to the plot
+    plt.text(
+        0.5, 0.5, f"alpha: {alpha:.3f}\nsigma: {sigma:.3f}", transform=fig.transAxes
+    )
+
+    # Save figure if save_path is provided
+    if save_path:
+        plt.savefig(save_path)
 
 
 def generate_iid_normal_dataset(
@@ -37,13 +67,14 @@ def generate_iid_normal_dataset(
         dataset_without_queries
     )
     ground_truth_labels = neighbors.kneighbors(query_set, return_distance=False)
-    
-    # Normalize the dataset and queries if using cosine distance 
+
+    # Normalize the dataset and queries if using cosine distance
     if metric in ["cosine", "angular", "ip"]:
-        dataset_without_queries /= ( np.linalg.norm(dataset_without_queries, axis=1, keepdims=True) + 1e-30 )
-        query_set /= (np.linalg.norm(query_set, axis=1, keepdims=True) + 1e-30)
-        
-        
+        dataset_without_queries /= (
+            np.linalg.norm(dataset_without_queries, axis=1, keepdims=True) + 1e-30
+        )
+        query_set /= np.linalg.norm(query_set, axis=1, keepdims=True) + 1e-30
+
     # Create directory if it doesn't exist
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
@@ -180,7 +211,7 @@ def compute_metrics(
         A dict containing the requested metrics.
     """
     metrics = {}
-    
+
     if type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex):
         print(f"[FlatNav] searching with num-threads = {index.num_threads}")
         start = time.time()
@@ -202,10 +233,10 @@ def compute_metrics(
         latency *= 1000
         # Add latency in milliseconds
         metrics["latency"] = latency
-        
+
     if "qps" in requested_metrics:
         metrics["qps"] = len(queries) / querying_time
-        
+
     # Convert each ground truth list to a set for faster lookup
     ground_truth_sets = [set(gt) for gt in ground_truth]
 
@@ -218,7 +249,7 @@ def compute_metrics(
         mean_recall += query_recall / k
 
     recall = mean_recall / len(queries)
-    
+
     metrics[f"recall@{k}"] = recall
 
     return metrics
