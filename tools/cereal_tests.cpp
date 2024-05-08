@@ -2,19 +2,22 @@
 #include <cassert>
 #include <flatnav/DistanceInterface.h>
 #include <flatnav/Index.h>
+#include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <memory>
 
 using flatnav::DistanceInterface;
 using flatnav::Index;
+using flatnav::InnerProductDistance;
 using flatnav::SquaredL2Distance;
 
-void serializeIndex(
-    float *data,
-    std::unique_ptr<DistanceInterface<SquaredL2Distance>> &&distance, int N,
-    int M, int dim, int ef_construction, const std::string &save_file) {
-  std::unique_ptr<Index<SquaredL2Distance, int>> index =
-      std::make_unique<Index<SquaredL2Distance, int>>(
+template <typename dist_t>
+void serializeIndex(float *data,
+                    std::unique_ptr<DistanceInterface<dist_t>> &&distance,
+                    int N, int M, int dim, int ef_construction,
+                    const std::string &save_file) {
+  std::unique_ptr<Index<dist_t, int>> index =
+      std::make_unique<Index<dist_t, int>>(
           /* dist = */ std::move(distance), /* dataset_size = */ N,
           /* max_edges = */ M);
 
@@ -24,13 +27,12 @@ void serializeIndex(
 
   index->addBatch(data, labels, ef_construction);
 
-  std::clog << "\nSaving index to " << save_file << std::endl;
+  std::cout << "Saving index to " << save_file << "\n" << std::flush;
   index->saveIndex(/* filename = */ save_file);
 
-  std::clog << "Loading index " << std::endl;
+  std::cout << "Loading index \n" << std::flush;
 
-  auto new_index =
-      Index<SquaredL2Distance, int>::loadIndex(/* filename = */ save_file);
+  auto new_index = Index<dist_t, int>::loadIndex(/* filename = */ save_file);
 
   assert(new_index->maxEdgesPerNode() == M);
   assert(new_index->dataSizeBytes() == distance->dataSize() + (32 * M) + 32);
@@ -46,6 +48,8 @@ void serializeIndex(
 
 int main(int argc, char **argv) {
   if (argc < 2) {
+    std::cout << "Usage: " << argv[0] << " <data.npy>\n" << std::flush;
+    std::cout << "data.npy: Path to a NPY file for MNIST\n" << std::flush;
     return -1;
   }
 
@@ -55,8 +59,13 @@ int main(int argc, char **argv) {
   int dim = 784;
   int N = 60000;
   float *data = datafile.data<float>();
-  auto distance = std::make_unique<SquaredL2Distance>(dim);
-  std::string save_file = "mnist.index";
-  serializeIndex(data, std::move(distance), N, M, dim, ef_construction,
-                 save_file);
+  auto l2_distance = std::make_unique<SquaredL2Distance>(dim);
+  serializeIndex<SquaredL2Distance>(data, std::move(l2_distance), N, M, dim,
+                                    ef_construction,
+                                    std::string("l2_flatnav.bin"));
+
+  auto inner_product_distance = std::make_unique<InnerProductDistance>(dim);
+  serializeIndex<InnerProductDistance>(data, std::move(inner_product_distance),
+                                       N, M, dim, ef_construction,
+                                       std::string("ip_flatnav.bin"));
 }

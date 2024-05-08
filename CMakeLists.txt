@@ -57,15 +57,15 @@ endif(OpenMP_FOUND)
 option(BUILD_TESTS "Build all tests")
 option(BUIL_EXAMPLES "Build examples")
 option(BUILD_BENCHMARKS "Build ANNS benchmarks")
-option(NO_MANUAL_VECTORIZATION "Disable manual vectorization (SIMD)")
+option(NO_SIMD_VECTORIZATION "Disable using SIMD instructions")
 message(STATUS "Building tests: ${BUILD_TESTS}")
 message(STATUS "Building examples: ${BUILD_EXAMPLES}")
 message(STATUS "Building benchmarks: ${BUILD_BENCHMARKS}")
 
 # Enable auto-vectorization if we are not using SIMD.
-if(NO_MANUAL_VECTORIZATION)
-  message(STATUS "Disabling manual vectorization (SIMD)")
-  add_definitions(-DNO_MANUAL_VECTORIZATION)
+if(NO_SIMD_VECTORIZATION)
+  message(STATUS "Disabling using SIMD instructions")
+  add_definitions(-DNO_SIMD_VECTORIZATION)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftree-vectorize")
 endif()
 
@@ -74,12 +74,14 @@ endif()
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/SquaredL2SimdExtensions.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/InnerProductSimdExtensions.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/VisitedSetPool.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/SIMDDistanceSpecializations.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ParallelConstructs.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/PreprocessorUtils.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/SimdBaseTypes.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/Index.h
     ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h

@@ -7,19 +7,16 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
-#include <condition_variable>
 #include <cstring>
 #include <flatnav/DistanceInterface.h>
+#include <flatnav/util/Macros.h>
 #include <flatnav/util/ParallelConstructs.h>
-#include <flatnav/util/PreprocessorUtils.h>
 #include <flatnav/util/Reordering.h>
-#include <flatnav/util/SIMDDistanceSpecializations.h>
 #include <flatnav/util/VisitedSetPool.h>
 #include <fstream>
 #include <limits>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <queue>
 #include <thread>
 #include <utility>
@@ -52,7 +49,7 @@ template <typename dist_t, typename label_t> class Index {
   size_t _node_size_bytes;
   size_t _max_node_count; // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
-  std::shared_ptr<DistanceInterface<dist_t>> _distance;
+  std::unique_ptr<DistanceInterface<dist_t>> _distance;
   std::mutex _index_data_guard;
 
   uint32_t _num_threads;
@@ -60,7 +57,60 @@ template <typename dist_t, typename label_t> class Index {
   // Remembers which nodes we've visited, to avoid re-computing distances.
   VisitedSetPool *_visited_set_pool;
   std::vector<std::mutex> _node_links_mutexes;
-  std::optional<std::vector<std::vector<uint32_t>>> _outdegree_table;
+
+  bool _collect_stats = false;
+
+  // These are currently only supported for single-threaded search.
+  // Trying to use them in multi-threaded setting will result in wird behavior.
+  mutable std::atomic<uint64_t> _distance_computations = 0;
+  mutable std::atomic<uint64_t> _metric_hops = 0;
+
+  Index(const Index &) = delete;
+  Index &operator=(const Index &) = delete;
+
+  // A custom move constructor is needed because the class manages dynamic
+  // resources (_index_memory, _visited_set_pool),
+  // which require explicit ownership transfer and cleanup to avoid resource
+  // leaks or double frees. The default move constructor cannot ensure these
+  // resources are safely transferred and the source object is left in a valid
+  // state.
+  Index(Index &&other) noexcept
+      : _index_memory(other._index_memory), _M(other._M),
+        _data_size_bytes(other._data_size_bytes),
+        _node_size_bytes(other._node_size_bytes),
+        _max_node_count(other._max_node_count),
+        _cur_num_nodes(other._cur_num_nodes),
+        _distance(std::move(other._distance)),
+        _index_data_guard(std::move(other._index_data_guard)),
+        _num_threads(other._num_threads),
+        _visited_set_pool(std::move(other._visited_set_pool)),
+        _node_links_mutexes(std::move(other._node_links_mutexes)) {
+    other._index_memory = nullptr;
+    other._visited_set_pool = nullptr;
+  }
+
+  Index &operator=(Index &&other) noexcept {
+    if (this != &other) {
+      delete[] _index_memory;
+      delete _visited_set_pool;
+
+      _index_memory = other._index_memory;
+      _M = other._M;
+      _data_size_bytes = other._data_size_bytes;
+      _node_size_bytes = other._node_size_bytes;
+      _max_node_count = other._max_node_count;
+      _cur_num_nodes = other._cur_num_nodes;
+      _distance = std::move(other._distance);
+      _index_data_guard = std::move(other._index_data_guard);
+      _num_threads = other._num_threads;
+      _visited_set_pool = std::move(other._visited_set_pool);
+      _node_links_mutexes = std::move(other._node_links_mutexes);
+
+      other._index_memory = nullptr;
+      other._visited_set_pool = nullptr;
+    }
+    return *this;
+  }
 
   template <typename Archive> void serialize(Archive &archive) {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
@@ -81,14 +131,14 @@ public:
    * inserted in the index.
    * @param max_edges_per_node  The maximum number of links per node.
    */
-  Index(std::shared_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
-        int max_edges_per_node)
+  Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
+        int max_edges_per_node, bool collect_stats = false)
       : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(dist), _num_threads(1),
+        _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
-        _node_links_mutexes(dataset_size) {
+        _node_links_mutexes(dataset_size), _collect_stats(collect_stats) {
 
     // Get the size in bytes of the _node_links_mutexes vector.
     size_t mutexes_size_bytes = _node_links_mutexes.size() * sizeof(std::mutex);
@@ -101,61 +151,61 @@ public:
     _index_memory = new char[index_memory_size];
   }
 
-  /**
-   * @brief Construct a new Index object using a pre-computed outdegree table.
-   * The outdegree table is extracted from a Matrix Market file.
-   *
-   * @param dist              A distance metric for the specific index
-   * distance. Options include l2(euclidean) and inner product.
-   * @param outdegree_table  A table of outdegrees for each node in the graph.
-   * Each vector in the table contains the IDs of the nodes to which it is
-   * connected.
-   */
-
-  Index(std::shared_ptr<DistanceInterface<dist_t>> dist,
-        const std::string &mtx_filename)
-      : _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1) {
-    auto mtx_graph =
-        flatnav::util::loadGraphFromMatrixMarket(mtx_filename.c_str());
-    _outdegree_table = std::move(mtx_graph.adjacency_list);
-    _max_node_count = _outdegree_table.value().size();
-    _M = mtx_graph.max_num_edges;
-
-    _visited_set_pool = new VisitedSetPool(
-        /* initial_pool_size = */ 1,
-        /* num_elements = */ _max_node_count);
-
-    _node_links_mutexes = std::vector<std::mutex>(_max_node_count);
-
-    _data_size_bytes = _distance->dataSize();
-    _node_size_bytes =
-        _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
-    size_t index_memory_size = _node_size_bytes * _max_node_count;
-    _index_memory = new char[index_memory_size];
-  }
-
   ~Index() {
     delete[] _index_memory;
     delete _visited_set_pool;
   }
 
-  void buildGraphLinks() {
-    if (!_outdegree_table.has_value()) {
-      throw std::runtime_error("Cannot build graph links without outdegree "
-                               "table. Please construct index with outdegree "
-                               "table.");
+  void buildGraphLinks(const std::string &mtx_filename) {
+    std::ifstream input_file(mtx_filename);
+    if (!input_file.is_open()) {
+      throw std::runtime_error("Unable to open file for reading: " +
+                               mtx_filename);
     }
 
-    for (node_id_t node = 0; node < _outdegree_table.value().size(); node++) {
-      node_id_t *links = getNodeLinks(node);
-      for (int i = 0; i < _M; i++) {
-        if (i >= _outdegree_table.value()[node].size()) {
-          links[i] = node;
-        } else {
-          links[i] = _outdegree_table.value()[node][i];
+    std::string line;
+    // Skip the header
+    while (std::getline(input_file, line)) {
+      if (line[0] != '%')
+        break;
+    }
+
+    std::istringstream iss(line);
+    int num_vertices, num_edges;
+    iss >> num_vertices >> num_vertices >> num_edges;
+
+    // check that the number of vertices in the mtx file matches the number of
+    // nodes in the index and that the number of edges is equal to the number of
+    // links per node.
+    if (num_vertices != _max_node_count) {
+      throw std::runtime_error("Number of vertices in the mtx file does not "
+                               "match the size allocated for the index.");
+    }
+
+    if (num_edges != _M) {
+      throw std::runtime_error("Number of edges in the mtx file does not match "
+                               "the number of links per node.");
+    }
+
+    int u, v;
+    while (input_file >> u >> v) {
+      // Adjust for 1-based indexing in Matrix Market format
+      u--;
+      v--;
+      node_id_t *links = getNodeLinks(u);
+      // Now add a directed edge from u to v. We need to check for the first
+      // available slot in the links array since there might be other edges
+      // added before this one. By definition, a slot is available if and only
+      // if it points to the node itself.
+      for (size_t i = 0; i < _M; i++) {
+        if (links[i] == u) {
+          links[i] = v;
+          break;
         }
       }
     }
+
+    input_file.close();
   }
 
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
@@ -308,16 +358,14 @@ public:
                                    int ef_search,
                                    int num_initializations = 100) {
     node_id_t entry_node = initializeSearch(query, num_initializations);
-    PriorityQueue neighbors = beamSearch(/* query = */ query,
-                                         /* entry_node = */ entry_node,
-                                         /* buffer_size = */ ef_search);
+    PriorityQueue neighbors =
+        beamSearch(/* query = */ query,
+                   /* entry_node = */ entry_node,
+                   /* buffer_size = */ std::max(ef_search, K));
     auto size = neighbors.size();
-    while (neighbors.size() > K) {
-      neighbors.pop();
-    }
     std::vector<dist_label_t> results;
     results.reserve(size);
-    while (neighbors.size() > 0) {
+    while (!neighbors.empty()) {
       results.emplace_back(neighbors.top().first,
                            *getNodeLabel(neighbors.top().second));
       neighbors.pop();
@@ -326,7 +374,28 @@ public:
               [](const dist_label_t &left, const dist_label_t &right) {
                 return left.first < right.first;
               });
+    if (results.size() > static_cast<size_t>(K)) {
+      results.resize(K);
+    }
+
     return results;
+  }
+
+  void doGraphReordering(const std::vector<std::string> &reordering_methods) {
+
+    for (const auto &method : reordering_methods) {
+      auto outdegree_table = getGraphOutdegreeTable();
+      std::vector<node_id_t> P;
+      if (method == "gorder") {
+        P = std::move(flatnav::gOrder<node_id_t>(outdegree_table, 5));
+      } else if (method == "rcm") {
+        P = std::move(flatnav::rcmOrder<node_id_t>(outdegree_table));
+      } else {
+        throw std::invalid_argument("Invalid reordering method: " + method);
+      }
+
+      relabel(P);
+    }
   }
 
   void reorderGOrder(const int window_size = 5) {
@@ -354,8 +423,8 @@ public:
     cereal::BinaryInputArchive archive(stream);
     std::unique_ptr<Index<dist_t, label_t>> index(new Index<dist_t, label_t>());
 
-    std::shared_ptr<DistanceInterface<dist_t>> dist =
-        std::make_shared<dist_t>();
+    std::unique_ptr<DistanceInterface<dist_t>> dist =
+        std::make_unique<dist_t>();
 
     // 1. Deserialize metadata
     archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
@@ -363,7 +432,7 @@ public:
     index->_visited_set_pool = new VisitedSetPool(
         /* initial_pool_size = */ 1,
         /* num_elements = */ index->_max_node_count);
-    index->_distance = dist;
+    index->_distance = std::move(dist);
     index->_num_threads = std::thread::hardware_concurrency();
     index->_node_links_mutexes =
         std::vector<std::mutex>(index->_max_node_count);
@@ -398,6 +467,22 @@ public:
           "the number of hardware threads.");
     }
     _num_threads = num_threads;
+    if (_num_threads == 1) {
+      _visited_set_pool->setPoolSize(1);
+    }
+  }
+
+  inline uint64_t getTotalIndexMemory() const {
+    return static_cast<uint64_t>(_node_size_bytes * _max_node_count);
+  }
+  inline uint64_t mutexesAllocatedMemory() const {
+    return static_cast<uint64_t>(_node_links_mutexes.size() *
+                                 sizeof(std::mutex));
+  }
+
+  inline uint64_t visitedSetPoolAllocatedMemory() const {
+    size_t pool_size = _visited_set_pool->poolSize();
+    return static_cast<uint64_t>(pool_size * sizeof(VisitedSet));
   }
 
   inline uint32_t getNumThreads() const { return _num_threads; }
@@ -411,6 +496,15 @@ public:
 
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
+
+  inline uint64_t distanceComputations() const {
+    return _distance_computations.load();
+  }
+
+  void resetStats() {
+    _distance_computations = 0;
+    _metric_hops = 0;
+  }
 
   void getIndexSummary() const {
     std::cout << "\nIndex Parameters\n" << std::flush;
@@ -493,7 +587,8 @@ private:
 
     while (!candidates.empty()) {
       dist_node_t d_node = candidates.top();
-      if ((-d_node.first) > max_dist) {
+
+      if ((-d_node.first) > max_dist && neighbors.size() >= buffer_size) {
         break;
       }
       candidates.pop();
@@ -501,7 +596,7 @@ private:
       processCandidateNode(
           /* query = */ query, /* node = */ d_node.second,
           /* max_dist = */ max_dist, /* buffer_size = */ buffer_size,
-          /* visited_nodes = */ visited_set,
+          /* visited_set = */ visited_set,
           /* neighbors = */ neighbors, /* candidates = */ candidates);
     }
 
@@ -522,22 +617,37 @@ private:
     node_id_t *neighbor_node_links = getNodeLinks(node);
     for (uint32_t i = 0; i < _M; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
+
+      // If using SSE, prefetch the next neighbor node data and the visited
+      // marker
+#ifdef USE_SSE
+      if (i != _M - 1) {
+        _mm_prefetch(getNodeData(neighbor_node_links[i + 1]), _MM_HINT_T0);
+        visited_set->prefetch(neighbor_node_links[i + 1]);
+      }
+#endif
+
       bool neighbor_is_visited =
           visited_set->isVisited(/* num = */ neighbor_node_id);
 
       if (neighbor_is_visited) {
         continue;
       }
-
       visited_set->insert(/* num = */ neighbor_node_id);
       dist = _distance->distance(/* x = */ query,
                                  /* y = */ getNodeData(neighbor_node_id),
                                  /* asymmetric = */ true);
 
+      if (_collect_stats) {
+        _distance_computations.fetch_add(1);
+      }
+
       if (neighbors.size() < buffer_size || dist < max_dist) {
         candidates.emplace(-dist, neighbor_node_id);
         neighbors.emplace(dist, neighbor_node_id);
-
+#ifdef USE_SSE
+        _mm_prefetch(getNodeData(candidates.top().second), _MM_HINT_T0);
+#endif
         if (neighbors.size() > buffer_size) {
           neighbors.pop();
         }
@@ -700,6 +810,10 @@ private:
 
     float min_dist = std::numeric_limits<float>::max();
     node_id_t entry_node = 0;
+
+    if (_collect_stats) {
+      _distance_computations.fetch_add(num_initializations);
+    }
 
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
       float dist =

@@ -1,8 +1,9 @@
 #pragma once
 
-#include <flatnav/util/SIMDDistanceSpecializations.h>
+// #include <flatnav/util/SIMDDistanceSpecializations.h>
 
 #include <cstring>
+#include <flatnav/util/Macros.h>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -19,7 +20,7 @@ private:
   uint32_t _table_size;
 
 public:
-  VisitedSet(const uint32_t size) : _mark(0), _table_size(size) {
+  VisitedSet(const uint32_t size) : _mark(1), _table_size(size) {
     // initialize values to 0
     _table = new uint8_t[_table_size]();
   }
@@ -36,7 +37,13 @@ public:
 
   inline uint32_t size() const { return _table_size; }
 
-  inline void clear() { _mark++; }
+  inline void clear() {
+    _mark++;
+    if (_mark == 0) {
+      std::memset(_table, 0, _table_size);
+      _mark = 1;
+    }
+  }
 
   inline bool isVisited(const uint32_t num) const {
     return _table[num] == _mark;
@@ -164,10 +171,27 @@ public:
     }
   }
 
+  size_t poolSize() const { return _visisted_set_pool.size(); }
+
   void pushVisitedSet(VisitedSet *visited_set) {
     std::unique_lock<std::mutex> lock(_pool_guard);
 
     _visisted_set_pool.push_back(visited_set);
+  }
+
+  void setPoolSize(uint32_t new_pool_size) {
+    std::unique_lock<std::mutex> lock(_pool_guard);
+
+    if (new_pool_size > _visisted_set_pool.size()) {
+      throw std::invalid_argument(
+          "new_pool_size must be less than or equal to the current pool size");
+    }
+
+    while (_visisted_set_pool.size() > new_pool_size) {
+      auto *visited_set = _visisted_set_pool.back();
+      _visisted_set_pool.pop_back();
+      delete visited_set;
+    }
   }
 
   inline uint32_t getPoolSize() { return _visisted_set_pool.size(); }

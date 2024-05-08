@@ -41,31 +41,50 @@ public:
 
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), _label_id(0), _verbose(false),
-        _index(index.get()) {
+        _index(index.release()) {
 
     if (_verbose) {
       _index->getIndexSummary();
     }
   }
 
-  PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance, int dataset_size,
-          int max_edges_per_node, bool verbose = false)
+  PyIndex(std::unique_ptr<DistanceInterface<dist_t>> &&distance,
+          int dataset_size, int max_edges_per_node, bool verbose = false,
+          bool collect_stats = false)
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
-            /* max_edges_per_node = */ max_edges_per_node)) {
+            /* max_edges_per_node = */ max_edges_per_node,
+            /* collect_stats = */ collect_stats)) {
 
     if (_verbose) {
+      uint64_t total_index_memory = _index->getTotalIndexMemory();
+      uint64_t visited_set_allocated_memory =
+          _index->visitedSetPoolAllocatedMemory();
+      uint64_t mutexes_allocated_memory = _index->mutexesAllocatedMemory();
+
+      auto total_memory = total_index_memory + visited_set_allocated_memory +
+                          mutexes_allocated_memory;
+
+      std::cout << "Total allocated index memory: " << total_memory / 1e9
+                << " GB \n"
+                << std::flush;
+      std::cout << "[WARN]: More memory might be allocated due to visited sets "
+                   "in multi-threaded environments.\n"
+                << std::flush;
       _index->getIndexSummary();
     }
   }
 
-  PyIndex(std::shared_ptr<DistanceInterface<dist_t>> distance,
-          const std::string &mtx_filename, bool verbose = false)
+  PyIndex(std::unique_ptr<DistanceInterface<dist_t>> &&distance,
+          const std::string &mtx_filename, bool verbose = false,
+          bool collect_stats = false)
       : _label_id(0), _verbose(verbose),
-        _index(new Index<dist_t, label_t>(/* dist = */ std::move(distance),
-                                          /* mtx_filename = */ mtx_filename)) {
+        _index(
+            new Index<dist_t, label_t>(/* dist = */ std::move(distance),
+                                       /* mtx_filename = */ mtx_filename,
+                                       /* collect_stats = */ collect_stats)) {
     _dim = _index->dataDimension();
   }
 
@@ -73,10 +92,16 @@ public:
 
   ~PyIndex() { delete _index; }
 
-  static std::unique_ptr<PyIndex<dist_t, label_t>>
+  uint64_t getQueryDistanceComputations() const {
+    auto distance_computations = _index->distanceComputations();
+    _index->resetStats();
+    return distance_computations;
+  }
+
+  static std::shared_ptr<PyIndex<dist_t, label_t>>
   loadIndex(const std::string &filename) {
     auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename);
-    return std::make_unique<PyIndex<dist_t, label_t>>(std::move(index));
+    return std::make_shared<PyIndex<dist_t, label_t>>(std::move(index));
   }
 
   std::shared_ptr<PyIndex<dist_t, label_t>> allocateNodes(
@@ -157,11 +182,53 @@ public:
     }
   }
 
-  LabelsDistancesPair
-  search(const py::array_t<float, py::array::c_style | py::array::forcecast>
-             queries,
-         int K, int ef_search, int num_initializations = 100) {
+  DistancesLabelsPair searchSingle(
+      const py::array_t<float, py::array::c_style | py::array::forcecast>
+          &query,
+      int K, int ef_search, int num_initializations = 100) {
+    if (query.ndim() != 1 || query.shape(0) != _dim) {
+      throw std::invalid_argument("Query has incorrect dimensions.");
+    }
 
+    std::vector<std::pair<float, label_t>> top_k = this->_index->search(
+        /* query = */ (const void *)query.data(0), /* K = */ K,
+        /* ef_search = */ ef_search,
+        /* num_initializations = */ num_initializations);
+
+    if (top_k.size() != K) {
+      throw std::runtime_error(
+          "Search did not return the expected number of results. Expected " +
+          std::to_string(K) + " but got " + std::to_string(top_k.size()) + ".");
+    }
+
+    label_t *labels = new label_t[K];
+    float *distances = new float[K];
+
+    for (size_t i = 0; i < K; i++) {
+      distances[i] = top_k[i].first;
+      labels[i] = top_k[i].second;
+    }
+
+    // Allows to transfer ownership to Python
+    py::capsule free_labels_when_done(labels,
+                                      [](void *ptr) { delete (label_t *)ptr; });
+
+    py::capsule free_distances_when_done(
+        distances, [](void *ptr) { delete (float *)ptr; });
+
+    py::array_t<label_t> labels_array = py::array_t<label_t>(
+        {K}, {sizeof(label_t)}, labels, free_labels_when_done);
+
+    py::array_t<float> distances_array = py::array_t<float>(
+        {K}, {sizeof(float)}, distances, free_distances_when_done);
+
+    return {distances_array, labels_array};
+  }
+
+  DistancesLabelsPair
+  search(const py::array_t<float, py::array::c_style | py::array::forcecast>
+             &queries,
+         int K, int ef_search, int num_initializations = 100) {
     size_t num_queries = queries.shape(0);
     size_t queries_dim = queries.shape(1);
 
@@ -180,6 +247,13 @@ public:
             /* query = */ (const void *)queries.data(query_index), /* K = */ K,
             /* ef_search = */ ef_search,
             /* num_initializations = */ num_initializations);
+
+        if (top_k.size() != K) {
+          throw std::runtime_error("Search did not return the expected number "
+                                   "of results. Expected " +
+                                   std::to_string(K) + " but got " +
+                                   std::to_string(top_k.size()) + ".");
+        }
 
         for (size_t i = 0; i < top_k.size(); i++) {
           distances[query_index * K + i] = top_k[i].first;
@@ -256,6 +330,18 @@ void bindIndexMethods(
            "grpah. When using this method, you should invoke "
            "`build_graph_links` explicity. NOTE: In most cases you should not "
            "need to use this method.")
+      .def("search_single", &IndexType::searchSingle, py::arg("query"),
+           py::arg("K"), py::arg("ef_search"),
+           py::arg("num_initializations") = 100,
+           "Return top `K` closest data points for the given `query`. The "
+           "results are returned as a Tuple of distances and label ID's. The "
+           "`ef_search` parameter determines how many neighbors are visited "
+           "while finding the closest neighbors for the query.")
+      .def("get_query_distance_computations",
+           &IndexType::getQueryDistanceComputations,
+           "Returns the number of distance computations performed during the "
+           "last search operation. This method also resets the distance "
+           "computations counter.")
       .def("search", &IndexType::search, py::arg("queries"), py::arg("K"),
            py::arg("ef_search"), py::arg("num_initializations") = 100,
            "Return top `K` closest data points for every query in the "
@@ -275,10 +361,11 @@ void bindIndexMethods(
           "underlying graph.")
       .def(
           "build_graph_links",
-          [](IndexType &index_type) {
+          [](IndexType &index_type, const std::string &mtx_filename) {
             auto index = index_type.getIndex();
-            index->buildGraphLinks();
+            index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
           },
+          py::arg("mtx_filename"),
           "Construct the edge connectivity of the underlying graph. This "
           "method "
           "should be invoked after allocating nodes using the "
@@ -300,16 +387,7 @@ void bindIndexMethods(
                     "` is not a supported graph re-ordering strategy.");
               }
             }
-            for (auto &strategy : strategies) {
-              auto alg = strategy;
-              std::transform(alg.begin(), alg.end(), alg.begin(),
-                             [](unsigned char c) { return std::tolower(c); });
-              if (alg == "gorder") {
-                index->reorderGOrder();
-              } else if (alg == "rcm") {
-                index->reorderRCM();
-              }
-            }
+            index->doGraphReordering(strategies);
           },
           py::arg("strategies"),
           "Perform graph re-ordering based on the given sequence of "
@@ -351,11 +429,11 @@ py::object createIndex(const std::string &distance_type, int dim,
                  [](unsigned char c) { return std::tolower(c); });
 
   if (dist_type == "l2") {
-    auto distance = std::make_shared<SquaredL2Distance>(/* dim = */ dim);
+    auto distance = std::make_unique<SquaredL2Distance>(/* dim = */ dim);
     return py::cast(std::make_shared<L2FlatNavIndex>(
         std::move(distance), std::forward<Args>(args)...));
   } else if (dist_type == "angular") {
-    auto distance = std::make_shared<InnerProductDistance>(/* dim = */ dim);
+    auto distance = std::make_unique<InnerProductDistance>(/* dim = */ dim);
     return py::cast(std::make_shared<InnerProductFlatNavIndex>(
         std::move(distance), std::forward<Args>(args)...));
   }
@@ -368,29 +446,17 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   index_submodule.def(
       "index_factory",
       [](const std::string &distance_type, int dim, int dataset_size,
-         int max_edges_per_node, bool verbose = false) {
+         int max_edges_per_node, bool verbose = false,
+         bool collect_stats = false) {
         return createIndex(distance_type, dim, dataset_size, max_edges_per_node,
-                           verbose);
+                           verbose, collect_stats);
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
       py::arg("max_edges_per_node"), py::arg("verbose") = false,
+      py::arg("collect_stats") = false,
       "Creates a FlatNav index given the corresponding "
       "parameters. The `distance_type` argument determines the "
       "kind of index created (either L2Index or IPIndex)");
-
-  index_submodule.def(
-      "index_factory",
-      [](const std::string &distance_type, int dim,
-         const std::string &mtx_filename, bool verbose = false) {
-        return createIndex(distance_type, dim, mtx_filename, verbose);
-      },
-      py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
-      py::arg("verbose") = false,
-      "Creates a FlatNav index given the corresponding "
-      "parameters. The `distance_type` argument determines the "
-      "kind of index created (either L2Index or IPIndex). The "
-      "mtx_filename argument is the path to a Matrix Market "
-      "file representing the underlying graph's edge connectivity.");
 
   py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
       index_submodule, "L2Index");
