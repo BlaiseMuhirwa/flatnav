@@ -5,7 +5,8 @@ import json
 import matplotlib.pyplot as plt
 import plotly.graph_objs as go
 import re
-import seaborn as sns 
+import seaborn as sns
+
 
 def plot_metrics_seaborn(metrics: dict, k: int):
     df_hnsw = pd.DataFrame(
@@ -61,25 +62,41 @@ def plot_metrics_seaborn(metrics: dict, k: int):
 
     # Save the figure
     plt.savefig("hubness_seaborn.png")
-    
-    
+
+
 def plot_metrics_by_similarity(metrics: dict, similarity: str):
     # Filter the datasets based on the similarity type (cosine or l2)
     filter_cosine = [name.endswith(similarity) for name in metrics["dataset_names"]]
-    df_hnsw = pd.DataFrame({
-        "Skewness": [skew for skew, f in zip(metrics["skewness_hnsw"], filter_cosine) if f],
-        "Latency": [lat for lat, f in zip(metrics["latency_hnsw"], filter_cosine) if f],
-        "Algorithm": "HNSW",
-        "Dataset": [name for name, f in zip(metrics["dataset_names"], filter_cosine) if f],
-    })
-    df_flatnav = pd.DataFrame({
-        "Skewness": [skew for skew, f in zip(metrics["skewness_flatnav"], filter_cosine) if f],
-        "Latency": [lat for lat, f in zip(metrics["latency_flatnav"], filter_cosine) if f],
-        "Algorithm": "FlatNav",
-        "Dataset": [name for name, f in zip(metrics["dataset_names"], filter_cosine) if f],
-    })
+    df_hnsw = pd.DataFrame(
+        {
+            "Skewness": [
+                skew for skew, f in zip(metrics["skewness_hnsw"], filter_cosine) if f
+            ],
+            "Latency": [
+                lat for lat, f in zip(metrics["latency_hnsw"], filter_cosine) if f
+            ],
+            "Algorithm": "HNSW",
+            "Dataset": [
+                name for name, f in zip(metrics["dataset_names"], filter_cosine) if f
+            ],
+        }
+    )
+    df_flatnav = pd.DataFrame(
+        {
+            "Skewness": [
+                skew for skew, f in zip(metrics["skewness_flatnav"], filter_cosine) if f
+            ],
+            "Latency": [
+                lat for lat, f in zip(metrics["latency_flatnav"], filter_cosine) if f
+            ],
+            "Algorithm": "FlatNav",
+            "Dataset": [
+                name for name, f in zip(metrics["dataset_names"], filter_cosine) if f
+            ],
+        }
+    )
     df = pd.concat([df_hnsw, df_flatnav], ignore_index=True)
-    
+
     # Create the scatter plot with larger marker size and line width
     fig = px.scatter(
         df,
@@ -95,23 +112,26 @@ def plot_metrics_by_similarity(metrics: dict, similarity: str):
     )
 
     # Get colors for each algorithm from the scatter plot
-    colors = {alg: fig.data[idx].marker.color for idx, alg in enumerate(df['Algorithm'].unique())}
+    colors = {
+        alg: fig.data[idx].marker.color
+        for idx, alg in enumerate(df["Algorithm"].unique())
+    }
 
     # Add line traces for each algorithm with increased line width
     for algorithm, color in colors.items():
         df_alg = df[df["Algorithm"] == algorithm].sort_values(by="Skewness")
         fig.add_trace(
             go.Scatter(
-                x=df_alg['Skewness'],
-                y=df_alg['Latency'],
-                mode='lines+markers',
+                x=df_alg["Skewness"],
+                y=df_alg["Latency"],
+                mode="lines+markers",
                 name=algorithm,
                 line=dict(color=color, width=4),  # Increase the width of the line
                 marker=dict(size=10),  # Increase marker size
-                showlegend=False
+                showlegend=False,
             )
         )
-    
+
     # Update layout to increase font size and adjust legend position
     fig.update_layout(
         legend_title_text="Algorithm",
@@ -122,7 +142,7 @@ def plot_metrics_by_similarity(metrics: dict, similarity: str):
             yanchor="bottom",
             y=0.95,  # Adjust the vertical position
             xanchor="left",
-            x=0.01   # Adjust the horizontal position
+            x=0.01,  # Adjust the horizontal position
         ),
         title_font_size=30,  # Increase title font size
         font=dict(size=20),  # Increase font size for axis titles and ticks
@@ -130,6 +150,7 @@ def plot_metrics_by_similarity(metrics: dict, similarity: str):
     fig.show()
     html_file_name = f"hubness_{similarity}.html"
     fig.write_html(html_file_name)
+
 
 def plot_metrics_plotly(metrics: dict, k: int):
     df_hnsw = pd.DataFrame(
@@ -169,6 +190,7 @@ def plot_metrics_plotly(metrics: dict, k: int):
     )
     fig.write_html("hubness__.html")
 
+
 def plot_faceted_grid(metrics: dict):
     df_hnsw = pd.DataFrame(
         {
@@ -198,19 +220,12 @@ def plot_faceted_grid(metrics: dict):
         hover_name="Dataset",
     )
     fig.show()
-    
 
-    
-    
 
-    
-if __name__=="__main__":
-    # load metrics from JSON 
+if __name__ == "__main__":
+    # load metrics from JSON
     with open("metrics.json", "r") as f:
         metrics = json.load(f)
-        
+
     plot_metrics_by_similarity(metrics, "cosine")
     plot_metrics_by_similarity(metrics, "l2")
-    
-         
-    

@@ -1,4 +1,4 @@
-import sys 
+import sys
 import json
 import flatnav.index
 import numpy as np
@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Index type to use (flatnav or hnsw)",
     )
-    
+
     parser.add_argument(
         "--metrics",
         type=str,
@@ -41,7 +41,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ef-construction", type=int, required=True, help="ef-construction parameter."
     )
-
 
     parser.add_argument(
         "--num-node-links",
@@ -56,8 +55,8 @@ def parse_args() -> argparse.Namespace:
 def load_dataset(base_path: str, dataset_name: str) -> np.ndarray:
     if not os.path.exists(base_path):
         raise FileNotFoundError(f"Dataset path not found at {base_path}")
-    return (
-        np.load(f"{base_path}/{dataset_name}.train.npy").astype(np.float32, copy=False)
+    return np.load(f"{base_path}/{dataset_name}.train.npy").astype(
+        np.float32, copy=False
     )
 
 
@@ -69,7 +68,7 @@ def build_index(
     ef_construction: int,
 ):
     dataset_size, dim = train_dataset.shape
-    
+
     if index_type.lower() == "flatnav":
         index = flatnav.index.index_factory(
             distance_type=distance_type,
@@ -83,7 +82,7 @@ def build_index(
         index.add(
             data=train_dataset, ef_construction=ef_construction, num_initializations=100
         )
-            
+
     elif index_type.lower() == "hnsw":
         index = hnswlib.Index(
             space=distance_type if distance_type == "l2" else "ip", dim=dim
@@ -96,10 +95,10 @@ def build_index(
 
         index.set_num_threads(os.cpu_count())
         index.add_items(data=train_dataset, ids=np.arange(dataset_size))
-    
+
     else:
         raise ValueError(f"Unknown index type {index_type}")
-    
+
     return index
 
 
@@ -109,17 +108,15 @@ if __name__ == "__main__":
     dataset_names = args.datasets
     distance_types = args.metrics
     index_type = args.index_type
-    
+
     index_sizes = {}
 
     for index, dataset_name in enumerate(dataset_names):
         metric = distance_types[index]
         base_path = os.path.join(ROOT_DATASET_PATH, dataset_name)
 
-        train_dataset = load_dataset(
-            base_path=base_path, dataset_name=dataset_name
-        )
-        
+        train_dataset = load_dataset(base_path=base_path, dataset_name=dataset_name)
+
         with Tracker("hnsw_mem_profile.bin") as tracker:
             index = build_index(
                 index_type=index_type,

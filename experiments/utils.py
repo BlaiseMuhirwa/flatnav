@@ -17,7 +17,7 @@ def fit_power_law(distribution: dict, save_path: Optional[str] = None) -> None:
     xmin = fit.xmin
     alpha = fit.power_law.alpha
     sigma = fit.power_law.sigma
-    
+
     print(f"Xmin: {xmin}, alpha: {alpha}, sigma: {sigma}")
 
     R, p = fit.distribution_compare("power_law", "lognormal")
