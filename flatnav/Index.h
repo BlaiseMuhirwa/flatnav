@@ -561,7 +561,11 @@ private:
       visited_set->insert(/* num = */ neighbor_node_id);
 
       // Increment the counter in the visited map
+      std::unique_lock<std::mutex> neighbor_lock(
+          _node_links_mutexes[neighbor_node_id]);
       _node_access_counts[neighbor_node_id]++;
+
+      neighbor_lock.unlock();
 
       dist = _distance->distance(/* x = */ query,
                                  /* y = */ getNodeData(neighbor_node_id),

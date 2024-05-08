@@ -17,8 +17,8 @@ from utils import compute_metrics
 logging.basicConfig(level=logging.INFO)
 
 
-ROOT_DATASET_PATH = "/root/data/"
-# ROOT_DATASET_PATH = os.path.join(os.getcwd(), "..", "data")
+# ROOT_DATASET_PATH = "/root/data/"
+ROOT_DATASET_PATH = os.path.join(os.getcwd(), "..", "data")
 
 DATASET_NAMES = {
     "mnist-784-euclidean": "mnist",

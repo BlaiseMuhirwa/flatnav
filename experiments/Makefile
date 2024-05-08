@@ -42,6 +42,15 @@ hubness-test:
 		--ef-search 200 \
 		--num-node-links 32
 
+node-access-test:
+	poetry run python node-access-patterns.py \
+		--datasets mnist-784-euclidean sift-128-euclidean glove-25-angular glove-100-angular \
+		--k 100 \
+		--metrics l2 l2 angular angular \
+		--ef-construction 100 \
+		--ef-search 200 \
+		--num-node-links 32
+
 setup: install-flatnav install-hnswlib
 
 # Install all dependencies including flatnav
