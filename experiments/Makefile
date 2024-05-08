@@ -200,7 +200,7 @@ glove25-bench-flatnav:
 		--dataset-name glove-25-angular \
 		--index-type flatnav \
 		--use-hnsw-base-layer \
-                --hnsw-base-layer-filename glove25.mtx \
+        --hnsw-base-layer-filename glove25.mtx \
 		--num-node-links 32 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 500 1000 3000 \
