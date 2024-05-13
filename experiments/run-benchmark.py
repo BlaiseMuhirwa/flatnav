@@ -498,6 +498,9 @@ def plot_all_metrics(
     with open(metrics_file_path, "r") as file:
         all_metrics = json.load(file)
 
+    # Only consider data for the current benchmark dataset.
+    all_metrics = {key: value for key, value in all_metrics.items() if dataset_name in key}
+
     linestyles = create_linestyles(unique_algorithms=all_metrics.keys())
     metrics_dir = os.path.dirname(metrics_file_path)
 
