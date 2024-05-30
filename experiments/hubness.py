@@ -205,11 +205,13 @@ if __name__ == "__main__":
 
     hubness_scores_path = os.getcwd() + "/" + args.hubness_scores
     if not os.path.exists(hubness_scores_path):
-        raise FileNotFoundError(f"Hubness scores file not found at {hubness_scores_path}")
-    
+        raise FileNotFoundError(
+            f"Hubness scores file not found at {hubness_scores_path}"
+        )
+
     with open(hubness_scores_path, "r") as f:
         hubness_scores = json.load(f)
-    
+
     dataset_names = args.datasets
 
     for index, dataset_name in enumerate(dataset_names):

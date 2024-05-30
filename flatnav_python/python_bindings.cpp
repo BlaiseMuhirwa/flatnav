@@ -53,7 +53,8 @@ public:
 
   PyIndex(std::unique_ptr<DistanceInterface<dist_t>> &&distance,
           int dataset_size, int max_edges_per_node, bool verbose = false,
-          bool collect_stats = false, bool use_random_initialization = false, std::optional<size_t> random_seed = std::nullopt)
+          bool collect_stats = false, bool use_random_initialization = false,
+          std::optional<size_t> random_seed = std::nullopt)
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
@@ -189,11 +190,12 @@ public:
         /* ef_search = */ ef_search,
         /* num_initializations = */ num_initializations);
 
-    if (top_k.size() != K) {
-      throw std::runtime_error(
-          "Search did not return the expected number of results. Expected " +
-          std::to_string(K) + " but got " + std::to_string(top_k.size()) + ".");
-    }
+    // if (top_k.size() != K) {
+    //   throw std::runtime_error(
+    //       "Search did not return the expected number of results. Expected " +
+    //       std::to_string(K) + " but got " + std::to_string(top_k.size()) +
+    //       ".");
+    // }
 
     label_t *labels = new label_t[K];
     float *distances = new float[K];
@@ -353,13 +355,33 @@ void bindIndexMethods(
           "Returns a dictionary mapping node ID's to the number of times they "
           "were accessed during the search operation.")
       .def(
-          "get_edge_access_counts",
+          "reprune_graph",
+          [](IndexType &index_type, const std::vector<uint32_t> &hub_nodes,
+             float alpha) {
+            auto index = index_type.getIndex();
+            index->rePruneGraph(hub_nodes, alpha);
+          },
+          py::arg("hub_nodes"), py::arg("alpha"),
+          "Re-prune the graph by removing edges from the hub nodes."
+          "The `hub_nodes` parameter is a list of node ID's "
+          "that are considered as hub nodes. The `alpha` parameter determines "
+          "the fraction of edges to remove from the hub nodes.")
+      .def(
+          "reset_node_access_distribution",
           [](IndexType &index_type) {
             auto index = index_type.getIndex();
-            return index->getEdgeAccessCounts();
+            index->resetNodeAccessDistribution();
           },
-          "Returns a dictionary mapping edge ID's to the number of times they "
-          "were accessed during the search operation.")
+          "Reset the node access distribution.")
+      .def(
+          "get_edge_length_distribution_for_nodes",
+          [](IndexType &index_type, const std::vector<uint32_t> &node_ids) {
+            auto index = index_type.getIndex();
+            return index->computeEdgeLengthDistributionForNodes(node_ids);
+          },
+          py::arg("node_ids"),
+          "Returns the edge length distribution for the given list of node "
+          "ID's.")
       .def(
           "get_edge_length_distribution",
           [](IndexType &index_type) {
@@ -441,7 +463,7 @@ void bindIndexMethods(
 
 template <typename... Args>
 py::object createIndex(const std::string &distance_type, int dim,
-                       Args &&... args) {
+                       Args &&...args) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });
@@ -465,9 +487,11 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       "index_factory",
       [](const std::string &distance_type, int dim, int dataset_size,
          int max_edges_per_node, bool verbose = false,
-         bool collect_stats = false, bool use_random_initialization = false, std::optional<size_t> random_seed = std::nullopt) {
+         bool collect_stats = false, bool use_random_initialization = false,
+         std::optional<size_t> random_seed = std::nullopt) {
         return createIndex(distance_type, dim, dataset_size, max_edges_per_node,
-                           verbose, collect_stats, use_random_initialization, random_seed);
+                           verbose, collect_stats, use_random_initialization,
+                           random_seed);
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
       py::arg("max_edges_per_node"), py::arg("verbose") = false,
@@ -478,7 +502,7 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       "Creates a FlatNav index given the corresponding "
       "parameters. The `distance_type` argument determines the "
       "kind of index created (either L2Index or IPIndex)");
-  
+
   py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
       index_submodule, "L2Index");
   bindIndexMethods(l2_index_class);

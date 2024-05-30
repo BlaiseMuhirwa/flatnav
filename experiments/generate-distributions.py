@@ -2,26 +2,33 @@ import json
 import flatnav.index
 import numpy as np
 import argparse
+import hnswlib
 import os
 from typing import Tuple, Union
 import logging
-import hnswlib
 import time
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import plotly.express as px
+# import plotly.express as px
+from typing import List, Dict
 
 # import powerlaw
-from utils import compute_metrics
-from collections import Counter
+# from utils import compute_metrics
+from run_benchmark import compute_metrics
 from scipy.stats import skew
 
 logging.basicConfig(level=logging.INFO)
 
 
-# ROOT_DATASET_PATH = "/root/data/"
-ROOT_DATASET_PATH = os.path.join(os.getcwd(), "..", "data")
+ROOT_DATASET_PATH = "/root/data/"
+# ROOT_DATASET_PATH = os.path.join(os.getcwd(), "..", "data")
+
+# This should be a persistent volume mount. 
+DISTRIBUTIONS_SAVE_PATH = "/root/node-access-distributions"
+EDGE_DISTRIBUTIONS_SAVE_PATH = "/root/edge-lengths"
+
+
 
 DATASET_NAMES = {
     "mnist-784-euclidean": "mnist",
@@ -70,77 +77,45 @@ def find_number_of_connected_components(
 
     return num_connected_components
 
-
-# def plot_pmf_from_node_accesses(node_access_counts: dict, dataset_name: str) -> None:
-#     """
-#     Plots a PMF of the number of times nodes were accessed.
-#     :param node_access_counts: A dictionary mapping node ids to the number of times they were accessed.
-#     """
-#     # Count how many times each access count occurs
-#     access_count_frequencies = Counter(node_access_counts.values())
-#     total_accesses = sum(access_count_frequencies.values())
-
-#     # Sort the access counts and calculate their probabilities
-#     sorted_access_counts = sorted(access_count_frequencies.keys())
-#     probabilities = [access_count_frequencies[count] / total_accesses for count in sorted_access_counts]
-
-#     # Plot the PMF
-#     plt.figure(figsize=(10, 6))
-#     plt.plot(sorted_access_counts, probabilities, 'ro')
-
-#     powerlaw.plot_pdf(sorted_access_counts, color='black', linewidth=2)
-
-#     plt.xticks(fontsize=20)
-#     plt.yticks(fontsize=22)
-
-#     plt.title(f"PMF of Node Access Counts in {dataset_name}")
-#     plt.xlabel("Number of Times Accessed")
-#     plt.ylabel("Probability")
-#     plt.savefig(f"{dataset_name}_pmf-node-access-counts.png")
-
-
 def plot_histogram(node_access_counts: dict, dataset_name: str) -> None:
     """
     Plots a histogram of the node access counts.
-    :param node_access_counts: A dictionary mapping node ids to the number of times they were accessed.
     """
 
-    x, y = [], []
-    # We will estimate the emperical probability mass function by normalizing counts by
-    # the total number of node accesses.
-    total_node_accesses = sum(node_access_counts.values())
-    for node_id, count in node_access_counts.items():
-        x.append(node_id)
-        y.append(count / total_node_accesses)
+    # Convert the dictionary values to a numpy array
+    counts = np.array(list(node_access_counts.values()))
 
-    # Plot the histogram
-    plt.figure(figsize=(10, 10))
-    plt.bar(x, y)
-    plt.title(f"Dataset name: {dataset_name} --  Node access counts")
-    plt.xlabel("Node id")
-    plt.ylabel("$P(N)$")
-    plt.savefig(f"{dataset_name}node-access-counts.png")
+    # Ensure data integrity
+    assert np.all(np.isfinite(counts)), "Data contains non-finite values."
+    assert np.all(counts > 0), "Data contains non-positive values."
 
     # Compute the skewness of the node access counts
-    # node_access_counts = np.array(list(node_access_counts.values()))
-    # skewness = pd.Series(node_access_counts).skew()
-    # logging.info(f"Skewness of node access counts: {skewness}")
+    skewness = pd.Series(counts).skew()
+    logging.info(f"Skewness of node access counts: {skewness}")
 
-    # # Plot the histogram
-    # plt.figure(figsize=(10, 10))
-    # sns.histplot(node_access_counts, bins=90, kde=True, log_scale=(True, True))
-    # plt.title(
-    #     f"Dataset name: {dataset_name} --  Node access counts (skewness: {skewness:.3f})"
-    # )
-    # plt.xscale("log")
-    # plt.yscale("log")
+    # Plot setup
+    plt.figure(figsize=(10, 10))
 
-    # plt.xlabel("Node access counts, N")
-    # plt.ylabel("$P(N)$")
+    # Calculate logarithmically spaced bins
+    bins = np.logspace(np.log10(1), np.log10(10000), 60)
 
-    # plt.savefig(f"{dataset_name}node-access-counts.png")
+    # Plotting the histogram using matplotlib
+    plt.hist(counts, bins=bins, log=True, edgecolor='black')
+    plt.xscale('log')  # Ensuring the x-axis is log-scaled
 
-    logging.info(f"Plot saved at {dataset_name}node-access-counts.png")
+    # Titles and labels
+    plt.title(f"Dataset name: {dataset_name} -- Node access counts (skewness: {skewness:.4f})")
+    plt.xlabel("Node access counts, N")
+    plt.ylabel("Frequency")
+
+    # Manually setting the x-ticks to handle log scale ticks more appropriately
+    plt.xticks([10, 100, 1000, 10000], labels=['10', '100', '1,000', '10,000'])
+
+    # Save the figure
+    figurename = f"{DISTRIBUTIONS_SAVE_PATH}/{dataset_name}_node_access_counts.png"
+    plt.savefig(figurename)
+
+    logging.info(f"Saved figure at {figurename}")
 
 
 def get_node_access_counts_distribution(
@@ -161,7 +136,7 @@ def get_node_access_counts_distribution(
     """
 
     index.set_num_threads(1)
-    requested_metrics = [f"recall@{k}", "latency", "qps"]
+    requested_metrics = [f"recall", "latency_p50", "qps"]
     flatnav_metrics: dict = compute_metrics(
         requested_metrics=requested_metrics,
         index=index,
@@ -170,6 +145,7 @@ def get_node_access_counts_distribution(
         ef_search=ef_search,
         k=k,
     )
+    
     logging.info(f"FlatNav metrics: {flatnav_metrics}")
 
     node_access_counts: dict = index.get_node_access_counts()
@@ -181,7 +157,7 @@ def get_node_access_counts_distribution(
     # fit_power_law(distribution=node_access_counts, save_path=f"{name}-powerlaw.png")
 
 
-def plot_kde_distributions(distributions, bw_adjust_value=0.3):
+def plot_kde_distributions(distributions, save_path, bw_adjust_value=0.3):
     plt.figure(figsize=(10, 6), dpi=300)
     ax = plt.gca()  # Get the current Axes instance
 
@@ -202,7 +178,7 @@ def plot_kde_distributions(distributions, bw_adjust_value=0.3):
         # Plot the KDE for log-transformed data with less smoothness
         sns.kdeplot(
             log_counts,
-            label=f"{dataset_name} ($\\tilde{{\\mu}}_3$ = {raw_skewness:.2f})",
+            label=f"{dataset_name} ($\\tilde{{\\mu}}_3$ = {raw_skewness:.4f})",
             bw_adjust=bw_adjust_value,
         )
 
@@ -214,42 +190,75 @@ def plot_kde_distributions(distributions, bw_adjust_value=0.3):
     plt.grid(True)  # Add gridlines
     plt.xlabel("Log of Node access counts")
     plt.ylabel("PDF")
-    plt.title("KDE of Log-Transformed Node Access Counts")
+    plt.title("KDE of Node Access Counts")
 
     # Adjust the plot area to fit the legend and increase the resolution
     plt.subplots_adjust(right=0.75)
     plt.tight_layout()
 
-    plt.savefig("node_access_distributions.png")
+    filename = os.path.join(save_path, f"distributions_{bw_adjust_value}.png")
+    plt.savefig(filename)
+    
+
+def plot_edge_length_distribution(distribution: dict, dataset_name: str) -> None:
+    """
+    Plots a histogram of the edge lengths.
+    """
+    # Normalize the distribution by the largest edge length
+    # so that the histogram is easier to interpret
+    # max_edge_length = max(distribution.values())
+    # distribution = {k: v / max_edge_length for k, v in distribution.items()}
+
+    skewness = pd.Series(distribution.values()).skew()
+    bins = np.logspace(np.log10(min(distribution.values())), np.log10(max(distribution.values())), num=60)
+    
+
+    # Plot the histogram
+    plt.figure(figsize=(10, 10))
+    sns.histplot(distribution.values(), bins=bins, kde=False, color="blue")
+    plt.title(f"{dataset_name} Edge length distribution (skewness: {skewness:.4f})")
+    plt.xlabel("Edge length")
+    plt.ylabel("Number of edges")
+    plt.savefig(f"{EDGE_DISTRIBUTIONS_SAVE_PATH}/{dataset_name}_edge_lengths.png")
 
 
-def plot_distributions(distributions):
-    fig, ax = plt.subplots()
+def select_p90_nodes(
+    node_access_counts: Dict[int, int], percentile: float
+) -> List[int]:
+    """
+    Select the nodes that fall above the 90th percentile.
+    :param node_access_counts: The node access counts.
+    :param percentile: The percentile to consider.
+    :return selected_nodes: The subset of nodes that fall above the 90th percentile.
+    """
+    access_counts = list(node_access_counts.values())
+    threshold = np.percentile(access_counts, percentile)
+    selected_nodes = [
+        node for node, count in node_access_counts.items() if count >= threshold
+    ]
+    return selected_nodes
 
-    # Generate bins for the histograms
-    all_counts = [count for dist in distributions.values() for count in dist.values()]
-    max_count = max(all_counts)
-    bins = (
-        np.arange(0, max_count + 2) - 0.5
-    )  # 0.5 offset to center the bars on the integers
 
-    for dataset_name, node_access_counts in distributions.items():
-        # Convert counts to frequencies
-        total_visits = sum(node_access_counts.values())
-        frequencies = np.array(list(node_access_counts.values())) / total_visits
+def get_edge_length_distribution_for_hubs(index, dataset_name: str):
+    node_access_dist_file = os.path.join(
+        DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_node_access_counts.json"
+    )
+    with open(node_access_dist_file, "r") as f:
+        node_access_counts = json.load(f)
 
-        # Plot the PDF or PMF
-        hist, _ = np.histogram(
-            list(node_access_counts.values()), bins=bins, density=True
-        )
-        mid_points = 0.5 * (bins[1:] + bins[:-1])
-        plt.plot(mid_points, hist, label=dataset_name)
+    # Convert keys and values to integers
+    node_access_counts = {int(k): int(v) for k, v in node_access_counts.items()}
 
-    plt.xlabel("In-degree (bin number)")
-    plt.ylabel("PDF")
-    plt.legend(title="Dataset")
+    hub_nodes = select_p90_nodes(node_access_counts, 99)
+    logging.info(f"Number of hub nodes = {len(hub_nodes)}")
+    
+    distribution: dict = index.get_edge_length_distribution_for_nodes(node_ids=hub_nodes)
+    
+    json_filepath = os.path.join(EDGE_DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_hub_edge_lengths.json")
+    with open(json_filepath, "w") as f:
+        json.dump(distribution, f)
 
-    plt.savefig("node_access_distributions.png")
+
 
 
 def get_edge_lengths_distribution(
@@ -259,23 +268,31 @@ def get_edge_lengths_distribution(
     # The lengths are floating point numbers.
     # We want to plot a histogram of this distribution.
     distribution: dict = index.get_edge_length_distribution()
+    
+    # Save the distribution as JSON file
+    json_filepath = os.path.join(EDGE_DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_edge_lengths.json")
+    with open(json_filepath, "w") as f:
+        json.dump(distribution, f)
+        
 
-    # Normalize the distribution by the largest edge length
-    # so that the histogram is easier to interpret
-    max_edge_length = max(distribution.values())
-    distribution = {k: v / max_edge_length for k, v in distribution.items()}
+    # # Normalize the distribution by the largest edge length
+    # # so that the histogram is easier to interpret
+    # max_edge_length = max(distribution.values())
+    # distribution = {k: v / max_edge_length for k, v in distribution.items()}
 
-    skewness = pd.Series(distribution.values()).skew()
+    # skewness = pd.Series(distribution.values()).skew()
 
-    # Plot the histogram
-    plt.figure(figsize=(10, 10))
-    sns.histplot(distribution.values(), bins="auto", kde=False, log_scale=(False, True))
-    plt.title(f"{dataset_name} Edge length distribution (skewness: {skewness:.3f})")
-    plt.xlabel("Edge length")
-    plt.ylabel("Number of edges")
-    plt.savefig(f"{dataset_name}_edge_lengths.png")
+    # # Plot the histogram
+    # plt.figure(figsize=(10, 10))
+    # sns.histplot(distribution.values(), bins="auto", kde=True, log_scale=(False, True))
+    # plt.title(f"{dataset_name} Edge length distribution (skewness: {skewness:.4f})")
+    # plt.xlabel("Edge length")
+    # plt.ylabel("Number of edges")
+    
+    # filename = os.path.join(EDGE_DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_edge_lengths.png")
+    # plt.savefig(filename)
 
-    logging.info(f"Plot saved at {dataset_name}_edge_lengths.png")
+    # logging.info(f"Plot saved at {filename}")
 
 
 def main(
@@ -292,11 +309,7 @@ def main(
     num_initializations: int = 100,
 ) -> Tuple[dict, dict]:
     """
-    Computes the following metrics for FlatNav and HNSW:
-        - Recall@k
-        - Latency
-        - QPS
-        - Hubness score as measured by the skewness of the k-occurence distribution (N_k)
+    Computes either the node access counts distribution or the edge lengths distribution for a given dataset.
 
     NOTE: Index construction is done in parallel, but search is single-threaded.
 
@@ -314,21 +327,21 @@ def main(
     """
 
     dataset_size, dim = train_dataset.shape
-    # hnsw_index = hnswlib.Index(
-    #     space=distance_type if distance_type == "l2" else "ip", dim=dim
-    # )
-    # hnsw_index.init_index(
-    #     max_elements=dataset_size,
-    #     ef_construction=ef_construction,
-    #     M=max_edges_per_node // 2,
-    # )
+    
+    hnsw_index = hnswlib.Index(space=distance_type if distance_type == "l2" else "ip", dim=dim)
+    hnsw_index.init_index(
+        max_elements=dataset_size, ef_construction=ef_construction, M=max_edges_per_node // 2
+    )
+    hnsw_index.set_num_threads(os.cpu_count())
 
-    # hnsw_index.set_num_threads(os.cpu_count())
+    start = time.time()
+    hnsw_index.add_items(data=train_dataset, ids=np.arange(dataset_size))
+    end = time.time()
+    logging.info(f"Indexing time = {end - start} seconds")
 
-    # logging.debug(f"Building index...")
-    # hnsw_base_layer_filename = "hnsw_base_layer.mtx"
-    # hnsw_index.add_items(data=train_dataset, ids=np.arange(dataset_size))
-    # hnsw_index.save_base_layer_graph(filename=hnsw_base_layer_filename)
+    mtx_filename = "hnsw_index.mtx"
+    hnsw_index.save_base_layer_graph(filename=mtx_filename)
+    
 
     # Build FlatNav index and configure it to perform search by using random initialization
     flatnav_index = flatnav.index.index_factory(
@@ -336,26 +349,25 @@ def main(
         dim=dim,
         dataset_size=dataset_size,
         max_edges_per_node=max_edges_per_node,
+        verbose=True,
+        collect_stats=True,
         use_random_initialization=True,
         random_seed=42,
     )
+    
+    flatnav_index.allocate_nodes(train_dataset).build_graph_links(mtx_filename)
+    os.remove(mtx_filename)
+    flatnav_index.set_num_threads(1)
 
-    flatnav_index.set_num_threads(os.cpu_count())
-
-    # Train the index.
-    start = time.time()
-    flatnav_index.add(
-        data=train_dataset, ef_construction=ef_construction, num_initializations=300
-    )
-    end = time.time()
-
-    # Here we will first allocate memory for the index and then build edge connectivity
-    # using the HNSW base layer graph. We do not use the ef-construction parameter since
-    # it's assumed to have been used when building the HNSW base layer.
-    # flatnav_index.allocate_nodes(data=train_dataset).build_graph_links()
-
-    # Now delete the HNSW base layer graph since we don't need it anymore
-    # os.remove(hnsw_base_layer_filename)
+    # # Train the index.
+    # start = time.time()
+    # flatnav_index.add(
+    #     data=train_dataset,
+    #     ef_construction=ef_construction,
+    #     num_initializations=num_initializations,
+    # )
+    # end = time.time()
+    # logging.info(f"Index construction time: {end - start:.3f} seconds")
 
     if distribution_type.lower() == "node-access":
         node_access_counts = get_node_access_counts_distribution(
@@ -370,8 +382,8 @@ def main(
         return node_access_counts
 
     elif distribution_type.lower() == "edge-length":
-        name = DATASET_NAMES[dataset_name]
-        get_edge_lengths_distribution(index=flatnav_index, dataset_name=name)
+        name = dataset_name.replace("euclidean", "l2").replace("angular", "cosine")
+        get_edge_length_distribution_for_hubs(index=flatnav_index, dataset_name=name)
     else:
         raise ValueError(f"Invalid distribution type: {distribution_type}")
 
@@ -394,17 +406,11 @@ def parse_args() -> argparse.Namespace:
         default=100,
         help="Number of nearest neighbors to consider",
     )
-    parser.add_argument(
-        "--metrics",
-        type=str,
-        nargs="+",
-        required=True,
-        help="Distance/metric to use (l2 or angular)",
-    )
+
     parser.add_argument(
         "--ef-construction", type=int, required=True, help="ef-construction parameter."
     )
-
+    
     parser.add_argument(
         "--ef-search", type=int, required=True, help="ef-search parameter."
     )
@@ -430,59 +436,80 @@ def load_dataset(base_path: str, dataset_name: str) -> Tuple[np.ndarray]:
     if not os.path.exists(base_path):
         raise FileNotFoundError(f"Dataset path not found at {base_path}")
     return (
-        np.load(f"{base_path}/{dataset_name}.train.npy").astype(np.float32, copy=False),
-        np.load(f"{base_path}/{dataset_name}.test.npy").astype(np.float32, copy=False),
-        np.load(f"{base_path}/{dataset_name}.gtruth.npy").astype(np.uint32, copy=False),
+        np.load(f"{base_path}/{dataset_name}.train.npy"),
+        np.load(f"{base_path}/{dataset_name}.test.npy"),
+        np.load(f"{base_path}/{dataset_name}.gtruth.npy"),
     )
+
+
+def get_metric_from_dataset_name(dataset_name: str) -> str:
+    """
+    Extract the metric from the dataset name. The metric is the last part of the dataset name.
+    Ex. normal-10-euclidean -> l2
+        mnist-784-euclidean -> l2
+        normal-10-angular -> angular
+    """
+    metric = dataset_name.split("-")[-1]
+    if metric == "euclidean":
+        return "l2"
+    elif metric == "angular":
+        return "angular"
+    raise ValueError(f"Invalid metric: {metric}")
 
 
 if __name__ == "__main__":
     args = parse_args()
 
     dataset_names = args.datasets
-    distance_types = args.metrics
-    if len(dataset_names) != len(distance_types):
-        raise RuntimeError("Number of datasets and metrics/distances must be the same")
 
     # Map from dataset name to node access counts
     distributions = {}
 
     for index, dataset_name in enumerate(dataset_names):
         print(f"Processing dataset {dataset_name}...")
-        # metric = distance_types[index]
-        # base_path = os.path.join(ROOT_DATASET_PATH, dataset_name)
+        metric = get_metric_from_dataset_name(dataset_name)
+        base_path = os.path.join(ROOT_DATASET_PATH, dataset_name)
 
-        # if not os.path.exists(base_path):
-        #     # Create the directory if it doesn't exist
-        #     raise ValueError(f"Dataset path not found at {base_path}")
+        if not os.path.exists(base_path):
+            # Create the directory if it doesn't exist
+            raise ValueError(f"Dataset path not found at {base_path}")
 
-        # train_dataset, queries, ground_truth = load_dataset(
-        #     base_path=base_path, dataset_name=dataset_name
-        # )
+        train_dataset, queries, ground_truth = load_dataset(
+            base_path=base_path, dataset_name=dataset_name
+        )
 
-        # node_access_counts = main(
-        #     dataset_name=dataset_name,
-        #     train_dataset=train_dataset,
-        #     queries=queries,
-        #     ground_truth=ground_truth,
-        #     distance_type=metric,
-        #     max_edges_per_node=args.num_node_links,
-        #     ef_construction=args.ef_construction,
-        #     ef_search=args.ef_search,
-        #     k=args.k,
-        #     distribution_type=args.distribution_type,
-        # )
+        main(
+            dataset_name=dataset_name,
+            train_dataset=train_dataset,
+            queries=queries,
+            ground_truth=ground_truth,
+            distance_type=metric,
+            max_edges_per_node=args.num_node_links,
+            ef_construction=args.ef_construction,
+            ef_search=args.ef_search,
+            k=args.k,
+            distribution_type=args.distribution_type,
+        )
 
         # Save the node access counts for this dataset to a JSON file
-        # with open(f"{dataset_name}_node_access_counts.json", "w") as f:
+        # filepath = os.path.join(DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_node_access_counts.json")
+        # with open(filepath, "w") as f:
         #     json.dump(node_access_counts, f)
 
         # Load the node access counts from the JSON file
-        with open(f"{dataset_name}_node_access_counts.json", "r") as f:
-            node_access_counts = json.load(f)
+        dataset_name = dataset_name.replace("euclidean", "l2").replace("angular", "cosine")
+        filepath = os.path.join(EDGE_DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_edge_lengths.json")
+        with open(filepath, "r") as f:
+            edge_length_distribution = json.load(f)
+            
+        # Plot the edge length distribution
+        plot_edge_length_distribution(distribution=edge_length_distribution, dataset_name=dataset_name)
+                        
+        # distributions[dataset_name] = node_access_counts
 
-        distributions[dataset_name] = node_access_counts
+        # plot_histogram(node_access_counts=node_access_counts, dataset_name=dataset_name)
 
-    # Now plot the distributions
-    # plot_distributions(distributions)
-    plot_kde_distributions(distributions)
+    # # Now plot the distributions
+    # bw_adjust_values = [0.7]
+    # for bw_adjust_value in bw_adjust_values:
+    #     plot_kde_distributions(distributions, DISTRIBUTIONS_SAVE_PATH, bw_adjust_value)

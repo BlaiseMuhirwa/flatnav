@@ -79,9 +79,11 @@ if [ ! -d "$DATA_DIR" ]; then
     exit 1
 fi
 mkdir -p $METRICS_DIR
+mkdir -p $(pwd)/node-access-distributions
+mkdir -p $(pwd)/edge-lengths
 
 # Clean up existing docker images matching "flatnav" if any 
-docker rmi -f $(docker images --filter=reference="flatnav" -q) &> /dev/null || true
+# docker rmi -f $(docker images --filter=reference="flatnav" -q) &> /dev/null || true
 
 docker build --build-arg INCLUDE_HNSWLIB=$INCLUDE_HNSWLIB \
              --tag flatnav:$TAG_NAME -f Dockerfile .
@@ -103,10 +105,12 @@ fi
 # NOTE: Mounting the ~/.aws directory so that the container can access the aws credentials
 # to upload the indexes to s3. This is not the most secure thing to do, but it's the easiest.
 docker run \
-        --name benchmark-runner \
+        --name benchmark-runner-distributions \
         -it \
         -e MAKE_TARGET=$1 \
         --env-file bin/.env-vars \
+        --volume $(pwd)/node-access-distributions:/root/node-access-distributions \
+        --volume $(pwd)/edge-lengths:/root/edge-lengths \
         --volume ~/.aws:/root/.aws:ro \
         --volume ${DATA_DIR}:/root/data \
         --volume ${METRICS_DIR}:/root/metrics \

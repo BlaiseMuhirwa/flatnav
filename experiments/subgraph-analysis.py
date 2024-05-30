@@ -3,16 +3,43 @@ import numpy as np
 import os
 import argparse
 from typing import Tuple, List, Dict
-from utils import compute_metrics
 import flatnav
-import time
+import pickle
 import logging
 import hnswlib
-import pickle
+import boto3
 
 logging.basicConfig(level=logging.INFO)
+
 # ROOT_DATASET_PATH = os.path.join(os.getcwd(), "..", "data")
 ROOT_DATASET_PATH = "/root/data"
+DISTRIBUTIONS_SAVE_PATH = "/root/node-access-distributions"
+
+
+def upload_to_s3(outdegree_table: List[List[int]], object_name: str, bucket_name: str):
+    """
+    Upload the outdegree table to S3.
+    :param outdegree_table: The outdegree table to upload.
+    :param object_name: The name of the object to store in S3.
+    :param bucket_name: The name of the S3 bucket.
+    """
+    pickled_data = pickle.dumps(outdegree_table)
+    s3_client = boto3.client("s3")
+
+    s3_client.put_object(Body=pickled_data, Bucket=bucket_name, Key=object_name)
+
+
+def download_from_s3(s3_client, object_name: str, bucket_name: str) -> List[List[int]]:
+    """
+    Download the outdegree table from S3.
+    :param object_name: The name of the object to download from S3.
+    :param bucket_name: The name of the S3 bucket.
+    :return outdegree_table: The outdegree table.
+    """
+    response = s3_client.get_object(Bucket=bucket_name, Key=object_name)
+    pickled_data = response["Body"].read()
+    outdegree_table = pickle.loads(pickled_data)
+    return outdegree_table
 
 
 def main(
@@ -27,11 +54,7 @@ def main(
     k: int,
 ) -> List[List[int]]:
     """
-    Computes the following metrics for FlatNav and HNSW:
-        - Recall@k
-        - Latency
-        - QPS
-        - Hubness score as measured by the skewness of the k-occurence distribution (N_k)
+    Computes the graph outdegree table for the given dataset.
 
     NOTE: Index construction is done in parallel, but search is single-threaded.
 
@@ -60,7 +83,6 @@ def main(
 
     hnsw_index.set_num_threads(os.cpu_count())
 
-    logging.debug(f"Building index...")
     hnsw_base_layer_filename = "hnsw_base_layer.mtx"
     hnsw_index.add_items(data=train_dataset, ids=np.arange(dataset_size))
     hnsw_index.save_base_layer_graph(filename=hnsw_base_layer_filename)
@@ -69,38 +91,19 @@ def main(
     flatnav_index = flatnav.index.index_factory(
         distance_type=distance_type,
         dim=dim,
-        mtx_filename=hnsw_base_layer_filename,
-        use_random_initialization=True,
-        random_seed=42,
+        dataset_size=dataset_size,
+        max_edges_per_node=max_edges_per_node,
+        verbose=True,
+        collect_stats=False,
+        use_random_initialization=False,
     )
 
-    flatnav_index.allocate_nodes(data=train_dataset).build_graph_links()
-
-    # outdegree_table = flatnav_index.get_graph_outdegree_table()
-    # return outdegree_table
-
-    # flatnav_index.allocate_nodes(data=train_dataset).build_graph_links()
-    os.remove(hnsw_base_layer_filename)
-
-    requested_metrics = [f"Recall@{k}", "Latency", "qps"]
-
-    flatnav_index.set_num_threads(1)
-    metrics = compute_metrics(
-        index=flatnav_index,
-        queries=queries,
-        ground_truth=ground_truth,
-        ef_search=ef_search,
-        k=k,
-        requested_metrics=requested_metrics,
+    flatnav_index.allocate_nodes(data=train_dataset).build_graph_links(
+        hnsw_base_layer_filename
     )
 
-    logging.info(f"Metrics = {metrics}")
-
-    # Get edge access distribution during seaerch
-    edge_access_distribution: Dict[
-        Tuple[int, int], int
-    ] = flatnav_index.get_edge_access_counts()
-    return edge_access_distribution
+    outdegree_table = flatnav_index.get_graph_outdegree_table()
+    return outdegree_table
 
 
 def parse_args() -> argparse.Namespace:
@@ -121,13 +124,7 @@ def parse_args() -> argparse.Namespace:
         default=100,
         help="Number of nearest neighbors to consider",
     )
-    parser.add_argument(
-        "--metrics",
-        type=str,
-        nargs="+",
-        required=True,
-        help="Distance/metric to use (l2 or angular)",
-    )
+
     parser.add_argument(
         "--ef-construction", type=int, required=True, help="ef-construction parameter."
     )
@@ -150,65 +147,58 @@ def load_dataset(base_path: str, dataset_name: str) -> Tuple[np.ndarray]:
     if not os.path.exists(base_path):
         raise FileNotFoundError(f"Dataset path not found at {base_path}")
     return (
-        np.load(f"{base_path}/{dataset_name}.train.npy").astype(np.float32, copy=False),
-        np.load(f"{base_path}/{dataset_name}.test.npy").astype(np.float32, copy=False),
-        np.load(f"{base_path}/{dataset_name}.gtruth.npy").astype(np.uint32, copy=False),
+        np.load(f"{base_path}/{dataset_name}.train.npy"),
+        np.load(f"{base_path}/{dataset_name}.test.npy"),
+        np.load(f"{base_path}/{dataset_name}.gtruth.npy"),
     )
 
 
-def select_p90_edges(
-    edge_access_distribution: Dict[Tuple[int, int], int], percentile: float = 90
-) -> List[Tuple[int, int]]:
+def select_p90_nodes(
+    node_access_counts: Dict[int, int], percentile: float
+) -> List[int]:
     """
-    Select a subset of the edges from the distribution that fall above the 90th
-    percentile of edge access counts. Return this subset.
-    :param edge_access_distribution: The edge access distribution to consider.
-    :return selected_edges: The subset of edges that fall above the 90th percentile.
+    Select the nodes that fall above the 90th percentile.
+    :param node_access_counts: The node access counts.
+    :param percentile: The percentile to consider.
+    :return selected_nodes: The subset of nodes that fall above the 90th percentile.
     """
-    access_counts = list(edge_access_distribution.values())
-    p90_threshold = np.percentile(access_counts, percentile)
-    selected_edges = [
-        edge
-        for edge, count in edge_access_distribution.items()
-        if count >= p90_threshold
+    access_counts = list(node_access_counts.values())
+    threshold = np.percentile(access_counts, percentile)
+    selected_nodes = [
+        node for node, count in node_access_counts.items() if count >= threshold
     ]
-
-    return selected_edges
-
-
-def depth_first_search_iterative(
-    start_node: int, adjacency_list: dict, visited: set
-) -> None:
-    stack = [start_node]
-    while stack:
-        node = stack.pop()
-        if node not in visited:
-            visited.add(node)
-            stack.extend(
-                [
-                    neighbor
-                    for neighbor in adjacency_list.get(node, [])
-                    if neighbor not in visited
-                ]
-            )
+    return selected_nodes
 
 
-def compute_connected_components(selected_edges: list, outdegree_table: list) -> int:
-    adjacency_list = {}
-    for edge in selected_edges:
-        src, dst = edge
-        if src not in adjacency_list:
-            adjacency_list[src] = []
-        if dst not in adjacency_list:
-            adjacency_list[dst] = []
-        adjacency_list[src].append(dst)
-
+def compute_connected_components(
+    hub_nodes: List[int], outdegree_table: List[List[int]]
+) -> int:
+    """
+    Compute the number of connected components in the subgraph.
+    :param subgraph: The subgraph to consider.
+    :param outdegree_table: The outdegree table.
+    :return connected_components: The number of connected components.
+    """
+    # convert subgraph to a set for O(1) lookup
+    hub_nodes_set = set(hub_nodes)
     visited = set()
-    connected_components = 0
 
-    for node in adjacency_list.keys():
+    def dfs(node: int) -> None:
+        stack = [node]
+        while stack:
+            current = stack.pop()
+            if current not in visited:
+                visited.add(current)
+
+                for neighbor in outdegree_table[current]:
+                    if neighbor in hub_nodes_set and neighbor not in visited:
+                        stack.append(neighbor)
+
+    connected_components = 0
+    # perform DFS for each node in the subgraph formed by the hub nodes
+    for node in hub_nodes:
         if node not in visited:
-            depth_first_search_iterative(node, adjacency_list, visited)
+            dfs(node)
             connected_components += 1
 
     return connected_components
@@ -244,72 +234,119 @@ def analyze_edge_traversals_with_graphtool(
     )
 
 
+def get_metric_from_dataset_name(dataset_name: str) -> str:
+    """
+    Extract the metric from the dataset name. The metric is the last part of the dataset name.
+    Ex. normal-10-euclidean -> l2
+        mnist-784-euclidean -> l2
+        normal-10-angular -> angular
+    """
+    metric = dataset_name.split("-")[-1]
+    if metric == "euclidean":
+        return "l2"
+    elif metric == "angular":
+        return "angular"
+    raise ValueError(f"Invalid metric: {metric}")
+
+
 if __name__ == "__main__":
     args = parse_args()
 
     dataset_names = args.datasets
-    distance_types = args.metrics
-    if len(dataset_names) != len(distance_types):
-        raise RuntimeError("Number of datasets and metrics/distances must be the same")
 
     # Map from dataset name to node access counts
     distributions = {}
+    s3_client = boto3.client("s3")
+
+    # Keep track of the computed connected components for each dataset
+    results_dict = {}
 
     for index, dataset_name in enumerate(dataset_names):
         print(f"Processing dataset {dataset_name}...")
-        # metric = distance_types[index]
-        # base_path = os.path.join(ROOT_DATASET_PATH, dataset_name)
+        metric = get_metric_from_dataset_name(dataset_name)
+        base_path = os.path.join(ROOT_DATASET_PATH, dataset_name)
 
-        # if not os.path.exists(base_path):
-        #     # Create the directory if it doesn't exist
-        #     raise ValueError(f"Dataset path not found at {base_path}")
+        if not os.path.exists(base_path):
+            raise ValueError(f"Dataset path not found at {base_path}")
 
-        # train_dataset, queries, ground_truth = load_dataset(
-        #     base_path=base_path, dataset_name=dataset_name
+        train_dataset, queries, ground_truth = load_dataset(
+            base_path=base_path, dataset_name=dataset_name
+        )
+
+        # Download the outdegree table from S3.
+        # outdegree_table = download_from_s3(
+        #     s3_client=s3_client,
+        #     object_name=f"{dataset_name}/{dataset_name}_outdegree_table.pkl",
+        #     bucket_name="hnsw-index-snapshots"
         # )
 
-        # Load the edge access distribution from the JSON file
-        # with open(f"{dataset_name}_edge_traversal.json", "r") as f:
-        #     edge_access_counts = json.load(f)
+        outdegree_table = main(
+            dataset_name=dataset_name,
+            train_dataset=train_dataset,
+            queries=queries,
+            ground_truth=ground_truth,
+            distance_type=metric,
+            max_edges_per_node=args.num_node_links,
+            ef_construction=args.ef_construction,
+            ef_search=args.ef_search,
+            k=args.k,
+        )
 
-        # edge_access_counts = main(
-        #     dataset_name=dataset_name,
-        #     train_dataset=train_dataset,
-        #     queries=queries,
-        #     ground_truth=ground_truth,
-        #     distance_type=metric,
-        #     max_edges_per_node=args.num_node_links,
-        #     ef_construction=args.ef_construction,
-        #     ef_search=args.ef_search,
-        #     k=args.k,
-        # )
+        # Upload to s3 teh outdegree table.
+        upload_to_s3(
+            outdegree_table=outdegree_table,
+            object_name=f"{dataset_name}/{dataset_name}_outdegree_table.pkl",
+            bucket_name="hnsw-index-snapshots",
+        )
 
-        # Save the edge access distribution to a file for later analysis. Save it using pickle
-        # with open(f"{dataset_name}_edge_traversal.pkl", "wb") as f:
-        #     pickle.dump(edge_access_counts, f)
+        logging.info(f"Number of nodes = {len(outdegree_table)}")
 
-        # Save the outdegree table to a file for later analysis. Save it using pickle
-        # with open(f"{dataset_name}_outdegree_table.pkl", "wb") as f:
-        #     pickle.dump(outdegree_table, f)
+        node_access_dist_file = os.path.join(
+            DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_node_access_counts.json"
+        )
+        with open(node_access_dist_file, "r") as f:
+            node_access_counts = json.load(f)
 
-        # Load the outdegree table from the file
-        with open(f"{dataset_name}_outdegree_table.pkl", "rb") as f:
-            outdegree_table = pickle.load(f)
+        # Convert keys and values to integers
+        node_access_counts = {int(k): int(v) for k, v in node_access_counts.items()}
 
-        # Load the edge access distribution from the file
-        with open(f"{dataset_name}_edge_traversal.pkl", "rb") as f:
-            edge_access_counts = pickle.load(f)
-
-        selected_edges = select_p90_edges(edge_access_counts, percentile=99)
-
-        len_ = len(selected_edges)
-        print(f"Number of edges = {len_}")
+        hub_nodes: List[int] = select_p90_nodes(node_access_counts, 90)
+        logging.info(f"Number of hub nodes = {len(hub_nodes)}")
 
         connected_components = compute_connected_components(
-            selected_edges=selected_edges, outdegree_table=outdegree_table
+            hub_nodes=hub_nodes, outdegree_table=outdegree_table
         )
-        print(f"Connected components = {connected_components}\n")
+        logging.info(
+            f"Number of connected components for hubs = {connected_components}"
+        )
+
+        # Compute the number of connected components in the rest of the graph (excluding the hub nodes)
+        non_hub_nodes = set(range(len(outdegree_table)))  # - set(hub_nodes)
+        non_hub_nodes = list(non_hub_nodes)
+
+        entire_graph_connected_components = compute_connected_components(
+            hub_nodes=non_hub_nodes, outdegree_table=outdegree_table
+        )
+
+        logging.info(
+            f"Number of connected components for non-hub nodes = {entire_graph_connected_components}"
+        )
+        current_results = {
+            "num_hub_nodes": len(hub_nodes),
+            "hub_nodes_cc": connected_components,
+            "entire_graph_cc": entire_graph_connected_components,
+            "R_h": connected_components / len(hub_nodes),
+            "R_g": entire_graph_connected_components / len(non_hub_nodes),
+        }
+        results_dict[
+            dataset_name.replace("angular", "cosine").replace("euclidean", "l2")
+        ] = current_results
 
         # analyze_edge_traversals_with_graphtool(
         #     edge_access_distribution=edge_access_counts, outdegree_table=outdegree_table
         # )
+
+    # Save the results to a file
+    results_file = os.path.join(DISTRIBUTIONS_SAVE_PATH, "connected_components.json")
+    with open(results_file, "w") as f:
+        json.dump(results_dict, f)

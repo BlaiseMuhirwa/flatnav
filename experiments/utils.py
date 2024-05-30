@@ -262,9 +262,22 @@ def compute_metrics(
         A dict containing the requested metrics.
     """
     metrics = {}
+    latencies = []
 
     if type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex):
-        print(f"[FlatNav] searching with num-threads = {index.num_threads}")
+        for query in queries:
+            start = time.time()
+            _, indices = index.search_single(
+                query=query,
+                ef_search=ef_search,
+                K=k,
+                num_initializations=100,
+            )
+            end = time.time()
+            latencies.append(end - start)
+            top_k_indices.append(indices)
+        
+        
         start = time.time()
         _, top_k_indices = index.search(
             queries=queries, ef_search=ef_search, K=k, num_initializations=100
