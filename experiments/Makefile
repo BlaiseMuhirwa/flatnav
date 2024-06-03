@@ -327,30 +327,15 @@ generate-hubness-scores:
 # l2 angular angular l2 angular l2 angular l2
 generate-distributions:
 	poetry run python generate-distributions.py \
-		--datasets sift-128-euclidean nytimes-256-angular gist-960-euclidean glove-100-angular \
-		--k 100 \
-		--ef-construction 100 \
-		--ef-search 200 \
-		--num-node-links 32 \
-		--distribution-type node-access
-
-
-subgraph-analysis:
-	poetry run python subgraph-analysis.py \
-		--datasets sift-128-euclidean glove-100-angular nytimes-256-angular fashion-mnist-784-euclidean gist-960-euclidean deep-image-96-angular \
+		--datasets yandex-deep-10m-euclidean yandex-tti-10m-angular spacev-10m-euclidean \
 		--k 100 \
 		--ef-construction 100 \
 		--ef-search 200 \
 		--num-node-links 32
-		
-get-index-sizes:
-	poetry run python index-sizes.py \
-		--datasets sift-128-euclidean \
-		--metrics l2 \
-		--ef-construction 100 \
-		--num-node-links 32 \
-		--index-type hnsw
 
+# Run statistical tests for hub nodes connectivity. 
+run-stats-test:
+	poetry run python statistical_test.py
 
 setup: install-flatnav install-hnswlib
 

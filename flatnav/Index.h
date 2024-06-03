@@ -187,11 +187,20 @@ public:
       _distribution = std::uniform_int_distribution<>(0, _max_node_count - 1);
     }
 
+    initNodeAccessCounts();
+
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes =
         _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
     size_t index_memory_size = _node_size_bytes * _max_node_count;
     _index_memory = new char[index_memory_size];
+  }
+
+  void initNodeAccessCounts() {
+    // Initialize the node access counts to 0 for all nodes.
+    for (uint32_t i = 0; i < _max_node_count; i++) {
+      _node_access_counts[i] = 0;
+    }
   }
 
   ~Index() {
@@ -298,6 +307,9 @@ public:
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
     std::vector<std::vector<uint32_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
+      // allocate a vector of size 0 so that each node has an entry in the
+      // outdegree table.
+      outdegree_table[node] = std::vector<uint32_t>();
       node_id_t *links = getNodeLinks(node);
       for (int i = 0; i < _M; i++) {
         if (links[i] != node) {

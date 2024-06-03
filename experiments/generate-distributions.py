@@ -11,7 +11,7 @@ import time
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from scipy.stats import mannwhitneyu, ks_2samp
+from scipy.stats import mannwhitneyu, ks_2samp, ttest_ind, skew
 
 # import plotly.express as px
 from typing import List, Dict
@@ -19,7 +19,6 @@ from typing import List, Dict
 # import powerlaw
 # from utils import compute_metrics
 from run_benchmark import compute_metrics
-from scipy.stats import skew
 
 logging.basicConfig(level=logging.INFO)
 
@@ -46,172 +45,6 @@ DATASET_NAMES = {
     "normal-256-euclidean": "normal256-l2",
     "normal-1024-euclidean": "normal1024-l2",
 }
-
-
-class HubNodesConnectivityTester:
-    """
-    Class to test the connectivity of the hub nodes using a hypothesis test.
-    Here is how the the test works:
-    1. Hypotheses:
-        - Null hypothesis (H0): Hub nodes are not more connected to each other than to randomly chosen nodes.
-        - Alternative hypothesis (H1): Hub nodes are more connected to each other than to randomly chosen nodes.
-    2. Identify hub nodes:
-        - Select the nodes that fall into the 99th percentile of the node access counts.
-    3. Define connectivity:
-        - Presence of a direct edge in the graph.
-    4. Calculate hub-hub connectivity:
-        - For each hub node, calculate the number of hub nodes in its outdegree table.
-        This yields a distribution of the number of hub nodes each hub node is connected to.
-    5. Calculate random-hub connectivity:
-        - For a set of randomly-chosen nodes (same size as the set of hub nodes), count
-            the number of hub nodes in their outdegree table.
-        This yields a distribution of the number of hub nodes each random node is connected to.
-    6. Set up a statistical test:
-        a.  - Use a one-sided Mann-Whitney U test to test the null hypothesis. The Mann-Whitney U test
-            is a good option because it does not assume normality and it is non-parametric.
-            - The null hypothesis is rejected if the p-value is less than 0.05.
-        b.  - Use a one-sided Kolmogorov-Smirnov test to test the null hypothesis.
-            - The null hypothesis is rejected if the p-value is less than 0.05.
-
-    :param outdegree_table_path: The path to the pickle file containing the outdegree table.
-    :param node_access_counts_path: The path to the pickle file containing the node access counts.
-
-    """
-
-    def __init__(
-        self, outdegree_table_path: str, node_access_counts_path: str, dataset_name: str
-    ):
-        self.dataset_name = dataset_name
-        self.outdegree_table = self._load_outdegree_table(outdegree_table_path)
-        self.node_access_counts = self._load_node_access_counts(node_access_counts_path)
-
-        print(f"length of outdegree table: {len(self.outdegree_table)}")
-        print(f"length of node access counts: {len(self.node_access_counts)}")
-
-    def _load_outdegree_table(self, outdegree_table_path: str) -> np.ndarray:
-        """
-        Read the outdegree table from the pickle file.
-        """
-        if not os.path.exists(outdegree_table_path):
-            raise FileNotFoundError(
-                f"Outdegree table not found at {outdegree_table_path}"
-            )
-
-        with open(outdegree_table_path, "rb") as f:
-            return pickle.load(f)
-
-    def _load_node_access_counts(self, node_access_counts_path: str) -> dict:
-        """
-        Read the node access counts from a JSON file.
-        """
-        if not os.path.exists(node_access_counts_path):
-            raise FileNotFoundError(
-                f"Node access counts not found at {node_access_counts_path}"
-            )
-
-        with open(node_access_counts_path, "r") as f:
-            data = json.load(f)
-
-        return {int(k): int(v) for k, v in data.items()}
-
-    def _select_hub_nodes(self, percentile: float) -> List[int]:
-        """
-        Select the nodes that fall above the given percentile.
-        :param percentile: The percentile to consider.
-        :return selected_nodes: The subset of nodes that fall above the given percentile.
-        """
-        access_counts = list(self.node_access_counts.values())
-        threshold = np.percentile(access_counts, percentile)
-        selected_nodes = [
-            node
-            for node, count in self.node_access_counts.items()
-            if count >= threshold
-        ]
-        return selected_nodes
-
-    def _calculate_hub_hub_connections(self, hub_nodes: List[int]) -> List[int]:
-        """
-        Calculate the number of hub nodes in the outdegree table for each hub node.
-        :param hub_nodes: The hub nodes to consider.
-        :return hub_hub_connections: The number of hub nodes in the outdegree table for each hub node.
-        """
-        hub_hub_connections = []
-        for node in hub_nodes:
-            intersection = set(hub_nodes) & set(self.outdegree_table[node])
-            hub_hub_connections.append(len(intersection))
-        return hub_hub_connections
-
-    def _calculate_random_hub_connections(
-        self, hub_nodes: List[int], include_hub_nodes_in_sample: bool = False
-    ) -> List[int]:
-        """
-        Calculate the number of hub nodes in the outdegree table for a set of randomly chosen nodes.
-        :param hub_nodes: The hub nodes to consider.
-        :param include_hub_nodes_in_sample: Whether to include the hub nodes in the sample of random nodes.
-        :return random_hub_connectivity: The number of hub nodes in the outdegree table for each random node.
-        """
-        total_num_nodes = len(self.node_access_counts)
-        num_hub_nodes = len(hub_nodes)
-        if num_hub_nodes >= total_num_nodes:
-            raise ValueError(
-                "Number of hub nodes must be less than the total number of nodes."
-            )
-
-        # Sample without replacement n nodes from the graph.
-        if include_hub_nodes_in_sample:
-            random_nodes = np.random.choice(
-                total_num_nodes, size=num_hub_nodes, replace=False
-            )
-        else:
-            non_hub_nodes = set(self.node_access_counts.keys()) - set(hub_nodes)
-            if len(non_hub_nodes) < num_hub_nodes:
-                raise ValueError(
-                    "Not enough non-hub nodes to sample from. "
-                    f"Num-hub nodes = {num_hub_nodes}, total nodes = {total_num_nodes}"
-                )
-            random_nodes = np.random.choice(
-                non_hub_nodes, size=num_hub_nodes, replace=False
-            )
-
-        random_hub_connectivity = []
-        for node in random_nodes:
-            intersection = set(hub_nodes) & set(self.outdegree_table[node])
-            random_hub_connectivity.append(len(intersection))
-        return random_hub_connectivity
-
-    def run_hypothesis_test(self, percentile: float) -> None:
-        """
-        Run the hypothesis test to determine if hub nodes are more connected to each
-        other than to randomly chosen nodes.
-        :param percentile: The percentile to consider.
-        """
-        hub_nodes = self._select_hub_nodes(percentile=percentile)
-        logging.info(f"Num hub nodes = {len(hub_nodes)}, dataset = {self.dataset_name}")
-
-        hub_hub_connections: List[int] = self._calculate_hub_hub_connections(
-            hub_nodes=hub_nodes
-        )
-
-        random_hub_connections: List[int] = self._calculate_random_hub_connections(
-            hub_nodes=hub_nodes
-        )
-        if len(hub_hub_connections) != len(random_hub_connections):
-            raise ValueError(
-                "Hub-hub connections and random-hub connections must have the same length."
-            )
-
-        # Perform the statistical tests
-        # Mann-Whitney U test
-        u_statistic, p_value = mannwhitneyu(
-            hub_hub_connections, random_hub_connections, alternative="greater"
-        )
-        logging.info(f"Mann-Whitney U test: p-value = {p_value}")
-
-        # Kolmogorov-Smirnov test
-        ks_statistic, p_value = ks_2samp(
-            hub_hub_connections, random_hub_connections, alternative="greater"
-        )
-        logging.info(f"Kolmogorov-Smirnov test: p-value = {p_value}")
 
 
 def depth_first_search(node: int, outdegree_table: np.ndarray, visited: set) -> None:
@@ -482,11 +315,10 @@ def main(
     ef_construction: int,
     ef_search: int,
     k: int,
-    distribution_type: str,
     num_initializations: int = 100,
-) -> Tuple[dict, dict]:
+) -> Tuple[dict, list]:
     """
-    Computes either the node access counts distribution or the edge lengths distribution for a given dataset.
+    Computes the outdegree table and the node access distribution for a given dataset.
 
     NOTE: Index construction is done in parallel, but search is single-threaded.
 
@@ -499,7 +331,6 @@ def main(
     :param ef_construction: The ef-construction parameter.
     :param ef_search: The ef-search parameter.
     :param k: The number of nearest neighbors to find.
-    :param distribution_type: The desired distribution to consider. Can be either 'node-access' or 'edge-length'.
     :param num_initializations: The number of initializations for FlatNav.
     """
 
@@ -513,7 +344,8 @@ def main(
         ef_construction=ef_construction,
         M=max_edges_per_node // 2,
     )
-    hnsw_index.set_num_threads(os.cpu_count())
+
+    hnsw_index.set_num_threads(40)
 
     start = time.time()
     hnsw_index.add_items(data=train_dataset, ids=np.arange(dataset_size))
@@ -539,33 +371,18 @@ def main(
     os.remove(mtx_filename)
     flatnav_index.set_num_threads(1)
 
-    # # Train the index.
-    # start = time.time()
-    # flatnav_index.add(
-    #     data=train_dataset,
-    #     ef_construction=ef_construction,
-    #     num_initializations=num_initializations,
-    # )
-    # end = time.time()
-    # logging.info(f"Index construction time: {end - start:.3f} seconds")
+    node_access_counts: dict[int, int] = get_node_access_counts_distribution(
+        dataset_name=dataset_name,
+        index=flatnav_index,
+        queries=queries,
+        ground_truth=ground_truth,
+        ef_search=ef_search,
+        k=k,
+    )
 
-    if distribution_type.lower() == "node-access":
-        node_access_counts = get_node_access_counts_distribution(
-            dataset_name=dataset_name,
-            index=flatnav_index,
-            queries=queries,
-            ground_truth=ground_truth,
-            ef_search=ef_search,
-            k=k,
-        )
+    outdegree_table: list[list[int]] = flatnav_index.get_graph_outdegree_table()
 
-        return node_access_counts
-
-    elif distribution_type.lower() == "edge-length":
-        name = dataset_name.replace("euclidean", "l2").replace("angular", "cosine")
-        get_edge_length_distribution_for_hubs(index=flatnav_index, dataset_name=name)
-    else:
-        raise ValueError(f"Invalid distribution type: {distribution_type}")
+    return node_access_counts, outdegree_table
 
 
 def parse_args() -> argparse.Namespace:
@@ -600,13 +417,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         required=True,
         help="max-edges-per-node parameter.",
-    )
-
-    parser.add_argument(
-        "--distribution-type",
-        type=str,
-        required=True,
-        help="Desired distribution to consider. Can be either 'node-access' or 'edge-length'.",
     )
 
     return parser.parse_args()
@@ -657,7 +467,7 @@ def run_main(args: argparse.Namespace) -> None:
             base_path=base_path, dataset_name=dataset_name
         )
 
-        main(
+        node_access_counts, outdegree_table = main(
             dataset_name=dataset_name,
             train_dataset=train_dataset,
             queries=queries,
@@ -667,28 +477,46 @@ def run_main(args: argparse.Namespace) -> None:
             ef_construction=args.ef_construction,
             ef_search=args.ef_search,
             k=args.k,
-            distribution_type=args.distribution_type,
         )
+
+        if len(node_access_counts.keys()) != len(train_dataset):
+            logging.error(
+                f"Node access counts length mismatch: {len(node_access_counts)} vs {len(train_dataset)}"
+            )
+
+        if len(outdegree_table) != len(train_dataset):
+            logging.error(
+                f"Outdegree table length mismatch: {len(outdegree_table)} vs {len(train_dataset)}"
+            )
 
         # Save the node access counts for this dataset to a JSON file
-        # filepath = os.path.join(DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_node_access_counts.json")
-        # with open(filepath, "w") as f:
-        #     json.dump(node_access_counts, f)
+        filepath = os.path.join(
+            DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_node_access_counts.json"
+        )
+        with open(filepath, "w") as f:
+            json.dump(node_access_counts, f)
+
+        # Save the outdegree table for this dataset to a pickle file
+        outdegree_table_path = os.path.join(
+            DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_outdegree_table.pkl"
+        )
+        with open(outdegree_table_path, "wb") as f:
+            pickle.dump(outdegree_table, f)
 
         # Load the node access counts from the JSON file
-        dataset_name = dataset_name.replace("euclidean", "l2").replace(
-            "angular", "cosine"
-        )
-        filepath = os.path.join(
-            EDGE_DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_edge_lengths.json"
-        )
-        with open(filepath, "r") as f:
-            edge_length_distribution = json.load(f)
+        # dataset_name = dataset_name.replace("euclidean", "l2").replace(
+        #     "angular", "cosine"
+        # )
+        # filepath = os.path.join(
+        #     EDGE_DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_edge_lengths.json"
+        # )
+        # with open(filepath, "r") as f:
+        #     edge_length_distribution = json.load(f)
 
-        # Plot the edge length distribution
-        plot_edge_length_distribution(
-            distribution=edge_length_distribution, dataset_name=dataset_name
-        )
+        # # Plot the edge length distribution
+        # plot_edge_length_distribution(
+        #     distribution=edge_length_distribution, dataset_name=dataset_name
+        # )
 
         # distributions[dataset_name] = node_access_counts
 
@@ -702,20 +530,4 @@ def run_main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     args = parse_args()
-
-    dataset_names = args.datasets
-    for dataset_name in dataset_names:
-        outdegree_table_path = os.path.join(
-            DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_outdegree_table.pkl"
-        )
-        node_access_counts_path = os.path.join(
-            DISTRIBUTIONS_SAVE_PATH, f"{dataset_name}_node_access_counts.json"
-        )
-
-        tester = HubNodesConnectivityTester(
-            outdegree_table_path=outdegree_table_path,
-            node_access_counts_path=node_access_counts_path,
-            dataset_name=dataset_name,
-        )
-        tester.run_hypothesis_test(percentile=99)
-
+    run_main(args=args)
