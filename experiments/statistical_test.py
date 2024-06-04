@@ -42,6 +42,9 @@ ANN_DATASETS = [
     "glove-100-angular",
     "nytimes-256-angular",
     "gist-960-euclidean",
+    "yandex-deep-10m-euclidean",
+    # "yandex-tti-10m-angular",
+    "spacev-10m-euclidean",
 ]
 
 class HubNodesConnectivityTester:
@@ -215,26 +218,11 @@ class HubNodesConnectivityTester:
             "mann-whitney-u-statistic": u_statistic,
             "mann-whitney-p-value": mann_whitney_p_value,
             "two-sample-t-statistic": t_statistic,
-            "two-sample-t-p-value": ttest_p_value,
+            "two-sample-t-test-p-value": ttest_p_value,
             "num-hub-nodes": len(hub_nodes),
         }
 
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--datasets",
-        type=str,
-        required=True,
-        nargs="+",
-        help="dataset names. All will be expected to be at the same path.",
-    )
-
-    return parser.parse_args()
-
-def run_hypothesis_tests(args: argparse.Namespace) -> None:
-
+def run_hypothesis_tests() -> None:
     all_test_results = {}
     save_filename = "hypothesis_tests.json"
     save_filename = os.path.join(METRICS_DIR, save_filename)
@@ -262,6 +250,5 @@ def run_hypothesis_tests(args: argparse.Namespace) -> None:
 
 
 if __name__=="__main__":
-    args = parse_args()
-    run_hypothesis_tests(args=args)
+    run_hypothesis_tests()
 

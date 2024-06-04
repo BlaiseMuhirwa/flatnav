@@ -327,14 +327,14 @@ generate-hubness-scores:
 # l2 angular angular l2 angular l2 angular l2
 generate-distributions:
 	poetry run python generate-distributions.py \
-		--datasets yandex-deep-10m-euclidean yandex-tti-10m-angular spacev-10m-euclidean \
+		--datasets spacev-10m-euclidean yandex-tti-10m-angular \
 		--k 100 \
 		--ef-construction 100 \
 		--ef-search 200 \
 		--num-node-links 32
 
 # Run statistical tests for hub nodes connectivity. 
-run-stats-test:
+run-hypothesis-test:
 	poetry run python statistical_test.py
 
 setup: install-flatnav install-hnswlib
