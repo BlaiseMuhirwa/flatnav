@@ -5,7 +5,6 @@ cd "$(dirname "$0")/.."
 
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF 
-BUILD_BENCHMARKS=OFF
 NO_SIMD_VECTORIZATION=OFF
 MAKE_VERBOSE=0
 CMAKE_BUILD_TYPE=Release
@@ -17,7 +16,6 @@ function print_usage() {
     echo "  -t, --tests:                    Build tests"
     echo "  -e, --examples:                 Build examples"
     echo "  -v, --verbose:                  Make verbose"
-    echo "  -b, --benchmark:                Build benchmarks"
     echo "  -bt, --build_type:              Build type (Debug, Release, RelWithDebInfo, MinSizeRel)"
     echo "  -nsv, --no_simd_vectorization:Disable SIMD vectorization"
     echo "  -h, --help:                     Print this help message"
@@ -51,7 +49,6 @@ while [[ "$#" -gt 0 ]]; do
         -t|--tests) BUILD_TESTS=ON; shift ;;
         -e|--examples) BUILD_EXAMPLES=ON; shift ;; 
         -v|--verbose) MAKE_VERBOSE=1; shift ;;
-        -b|--benchmark) BUILD_BENCHMARKS=ON; shift ;;
         -nsv|--NO_SIMD_VECTORIZATION) NO_SIMD_VECTORIZATION=ON; shift ;;
         -bt|--build_type) CMAKE_BUILD_TYPE=$2; shift; shift ;;
         *) print_usage ;;
@@ -85,6 +82,5 @@ cd build && cmake \
                 -DNO_SIMD_VECTORIZATION=${NO_SIMD_VECTORIZATION} \
                 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
                 -DBUILD_TESTS=${BUILD_TESTS} \
-                -DBUILD_EXAMPLES=${BUILD_EXAMPLES} \
-                -DBUILD_BENCHMARKS=${BUILD_BENCHMARKS} .. 
+                -DBUILD_EXAMPLES=${BUILD_EXAMPLES} ..
 make -j VERBOSE=${MAKE_VERBOSE}
