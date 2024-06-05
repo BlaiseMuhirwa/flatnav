@@ -28,7 +28,7 @@ function print_usage() {
 }
 
 function set_compilers() {
-    /* Use clang/clang++ as the default compiler. If not available, fall back to gcc/g++ */
+    # Use clang/clang++ as the default compiler. If not available, fall back to gcc/g++ 
     if command -v clang &> /dev/null 2>&1; then 
         echo "Building with clang/clang++ compilers"
         export CC=$(command -v clang)
