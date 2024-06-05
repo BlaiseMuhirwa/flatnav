@@ -27,11 +27,22 @@ function print_usage() {
     exit 1
 }
 
-function check_clang_installed() {
-    if [[ ! -x "$(command -v clang)" ]]; then
-        echo "clang is not installed. Installing it..."
-        ./bin/install_clang.sh
+function set_compilers() {
+    # Use clang/clang++ as the default compiler. If not available, fall back to gcc/g++ 
+    if command -v clang &> /dev/null 2>&1; then 
+        echo "Building with clang/clang++ compilers"
+        export CC=$(command -v clang)
+        export CXX=$(command -v clang++)
+    
+    elif command -v gcc &> /dev/null 2>&1; then
+        echo "Building with gcc/g++ compilers"
+        export CC=$(command -v gcc)
+        export CXX=$(command -v g++)
+    else
+        echo "Please install either clang or gcc. Exiting..."
+        exit 1
     fi
+
 }
 
 # Process the options and arguments     
@@ -49,25 +60,23 @@ done
 
 
 
-check_clang_installed
-
-export CC=/usr/bin/clang
-export CXX=/usr/bin/clang++
+set_compilers
 
 if [[ "$(uname)" == "Darwin" ]]; then
-    echo "Using LLVM clang"
-    export CC=/opt/homebrew/opt/llvm/bin/clang
-    export CXX=/opt/homebrew/opt/llvm/bin/clang++
-    export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
-    export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
+    if [[ -x "/opt/homebrew/opt/llvm/bin/clang" ]]; then
+        echo "Using LLVM clang"
+        export CC=/opt/homebrew/opt/llvm/bin/clang
+        export CXX=/opt/homebrew/opt/llvm/bin/clang++
+        export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
+        export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
+    fi
 elif [[ "$(uname)" == "Linux" ]]; then
-    echo "Using system clang"
+    echo "Using system compiler: ${CC} and ${CXX}"
 else
     echo "Unsupported Operating System. Exiting..."
     exit 1
 fi
 
-echo "Using CC=${CC} and CXX=${CXX} compilers for building."
 
 mkdir -p build 
 cd build && cmake \
