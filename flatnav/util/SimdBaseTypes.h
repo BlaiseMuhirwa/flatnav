@@ -56,7 +56,7 @@ struct simd128bit {
 #endif
   }
 
-  bool operator=(const simd128bit &other) {
+  bool operator==(const simd128bit &other) {
     const __m128i eq = _mm_cmpeq_epi32(_int, other._int);
     return _mm_movemask_epi8(eq) == 0xffffU;
   }
