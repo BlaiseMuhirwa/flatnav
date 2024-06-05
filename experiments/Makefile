@@ -38,6 +38,96 @@ space-v1b-bench-hnsw:
 		--num-search-threads 1 \
 		--metric l2
 
+spacev-10m-bench-flatnav:
+	poetry run python run-benchmark.py \
+		--dataset-name spacev-10m \
+		--dataset /root/data/spacev-10m-euclidean/spacev-10m-euclidean.train.npy \
+		--queries /root/data/spacev-10m-euclidean/spacev-10m-euclidean.test.npy \
+		--gtruth /root/data/spacev-10m-euclidean/spacev-10m-euclidean.gtruth.npy \
+		--index-type flatnav \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename spacev-10m.mtx \
+		--num-node-links 32 \
+		--ef-construction 30 40 50 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric l2
+
+spacev-10m-bench-hnsw:
+	poetry run python run-benchmark.py \
+		--dataset-name spacev-10m \
+		--dataset /root/data/spacev-10m-euclidean/spacev-10m-euclidean.train.npy \
+		--queries /root/data/spacev-10m-euclidean/spacev-10m-euclidean.test.npy \
+		--gtruth /root/data/spacev-10m-euclidean/spacev-10m-euclidean.gtruth.npy \
+		--index-type hnsw \
+		--num-node-links 32 \
+		--ef-construction 30 40 50 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric l2
+
+yandex-deep-10m-bench-flatnav:
+	poetry run python run-benchmark.py \
+		--dataset-name yandex-deep-10m \
+		--dataset /root/data/yandex-deep-10m-euclidean/yandex-deep-10m-euclidean.train.npy \
+		--queries /root/data/yandex-deep-10m-euclidean/yandex-deep-10m-euclidean.test.npy \
+		--gtruth /root/data/yandex-deep-10m-euclidean/yandex-deep-10m-euclidean.gtruth.npy \
+		--index-type flatnav \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename yandex-deep-10m.mtx \
+		--num-node-links 32 \
+		--ef-construction 30 40 50 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric l2
+
+yandex-deep-10m-bench-hnsw:
+	poetry run python run-benchmark.py \
+		--dataset-name yandex-deep-10m \
+		--dataset /root/data/yandex-deep-10m-euclidean/yandex-deep-10m-euclidean.train.npy \
+		--queries /root/data/yandex-deep-10m-euclidean/yandex-deep-10m-euclidean.test.npy \
+		--gtruth /root/data/yandex-deep-10m-euclidean/yandex-deep-10m-euclidean.gtruth.npy \
+		--index-type hnsw \
+		--num-node-links 32 \
+		--ef-construction 30 40 50 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric l2
+
+yandex-tti-10m-bench-flatnav:
+	poetry run python run-benchmark.py \
+		--dataset-name yandex-tti-10m \
+		--dataset /root/data/yandex-tti-10m-angular/yandex-tti-10m-angular.train.npy \
+		--queries /root/data/yandex-tti-10m-angular/yandex-tti-10m-angular.test.npy \
+		--gtruth /root/data/yandex-tti-10m-angular/yandex-tti-10m-angular.gtruth.npy \
+		--index-type flatnav \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename yandex-tti-10m.mtx \
+		--num-node-links 32 \
+		--ef-construction 30 40 50 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric angular
+
+yandex-tti-10m-bench-hnsw:
+	poetry run python run-benchmark.py \
+		--dataset-name yandex-tti-10m \
+		--dataset /root/data/yandex-tti-10m-angular/yandex-tti-10m-angular.train.npy \
+		--queries /root/data/yandex-tti-10m-angular/yandex-tti-10m-angular.test.npy \
+		--gtruth /root/data/yandex-tti-10m-angular/yandex-tti-10m-angular.gtruth.npy \
+		--index-type hnsw \
+		--num-node-links 32 \
+		--ef-construction 30 40 50 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric angular
+
 ################################
 # End Billion-Scale Benchmarks
 ################################
@@ -353,12 +443,5 @@ cleanup:
 %:
 	@echo "Invalid argument: $@"
 	@echo "Usage: make [target]"
-	@echo "Targets:"
-	@echo "  setup: install all dependencies including flatnav"
-	@echo "  install-flatnav: install flatnav"
-	@echo "  install-hnswlib: install hnswlib"
-	@echo "  cleanup: remove hnswlib-original"
-	@echo "  generate-wheel: generate wheel for flatnav"
-	@echo "  yandex-deep-bench: run yandex-deep benchmark"
-	@echo "  sift-bench: run sift benchmark"
+	@echo "Check targets in experiments/Makefile for available options."
 	
