@@ -1,9 +1,9 @@
 #include "cnpy.h"
 #include <cassert>
 #include <flatnav/distance_interface.h>
-#include <flatnav/index.h>
 #include <flatnav/distances/inner_product_distance.h>
 #include <flatnav/distances/squared_l2_distance.h>
+#include <flatnav/index.h>
 #include <memory>
 
 using flatnav::DistanceInterface;
