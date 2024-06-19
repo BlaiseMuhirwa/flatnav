@@ -1,9 +1,9 @@
 #include <algorithm>
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/Index.h>
-#include <flatnav/distances/InnerProductDistance.h>
-#include <flatnav/distances/SquaredL2Distance.h>
-#include <flatnav/util/ParallelConstructs.h>
+#include <flatnav/distance_interface.h>
+#include <flatnav/index.h>
+#include <flatnav/distances/inner_product_distance.h>
+#include <flatnav/distances/squared_l2_distance.h>
+#include <flatnav/util/parallel_constructs.h>
 #include <iostream>
 #include <memory>
 #include <ostream>
@@ -22,9 +22,68 @@ using flatnav::SquaredL2Distance;
 
 namespace py = pybind11;
 
+
+template<typename IndexType>
+class IndexManagerInterface {
+protected:
+  std::unique_ptr<IndexType> _index;
+public:
+  IndexManagerInterface(std::unique_ptr<IndexType> index) : _index(std::move(index)) {}
+
+  virtual ~IndexManagerInterface() = default;
+  virtual void add(const py::array_t<float> &data, int ef_construction,
+                   int num_initializations, py::object labels) = 0;
+  virtual void allocateNodes(const py::array_t<float> &data) = 0;
+  virtual std::pair<py::array_t<float>, py::array_t<int>> searchSingle(
+      const py::array_t<float> &query, int K, int ef_search,
+      int num_initializations) = 0;
+  virtual std::pair<py::array_t<float>, py::array_t<int>> search(
+      const py::array_t<float> &queries, int K, int ef_search,
+      int num_initializations) = 0;
+
+  virtual void save(const std::string &filename) {
+    _index->saveIndex(/* filename = */ filename);
+  }
+  virtual void reorder(const std::vector<std::string> &strategies) {
+    // validate the given strategies
+    for (auto &strategy : strategies) {
+      auto alg = strategy;
+      std::transform(alg.begin(), alg.end(), alg.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      if (alg != "gorder" && alg != "rcm") {
+        throw std::invalid_argument(
+            "`" + strategy +
+            "` is not a supported graph re-ordering strategy.");
+      }
+    }
+    _index->doGraphReordering(strategies);
+  }
+  virtual void setNumThreads(uint32_t num_threads) {
+    _index->setNumThreads(num_threads);
+  }
+  virtual uint32_t getNumThreads() const {
+    return _index->getNumThreads();
+  }
+  virtual uint64_t getQueryDistanceComputations() const {
+    auto distance_computations = _index->distanceComputations();
+    _index->resetStats();
+    return distance_computations;
+  }
+  virtual std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
+    return _index->getGraphOutdegreeTable();
+  }
+  virtual void buildGraphLinks(const std::string &mtx_filename) {
+    _index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
+  
+  }
+  
+};
+
+
 template <typename dist_t, typename label_t>
-class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
+class PyIndex : public IndexManagerInterface<Index<dist_t, label_t>> {
   const uint32_t NUM_LOG_STEPS = 10000;
+  
 
 private:
   int _dim;
@@ -89,21 +148,50 @@ public:
 
   ~PyIndex() { delete _index; }
 
-  uint64_t getQueryDistanceComputations() const {
+  uint64_t getQueryDistanceComputations() const override {
     auto distance_computations = _index->distanceComputations();
     _index->resetStats();
     return distance_computations;
   }
 
   static std::shared_ptr<PyIndex<dist_t, label_t>>
-  loadIndex(const std::string &filename) {
+  loadIndex(const std::string &filename) override {
     auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename);
     return std::make_shared<PyIndex<dist_t, label_t>>(std::move(index));
   }
 
+  void reorder(const std::vector<std::string> &strategies) override {
+    // validate the given strategies
+    for (auto &strategy : strategies) {
+      auto alg = strategy;
+      std::transform(alg.begin(), alg.end(), alg.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      if (alg != "gorder" && alg != "rcm") {
+        throw std::invalid_argument(
+            "`" + strategy +
+            "` is not a supported graph re-ordering strategy.");
+      }
+    }
+    _index->doGraphReordering(strategies);
+  }
+
+  void setNumThreads(uint32_t num_threads) override {
+    _index->setNumThreads(num_threads);
+  }
+
+  uint32_t getNumThreads() const override { return _index->getNumThreads(); }
+
+  std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() override {
+    return _index->getGraphOutdegreeTable();
+  }
+
+  void buildGraphLinks(const std::string &mtx_filename) override {
+    _index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
+  }
+
   std::shared_ptr<PyIndex<dist_t, label_t>> allocateNodes(
       const py::array_t<float, py::array::c_style | py::array::forcecast>
-          &data) {
+          &data) override {
     auto num_vectors = data.shape(0);
     auto data_dim = data.shape(1);
     if (data.ndim() != 2 || data_dim != _dim) {
@@ -123,7 +211,7 @@ public:
   void
   add(const py::array_t<float, py::array::c_style | py::array::forcecast> &data,
       int ef_construction, int num_initializations = 100,
-      py::object labels = py::none()) {
+      py::object labels = py::none()) override {
     // py::array_t<float, py::array::c_style | py::array::forcecast> means that
     // the functions expects either a Numpy array of floats or a castable type
     // to that type. If the given type can't be casted, pybind11 will throw an
@@ -182,7 +270,7 @@ public:
   DistancesLabelsPair searchSingle(
       const py::array_t<float, py::array::c_style | py::array::forcecast>
           &query,
-      int K, int ef_search, int num_initializations = 100) {
+      int K, int ef_search, int num_initializations = 100) override {
     if (query.ndim() != 1 || query.shape(0) != _dim) {
       throw std::invalid_argument("Query has incorrect dimensions.");
     }
@@ -225,7 +313,7 @@ public:
   DistancesLabelsPair
   search(const py::array_t<float, py::array::c_style | py::array::forcecast>
              &queries,
-         int K, int ef_search, int num_initializations = 100) {
+         int K, int ef_search, int num_initializations = 100) override {
     size_t num_queries = queries.shape(0);
     size_t queries_dim = queries.shape(1);
 

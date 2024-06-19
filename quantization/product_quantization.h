@@ -10,17 +10,17 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/distances/InnerProductDistance.h>
-#include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/distance_interface.h>
+#include <flatnav/distances/inner_product_distance.h>
+#include <flatnav/distances/squared_l2_distance.h>
 #include <memory>
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 
-#include <quantization/CentroidsGenerator.h>
-#include <quantization/Utils.h>
+#include <quantization/centroids_generator.h>
+#include <quantization/utils.h>
 #include <queue>
 #include <stdexcept>
 #include <string>

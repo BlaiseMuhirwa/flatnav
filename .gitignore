@@ -23,3 +23,5 @@ flatnav_python/unit_tests/__pycache__
 data/
 baselines/
 external/openmp
+node-access-distributions
+metrics
