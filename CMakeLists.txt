@@ -44,9 +44,18 @@ feature_summary(WHAT ALL)
 
 include_directories("${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}")
 
+
+if(APPLE)
+  set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp -I/usr/local/opt/libomp/include")
+  set(OpenMP_CXX_LIB_NAMES "omp")
+  set(OpenMP_omp_LIBRARY "/usr/local/opt/libomp/lib/libomp.dylib")
+endif()
+
 find_package(OpenMP REQUIRED)
 if(OpenMP_FOUND)
   message(STATUS "OpenMP Found. Building the Package using the system OpenMP.")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 else()
   message(
     FATAL_ERROR
