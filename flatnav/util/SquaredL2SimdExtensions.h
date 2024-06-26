@@ -31,38 +31,6 @@ static float computeL2_Avx512(const void *x, const void *y,
 
 #if defined(USE_AVX)
 
-static float computeL2_Avx2Raw(const void *x, const void *y,
-                               const size_t &dimension) {
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
-  const float *end_x = pointer_x + (dimension & ~7);
-
-  __m256 sum = _mm256_setzero_ps();
-  __m256 difference, v1, v2;
-  while (pointer_x != end_x) {
-    v1 = _mm256_loadu_ps(pointer_x);
-    v2 = _mm256_loadu_ps(pointer_y);
-    difference = _mm256_sub_ps(v1, v2);
-    sum = _mm256_add_ps(sum, _mm256_mul_ps(difference, difference));
-
-    pointer_x += 8;
-    pointer_y += 8;
-
-    v1 = _mm256_loadu_ps(pointer_x);
-    v2 = _mm256_loadu_ps(pointer_y);
-    difference = _mm256_sub_ps(v1, v2);
-    sum = _mm256_add_ps(sum, _mm256_mul_ps(difference, difference));
-
-    pointer_x += 8;
-    pointer_y += 8;
-  }
-
-  float result[8];
-  _mm256_storeu_ps(result, sum);
-  return result[0] + result[1] + result[2] + result[3] + result[4] + result[5] +
-         result[6] + result[7];
-}
-
 static float computeL2_Avx2(const void *x, const void *y,
                             const size_t &dimension) {
   float *pointer_x = static_cast<float *>(const_cast<void *>(x));
