@@ -1,7 +1,7 @@
 #!/bin/bash 
 
-# Print commands and exit on errors
-set -ex 
+# Exit on errors
+set -e 
 
 # Make sure we are one level above this directory
 cd "$(dirname "$0")/.."
@@ -53,6 +53,10 @@ function get_tag_name() {
 
 # Get the tag name
 TAG_NAME=$(get_tag_name)
+
+# Print commands and their arguments as they are executed
+set -x
+
 DATA_DIR=${DATA_DIR:-$(pwd)/data}
 
 # Directory for storing metrics and plots. 

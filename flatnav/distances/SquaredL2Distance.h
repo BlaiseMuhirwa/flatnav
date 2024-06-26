@@ -15,6 +15,22 @@
 
 namespace flatnav {
 
+struct DefaultSquaredL2 {
+  static constexpr float compute(const void *x, const void *y,
+                                 const size_t &dimension) {
+    float *p_x = const_cast<float *>(static_cast<const float *>(x));
+    float *p_y = const_cast<float *>(static_cast<const float *>(y));
+    float squared_distance = 0;
+    for (size_t i = 0; i < dimension; i++) {
+      float difference = *p_x - *p_y;
+      p_x++;
+      p_y++;
+      squared_distance += difference * difference;
+    }
+    return squared_distance;
+  }
+};
+
 class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
 
   friend class DistanceInterface<SquaredL2Distance>;
@@ -67,9 +83,7 @@ private:
 
   void getSummaryImpl() {
     std::cout << "\nSquaredL2Distance Parameters" << std::flush;
-    std::cout << "\n-----------------------------"
-              << "\n"
-              << std::flush;
+    std::cout << "\n-----------------------------" << "\n" << std::flush;
     std::cout << "Dimension: " << _dimension << "\n" << std::flush;
   }
 
@@ -138,20 +152,7 @@ private:
 
   float defaultDistanceImpl(const void *x, const void *y,
                             const size_t &dimension) const {
-    // Default implementation of squared-L2 distance, in case we cannot
-    // support the SIMD specializations for special input _dimension sizes.
-
-    float *p_x = const_cast<float *>(static_cast<const float *>(x));
-    float *p_y = const_cast<float *>(static_cast<const float *>(y));
-    float squared_distance = 0;
-
-    for (size_t i = 0; i < dimension; i++) {
-      float difference = *p_x - *p_y;
-      p_x++;
-      p_y++;
-      squared_distance += difference * difference;
-    }
-    return squared_distance;
+    return DefaultSquaredL2::compute(x, y, dimension);
   }
 };
 

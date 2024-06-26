@@ -64,8 +64,7 @@ std::vector<uint8_t> quantize(float *vectors, uint64_t vec_count, uint32_t dim,
   pq.computePQCodes(/* vectors = */ vectors,
                     /* codes = */ codes.data(), /* n = */ vec_count);
 
-  std::cout << "[INFO] Saving codes to: "
-            << "codes.bin" << std::endl;
+  std::cout << "[INFO] Saving codes to: " << "codes.bin" << std::endl;
   std::ofstream stream("codes.bin");
   stream.write((char *)codes.data(), codes.size());
 

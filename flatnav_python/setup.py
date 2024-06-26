@@ -9,20 +9,30 @@ CURRENT_DIR = os.getcwd()
 SOURCE_PATH = os.path.join(CURRENT_DIR, "python_bindings.cpp")
 
 
+class UnsupportedPlatformError(Exception):
+    pass
+
+
 def simd_extension_supported(extension: str) -> bool:
     """
-    TODO: Make this check more robust across compilers and supported platforms.
+    Check if the CPU supports a given SIMD extension.
     """
-    if sys.platform in ["linux", "linux2", "darwin"]:
-        try:
-            output = subprocess.check_output("cat /proc/cpuinfo", shell=True)
-            decoded_output = output.decode()
-            return extension in decoded_output
-        except Exception:
-            return False
-
+    if sys.platform in ["linux", "linux2"]:
+        command = "cat /proc/cpuinfo"
+    elif sys.platform == "darwin":
+        command = "/usr/sbin/sysctl -n machdep.cpu.features"
     else:
+        raise UnsupportedPlatformError(f"Unsupported platform: {sys.platform}")
+    
+    try:
+        output = subprocess.check_output(command, shell=True)
+        # Using .lower() to make the output case-insensitive since on MacOS the output
+        # is in uppercase
+        decoded_output = output.decode().lower()
+        return extension in decoded_output
+    except Exception:
         return False
+
 
 
 INCLUDE_DIRS = [
@@ -35,7 +45,7 @@ if sys.platform == "darwin":
     omp_flag = "-Xclang -fopenmp"
     INCLUDE_DIRS.extend(["/opt/homebrew/opt/libomp/include"])
     EXTRA_LINK_ARGS.extend(["-lomp", "-L/opt/homebrew/opt/libomp/lib"])
-elif sys.platform == "linux":
+elif sys.platform in ["linux", "linux2"]:
     omp_flag = "-fopenmp"
     EXTRA_LINK_ARGS.extend(["-fopenmp"])
 
@@ -54,6 +64,7 @@ no_simd_vectorization = int(os.environ.get("NO_SIMD_VECTORIZATION", "0"))
 
 if not no_simd_vectorization:
     SIMD_EXTENSIONS = ["sse", "sse3", "avx", "avx512f"]
+    # SIMD_EXTENSIONS = ["sse", "sse3"]
     found_single_extension = False
     for extension in SIMD_EXTENSIONS:
         if simd_extension_supported(extension=extension):
