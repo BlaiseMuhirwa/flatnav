@@ -51,7 +51,7 @@ jobs:
       # Ensure that failure for one test does not cancel other actions
       fail-fast: false
       matrix:
-        os: [ubuntu-latest] 
+        os: [ubuntu-latest, macos-latest] 
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout Repository
