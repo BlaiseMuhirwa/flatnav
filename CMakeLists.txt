@@ -79,21 +79,21 @@ endif()
 # TODO: Using globbing or some other command that does not require writing down
 # every header file
 set(HEADERS
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/SquaredL2SimdExtensions.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/InnerProductSimdExtensions.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/VisitedSetPool.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/ParallelConstructs.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/SimdBaseTypes.h
-    ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
-    ${PROJECT_SOURCE_DIR}/flatnav/Index.h
-    ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
-    ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
-    ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/inner_product_distance.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/squared_l2_distance.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/squared_l2_simd_extensions.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/inner_product_simd_extensions.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/visited_set_pool.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/gorder_priority_queue.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/reordering.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/parallel_constructs.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/macros.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/simd_base_types.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distance_interface.h
+    ${PROJECT_SOURCE_DIR}/flatnav/index.h
+    ${PROJECT_SOURCE_DIR}/quantization/product_quantization.h
+    ${PROJECT_SOURCE_DIR}/quantization/centroids_generator.h
+    ${PROJECT_SOURCE_DIR}/quantization/utils.h)
 
 # Interface here means that the library is header only
 add_library(FLAT_NAV_LIB INTERFACE)
