@@ -138,6 +138,7 @@ struct simd256bit {
     _float = _mm256_loadu_ps((const float *)pointer);
   }
 
+  // clang-format off
   /**
    * Computes the sum of all numbers in a SIMD register using AVX instructions.
    * This is actually a bit faster than doing the following
@@ -150,12 +151,13 @@ struct simd256bit {
    * AVX512 has a dedicated instruction for this, but AVX/AVX2 do not.
    * Example:
    * If _float = [a, b, c, d, e, f, g, h], the following is what each
-   * instruction returns: _mm256_hadd_ps(_float, _float) = [a+b, c+d, a+b, c+d,
-   * e+f, g+h, e+f, g+h] _mm256_hadd_ps(sum, sum) = [a+b+c+d, a+b+c+d, e+f+g+h,
-   * e+f+g+h, ...] _mm256_extractf128_ps(sum, 0) = [a+b+c+d, a+b+c+d, ...]
+   * instruction returns:
+   *  _mm256_hadd_ps(_float, _float) = [a+b, c+d, a+b, c+d, e+f, g+h, e+f, g+h] 
+   * _mm256_hadd_ps(sum, sum) = [a+b+c+d, a+b+c+d, e+f+g+h, e+f+g+h, ...] 
+   * _mm256_extractf128_ps(sum, 0) = [a+b+c+d, a+b+c+d, ...]
    * _mm256_extractf128_ps(sum, 1) = [e+f+g+h, e+f+g+h, ...]
-   * _mm_add_ps(low128, high128) = [(a+b+c+d)+(e+f+g+h), (a+b+c+d)+(e+f+g+h),
-   * ...] _mm_cvtss_f32(final_sum) = a+b+c+d+e+f+g+h
+   * _mm_add_ps(low128, high128) = [(a+b+c+d)+(e+f+g+h), (a+b+c+d)+(e+f+g+h), ...] 
+   * _mm_cvtss_f32(final_sum) = a+b+c+d+e+f+g+h
    *
    */
   float reduce_add() const {
