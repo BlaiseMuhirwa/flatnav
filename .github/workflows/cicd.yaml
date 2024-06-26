@@ -61,7 +61,6 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
         # Install CMake and clang
         ./bin/install_clang.sh
         ./bin/install_cmake.sh
