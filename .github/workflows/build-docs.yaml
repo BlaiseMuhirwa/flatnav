@@ -34,16 +34,13 @@ jobs:
         with:
           version: ${{ env.POETRY_VERSION }}  
 
-      - name: Install dependencies with Poetry
-        run: |
-          poetry install
-
       - name: Generate Doxygen & Sphinx documentation
         run: |
-          ./generate_docs.sh
+          # using the -f flag to force building the Python library.
+          ./generate_docs.sh -f
           
       # This creates a branch called gh-pages and deploys the contents of the _build/html folder to GitHub Pages.
-      # # GitHub automatically creates the token to use in the workflow
+      # GitHub automatically creates the token to use in the workflow
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4.3.3
         with:
