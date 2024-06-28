@@ -64,10 +64,6 @@ no_simd_vectorization = int(os.environ.get("NO_SIMD_VECTORIZATION", "0"))
 
 if not no_simd_vectorization:
     SIMD_EXTENSIONS = ["sse", "sse3", "avx", "avx512f"]
-<<<<<<< HEAD
-=======
-    # SIMD_EXTENSIONS = ["sse", "sse3"]
->>>>>>> f99c38090927886e3ed8163ac52f0f9731d34b56
     found_single_extension = False
     for extension in SIMD_EXTENSIONS:
         if simd_extension_supported(extension=extension):
