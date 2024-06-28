@@ -2,20 +2,15 @@
 
 set -ex 
 
+./build_wheel.sh
 
-# Make sure we are in this directory 
-cd "$(dirname "$0")"
-
-# Clear old build artifacts
-rm -rf build dist *.egg-info
-
-poetry lock && poetry install --no-root
-
-# Generate wheel file
-poetry run python setup.py bdist_wheel
-
-# Assuming the build only produces one wheel file in the dist directory
 WHEEL_FILE=$(ls dist/*.whl)
+
+# Check that the wheel file exists
+if [ ! -f "$WHEEL_FILE" ]; then
+    echo "Failed to build wheel file"
+    exit 1
+fi
 
 
 # Install the wheel using pip 
@@ -28,4 +23,5 @@ echo "Installation of wheel completed"
 
 #Testing the wheel 
 poetry run python -c "import flatnav"
+echo "Successfully installed flatnav"
 

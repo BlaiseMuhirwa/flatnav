@@ -1,5 +1,6 @@
 #pragma once
 
+#include "util/VisitedSetPool.h"
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -21,6 +22,9 @@
 #include <thread>
 #include <utility>
 #include <vector>
+
+using flatnav::util::VisitedSetPool;
+using flatnav::util::VisitedSet;
 
 namespace flatnav {
 
@@ -123,13 +127,19 @@ template <typename dist_t, typename label_t> class Index {
 
 public:
   /**
-   * @brief Construct a new Index object for approximate near neighbor search
+   * @brief Construct a new Index object for approximate near neighbor search.
    *
-   * @param dist                A distance metric for the specific index
-   * distance. Options include l2(euclidean) and inner product.
-   * @param dataset_size        The maximum number of vectors that can be
-   * inserted in the index.
-   * @param max_edges_per_node  The maximum number of links per node.
+   * This constructor initializes an Index object with the specified distance
+   * metric, dataset size, and maximum number of links per node. It also allows
+   * for collecting statistics during the search process.
+   *
+   * @param dist The distance metric for the index. Options include l2
+   * (euclidean) and inner product.
+   * @param dataset_size The maximum number of vectors that can be inserted in
+   * the index.
+   * @param max_edges_per_node The maximum number of links per node.
+   * @param collect_stats Flag indicating whether to collect statistics during
+   * the search process.
    */
   Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
         int max_edges_per_node, bool collect_stats = false)
@@ -387,9 +397,9 @@ public:
       auto outdegree_table = getGraphOutdegreeTable();
       std::vector<node_id_t> P;
       if (method == "gorder") {
-        P = std::move(flatnav::gOrder<node_id_t>(outdegree_table, 5));
+        P = std::move(util::gOrder<node_id_t>(outdegree_table, 5));
       } else if (method == "rcm") {
-        P = std::move(flatnav::rcmOrder<node_id_t>(outdegree_table));
+        P = std::move(util::rcmOrder<node_id_t>(outdegree_table));
       } else {
         throw std::invalid_argument("Invalid reordering method: " + method);
       }
@@ -401,14 +411,14 @@ public:
   void reorderGOrder(const int window_size = 5) {
     auto outdegree_table = getGraphOutdegreeTable();
     std::vector<node_id_t> P =
-        flatnav::gOrder<node_id_t>(outdegree_table, window_size);
+        util::gOrder<node_id_t>(outdegree_table, window_size);
 
     relabel(P);
   }
 
   void reorderRCM() {
     auto outdegree_table = getGraphOutdegreeTable();
-    std::vector<node_id_t> P = flatnav::rcmOrder<node_id_t>(outdegree_table);
+    std::vector<node_id_t> P = util::rcmOrder<node_id_t>(outdegree_table);
     relabel(P);
   }
 
