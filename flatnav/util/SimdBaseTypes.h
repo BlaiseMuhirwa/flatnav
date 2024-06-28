@@ -12,6 +12,22 @@
 
 #include <flatnav/util/Macros.h>
 
+// clang-format off
+/**
+ * @file SimdBaseTypes.h
+ * @brief This file contains the definition of base types that serve as wrappers for low-level SIMD intrinsics.
+ * 
+ * The namespace `flatnav::util` contains the following base types:
+ * - `simd128bit`: Represents a 128-bit SIMD register and provides operations for loading, storing, and manipulating data.
+ * - `simd4float32`: Represents a vector of 4 32-bit floating-point numbers and provides arithmetic operations.
+ * - `simd256bit`: Represents a 256-bit SIMD register and provides operations for loading, storing, and manipulating data.
+ * - `simd8float32`: Represents a vector of 8 32-bit floating-point numbers and provides arithmetic operations.
+ * - `simd512bit`: Represents a 512-bit SIMD register and provides operations for loading, storing, and manipulating data.
+ * - `simd16float32`: Represents a vector of 16 32-bit floating-point numbers and provides arithmetic operations.
+ * 
+ * These base types are designed to work with different SIMD instruction sets, such as SSE, AVX, and AVX512.
+ * They encapsulate the low-level SIMD intrinsics and provide a higher-level interface for SIMD programming.
+ */
 namespace flatnav::util {
 
 #if defined(USE_SSE)
