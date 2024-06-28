@@ -5,36 +5,7 @@ import time
 import flatnav
 import os
 from sklearn.neighbors import NearestNeighbors
-import powerlaw
 import matplotlib.pyplot as plt
-
-
-def fit_power_law(distribution: dict, save_path: Optional[str] = None) -> None:
-    data = np.array(list(distribution.values()))
-
-    # Fit the power-law distribution
-    fit = powerlaw.Fit(data, discrete=True)
-    xmin = fit.xmin
-    alpha = fit.power_law.alpha
-    sigma = fit.power_law.sigma
-
-    print(f"Xmin: {xmin}, alpha: {alpha}, sigma: {sigma}")
-
-    R, p = fit.distribution_compare("power_law", "lognormal")
-    print(f"Likelihood Ratio R: {R}, p-value: {p}")
-
-    # Plot the PDF
-    fig = fit.plot_pdf(color="b", linewidth=2)
-    fit.power_law.plot_pdf(color="b", linestyle="--", ax=fig)
-
-    # Add alpha and sigma to the plot
-    plt.text(
-        0.5, 0.5, f"alpha: {alpha:.3f}\nsigma: {sigma:.3f}", transform=fig.transAxes
-    )
-
-    # Save figure if save_path is provided
-    if save_path:
-        plt.savefig(save_path)
 
 
 def generate_iid_normal_dataset(
@@ -188,132 +159,48 @@ def compute_skewness(
     return skewness
 
 
-def search_in_batches(index, queries, batch_size, ef_search, k):
-    if type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex):
-        for i in range(0, len(queries), batch_size):
-            top_k_indices_batch, _ = index.search(
-                queries=queries[i : i + batch_size],
-                ef_search=ef_search,
-                K=k,
-                num_initializations=300,
-            )
-            yield top_k_indices_batch
-    else:
-        index.set_ef(ef_search)
-        for i in range(0, len(queries), batch_size):
-            top_k_indices_batch, _ = index.knn_query(
-                data=queries[i : i + batch_size], k=k
-            )
-            yield top_k_indices_batch
-
-
-# def search_in_batches(
-#     index, queries, batch_size, ef_search, k
-# ) -> Tuple[np.ndarray, float]:
-#     top_k_indices = []
-#     if type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex):
-#         start = time.time()
-#         for i in range(0, len(queries), batch_size):
-#             top_k_indices_batch, _ = index.search(
-#                 queries=queries[i : i + batch_size],
-#                 ef_search=ef_search,
-#                 K=k,
-#                 num_initializations=300,
-#             )
-#             top_k_indices.append(top_k_indices_batch)
-#         end = time.time()
-#     else:
-#         index.set_ef(ef_search)
-#         start = time.time()
-#         for i in range(0, len(queries), batch_size):
-#             top_k_indices_batch, _ = index.knn_query(
-#                 data=queries[i : i + batch_size], k=k
-#             )
-#             top_k_indices.append(top_k_indices_batch)
-#         end = time.time()
-
-#     querying_time = end - start
-#     top_k_indices = np.concatenate(top_k_indices)
-#     return top_k_indices, querying_time
-
-
-def compute_metrics(
-    requested_metrics: List[str],
-    index: Union[flatnav.index.L2Index, flatnav.index.IPIndex, hnswlib.Index],
-    queries: np.ndarray,
-    ground_truth: np.ndarray,
-    ef_search: int,
-    k=100,
-) -> dict[str, float]:
+def get_metric_from_dataset_name(dataset_name: str) -> str:
     """
-    Compute recall and QPS for given queries, ground truth for the given index(FlatNav or HNSW).
-
-    Args:
-        - requested_metrics: A dict containing the requested metrics.
-                Supported metrics include: recall, QPS and average query latency.
-        - index: A FlatNav index to search.
-        - queries: The query vectors.
-        - ground_truth: The ground truth indices for each query.
-        - k: Number of neighbors to search.
-        - ef_search: The number of neighbors to visit during search.
-        - batch_size: The number of queries to search in a batch. If None, search all queries at once.
-
-    Returns:
-        A dict containing the requested metrics.
+    Extract the metric from the dataset name. The metric is the last part of the dataset name.
+    Ex. normal-10-euclidean -> l2
+        mnist-784-euclidean -> l2
+        normal-10-angular -> angular
     """
-    metrics = {}
-    latencies = []
+    metric = dataset_name.split("-")[-1]
+    if metric == "euclidean":
+        return "l2"
+    elif metric == "angular":
+        return "angular"
+    raise ValueError(f"Invalid metric: {metric}")
 
-    if type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex):
-        for query in queries:
-            start = time.time()
-            _, indices = index.search_single(
-                query=query,
-                ef_search=ef_search,
-                K=k,
-                num_initializations=100,
-            )
-            end = time.time()
-            latencies.append(end - start)
-            top_k_indices.append(indices)
-        
-        
-        start = time.time()
-        _, top_k_indices = index.search(
-            queries=queries, ef_search=ef_search, K=k, num_initializations=100
-        )
-        end = time.time()
-    else:
-        print(f"[HNSW] search")
-        index.set_ef(ef_search)
-        start = time.time()
-        # Search for HNSW return (ids, distances) instead of (distances, ids)
-        top_k_indices, _ = index.knn_query(data=queries, k=k)
-        end = time.time()
+def load_dataset(base_path: str, dataset_name: str) -> Tuple[np.ndarray]:
+    if not os.path.exists(base_path):
+        raise FileNotFoundError(f"Dataset path not found at {base_path}")
+    return (
+        np.load(f"{base_path}/{dataset_name}.train.npy"),
+        np.load(f"{base_path}/{dataset_name}.test.npy"),
+        np.load(f"{base_path}/{dataset_name}.gtruth.npy"),
+    )
 
-    querying_time = end - start
-    if "latency" in requested_metrics:
-        latency = querying_time / len(queries)
-        latency *= 1000
-        # Add latency in milliseconds
-        metrics["latency"] = latency
+def load_graph_from_mtx_file(mtx_filename: str) -> list[list[int]]:
+    """
+    Loads a graph from a .mtx file and returns it as an adjacency list.
+    :param mtx_filename: Path to the .mtx file.
+    :return: Adjacency list representation of the graph.
+    """
+    with open(mtx_filename, "r") as f:
+        lines = f.readlines()
+        lines = [line.strip() for line in lines if not line.startswith("%")]
 
-    if "qps" in requested_metrics:
-        metrics["qps"] = len(queries) / querying_time
+    num_nodes, num_edges = map(int, lines[0].split())
+    graph = [[] for _ in range(num_nodes)]
 
-    # Convert each ground truth list to a set for faster lookup
-    ground_truth_sets = [set(gt) for gt in ground_truth]
+    for line in lines[1:]:
+        u, v = map(int, line.split())
+        # Adjust for 1-based indexing 
+        u -= 1
+        v -= 1
+        graph[u].append(v)
+        graph[v].append(u)
 
-    mean_recall = 0
-
-    for idx, k_neighbors in enumerate(top_k_indices):
-        query_recall = sum(
-            1 for neighbor in k_neighbors if neighbor in ground_truth_sets[idx]
-        )
-        mean_recall += query_recall / k
-
-    recall = mean_recall / len(queries)
-
-    metrics[f"recall@{k}"] = recall
-
-    return metrics
+    return graph

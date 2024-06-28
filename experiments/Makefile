@@ -333,6 +333,13 @@ generate-distributions:
 		--ef-search 200 \
 		--num-node-links 32
 
+bcentrality:
+	poetry run python betweenness_centrality.py \
+		--datasets spacev-10m-euclidean yandex-tti-10m-angular sift-128-euclidean glove-100-angular normal-256-angular normal-256-euclidean normal-1024-angular normal-1024-euclidean \
+		--k 100 \
+		--ef-construction 100 \
+		--num-node-links 32
+
 # Run statistical tests for hub nodes connectivity. 
 run-hypothesis-test:
 	poetry run python statistical_test.py

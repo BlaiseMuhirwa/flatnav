@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from scipy.stats import mannwhitneyu, ks_2samp, ttest_ind, skew
+from utils import get_metric_from_dataset_name, load_dataset
 
 # import plotly.express as px
 from typing import List, Dict
@@ -421,30 +422,6 @@ def parse_args() -> argparse.Namespace:
 
     return parser.parse_args()
 
-
-def load_dataset(base_path: str, dataset_name: str) -> Tuple[np.ndarray]:
-    if not os.path.exists(base_path):
-        raise FileNotFoundError(f"Dataset path not found at {base_path}")
-    return (
-        np.load(f"{base_path}/{dataset_name}.train.npy"),
-        np.load(f"{base_path}/{dataset_name}.test.npy"),
-        np.load(f"{base_path}/{dataset_name}.gtruth.npy"),
-    )
-
-
-def get_metric_from_dataset_name(dataset_name: str) -> str:
-    """
-    Extract the metric from the dataset name. The metric is the last part of the dataset name.
-    Ex. normal-10-euclidean -> l2
-        mnist-784-euclidean -> l2
-        normal-10-angular -> angular
-    """
-    metric = dataset_name.split("-")[-1]
-    if metric == "euclidean":
-        return "l2"
-    elif metric == "angular":
-        return "angular"
-    raise ValueError(f"Invalid metric: {metric}")
 
 
 def run_main(args: argparse.Namespace) -> None:
