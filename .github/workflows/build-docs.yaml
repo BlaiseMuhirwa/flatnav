@@ -1,10 +1,9 @@
 name: Publish Documentation
 
-# on:
-#   push:
-#     branches:
-#       - main 
-on: [pull_request]
+on:
+  push:
+    branches:
+      - main 
 
 env:
   PYTHON_VERSION: "3.11"
