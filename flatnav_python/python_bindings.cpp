@@ -56,6 +56,20 @@ public:
             /* collect_stats = */ collect_stats)) {
 
     if (_verbose) {
+      uint64_t total_index_memory = _index->getTotalIndexMemory();
+      uint64_t visited_set_allocated_memory =
+          _index->visitedSetPoolAllocatedMemory();
+      uint64_t mutexes_allocated_memory = _index->mutexesAllocatedMemory();
+
+      auto total_memory = total_index_memory + visited_set_allocated_memory +
+                          mutexes_allocated_memory;
+
+      std::cout << "Total allocated index memory: " << total_memory / 1e9
+                << " GB \n"
+                << std::flush;
+      std::cout << "[WARN]: More memory might be allocated due to visited sets "
+                   "in multi-threaded environments.\n"
+                << std::flush;
       _index->getIndexSummary();
     }
   }
@@ -344,10 +358,11 @@ void bindIndexMethods(
           "underlying graph.")
       .def(
           "build_graph_links",
-          [](IndexType &index_type) {
+          [](IndexType &index_type, const std::string &mtx_filename) {
             auto index = index_type.getIndex();
-            index->buildGraphLinks();
+            index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
           },
+          py::arg("mtx_filename"),
           "Construct the edge connectivity of the underlying graph. This "
           "method "
           "should be invoked after allocating nodes using the "
@@ -444,32 +459,6 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
         dim (int): The number of dimensions in the dataset.
         dataset_size (str): The number of vectors in the dataset.
         max_edges_per_node (str): The maximum number of edges per node in the graph.
-        verbose (bool, optional): Enables verbose output.
-        collect_stats (bool, optional): Collects performance statistics. Currently, this is the number of distance computations.
-
-      Returns:
-        An object representing the FlatNav index.
-      )pbdoc"
-    );
-
-  index_submodule.def(
-      "index_factory",
-      [](const std::string &distance_type, int dim,
-         const std::string &mtx_filename, bool verbose = false,
-         bool collect_stats = false) {
-        return createIndex(distance_type, dim, mtx_filename, verbose,
-                           collect_stats);
-      },
-      py::arg("distance_type"), py::arg("dim"), py::arg("mtx_filename"),
-      py::arg("verbose") = false, py::arg("collect_stats") = false,
-      R"pbdoc(
-        Creates a FlatNav index from a Matrix Market file representing the graph’s edge connectivity.
-        The distance_type argument determines the kind of index created (either L2Index or IPIndex).
-        
-      Args:
-        distance_type (str): The type of distance metric to use ('l2' for Euclidean, 'angular' for inner product).
-        dim (int): The number of dimensions in the dataset.
-        mtx_filename (str): The path to the Matrix Market file representing the graph's edge connectivity.
         verbose (bool, optional): Enables verbose output.
         collect_stats (bool, optional): Collects performance statistics. Currently, this is the number of distance computations.
 

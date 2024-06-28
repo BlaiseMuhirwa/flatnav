@@ -56,11 +56,9 @@ endif(OpenMP_FOUND)
 
 option(BUILD_TESTS "Build all tests")
 option(BUIL_EXAMPLES "Build examples")
-option(BUILD_BENCHMARKS "Build ANNS benchmarks")
 option(NO_SIMD_VECTORIZATION "Disable using SIMD instructions")
 message(STATUS "Building tests: ${BUILD_TESTS}")
 message(STATUS "Building examples: ${BUILD_EXAMPLES}")
-message(STATUS "Building benchmarks: ${BUILD_BENCHMARKS}")
 
 # Enable auto-vectorization if we are not using SIMD.
 if(NO_SIMD_VECTORIZATION)
@@ -80,7 +78,6 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/ParallelConstructs.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/PreprocessorUtils.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/SimdBaseTypes.h
     ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
@@ -110,10 +107,3 @@ if(BUILD_TESTS)
   # add_subdirectory(${PROJECT_SOURCE_DIR}/quantization/tests)
 endif()
 
-if(BUILD_BENCHMARKS)
-  message(STATUS "Building benchmarks")
-  if(NOT TARGET CNPY)
-    include(cmake/FindCNPYAndZLIB.cmake)
-  endif()
-  add_subdirectory(${PROJECT_SOURCE_DIR}/benchmarks)
-endif()

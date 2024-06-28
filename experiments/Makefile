@@ -1,12 +1,10 @@
+# This file contains the benchmarking script configurations for various near neighbor datasets
+# The main configurable parameter is the type of index: --index-type (hnsw, flatnav)
+# We use dataset-name for the name of the plots.
 
-
-# Run the yandex-deep benchmark and log everything to a logs.txt file 
-yandex-deep-bench: 
-	poetry run python run-benchmark.py \
-		--dataset /media/scratch/yandex-deep/learn.350.fbin \
-		--queries /media/scratch/yandex-deep/queries.fbin \
-		--gtruth /media/scratch/yandex-deep/ground_truth.10K.bin \
-		--metric l2 > logs.txt 2>&1
+################################
+# Begin Billion-Scale Benchmarks
+################################
 
 # Billion-scale benchmark for the Microsoft SpaceV1B dataset
 # Reference: https://github.com/microsoft/SPTAG/tree/main/datasets/SPACEV1B
@@ -18,7 +16,7 @@ space-v1b-bench-flatnav:
 		--gtruth /root/data/SPACEV1B/ground_truth.npy \
 		--index-type flatnav \
 		--use-hnsw-base-layer \
-		--hnsw-base-layer-filename /scratch/brc7/space-v1b.mtx \
+		--hnsw-base-layer-filename space-v1b.mtx \
 		--num-node-links 32 \
 		--ef-construction 30 50 100 \
 		--ef-search 100 200 300 500 1000 \
@@ -40,35 +38,70 @@ space-v1b-bench-hnsw:
 		--num-search-threads 1 \
 		--metric l2
 
-# Other available options include: --index-type (hnsw, flatnav)
-# We use dataset-name for the name of the plots.
+################################
+# End Billion-Scale Benchmarks
+################################
 
-fashion-mnist-bench-flatnav: 
+################################
+# Begin ANN Benchmarks
+# Ref: https://ann-benchmarks.com/
+################################
+
+deep-image-flatnav: 
 	poetry run python run-benchmark.py \
-		--dataset-name fashion-mnist-784 \
-		--dataset /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.train.npy \
-		--queries /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.test.npy \
-		--gtruth /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.gtruth.npy \
+		--dataset-name deep-image-96 \
+		--dataset /root/data/deep-image-96-angular/deep-image-96-angular.train.npy \
+		--queries /root/data/deep-image-96-angular/deep-image-96-angular.test.npy \
+		--gtruth /root/data/deep-image-96-angular/deep-image-96-angular.gtruth.npy \
+		--index-type flatnav \
+                --use-hnsw-base-layer \
+                --hnsw-base-layer-filename deep-image.mtx \
+                --num-node-links 32 \
+                --ef-construction 30 40 50 100 200 \
+                --ef-search 100 200 300 \
+		--metric l2 \
+		--num-build-threads 16 \
+                --num-search-threads 1
+
+deep-image-hnsw: 
+	poetry run python run-benchmark.py \
+		--dataset-name deep-image-96 \
+		--dataset /root/data/deep-image-96-angular/deep-image-96-angular.train.npy \
+		--queries /root/data/deep-image-96-angular/deep-image-96-angular.test.npy \
+		--gtruth /root/data/deep-image-96-angular/deep-image-96-angular.gtruth.npy \
+		--index-type hnsw \
+                --num-node-links 32 \
+                --ef-construction 30 40 50 100 200 \
+                --ef-search 100 200 300 \
+		--metric l2 \
+		--num-build-threads 16 \
+                --num-search-threads 1
+
+mnist-bench-flatnav: 
+	poetry run python run-benchmark.py \
+		--dataset-name mnist-784 \
+		--dataset /root/data/mnist-784-euclidean/mnist-784-euclidean.train.npy \
+		--queries /root/data/mnist-784-euclidean/mnist-784-euclidean.test.npy \
+		--gtruth /root/data/mnist-784-euclidean/mnist-784-euclidean.gtruth.npy \
 		--index-type flatnav \
 		--use-hnsw-base-layer \
-		--hnsw-base-layer-filename fashion-mnist.mtx \
+		--hnsw-base-layer-filename mnist.mtx \
 		--num-node-links 32 \
-		--ef-construction 30 40 50 100 200 300 \
+		--ef-construction 30 40 50 100 \
 		--ef-search 100 200 300 500 1000 \
 		--metric l2 \
 		--num-build-threads 16 \
 		--num-search-threads 1 
 
-
-fashion-mnist-bench-hnsw: 
+mnist-bench-hnsw: 
 	poetry run python run-benchmark.py \
-		--dataset-name fashion-mnist-784 \
-		--dataset /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.train.npy \
-		--queries /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.test.npy \
-		--gtruth /root/data/fashion-mnist-784-euclidean/fashion-mnist-784-euclidean.gtruth.npy \
+		--dataset-name mnist-784 \
+		--dataset /root/data/mnist-784-euclidean/mnist-784-euclidean.train.npy \
+		--queries /root/data/mnist-784-euclidean/mnist-784-euclidean.test.npy \
+		--gtruth /root/data/mnist-784-euclidean/mnist-784-euclidean.gtruth.npy \
 		--index-type hnsw \
 		--num-node-links 32 \
-		--ef-construction 30 40 50 100 200 300 \
+		--ef-construction 30 40 50 100 \
 		--ef-search 100 200 300 500 1000 \
 		--metric l2 \
 		--num-build-threads 16 \
@@ -134,37 +167,6 @@ sift-bench-hnsw:
 		--num-build-threads 16 \
 		--num-search-threads 1
 
-glove100-bench-flatnav:
-	poetry run python run-benchmark.py \
-		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
-		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
-		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
-		--dataset-name glove-100-angular \
-		--index-type flatnav \
-		--use-hnsw-base-layer \
-		--hnsw-base-layer-filename glove100.mtx \
-		--num-node-links 32 \
-		--ef-construction 100 200 300 \
-		--ef-search 100 200 300 500 1000 3000 \
-		--num-build-threads 16 \
-		--num-search-threads 1 \
-		--metric angular
-
-glove100-bench-hnsw:
-	poetry run python run-benchmark.py \
-		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
-		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
-		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
-		--dataset-name glove-100-angular \
-		--index-type hnsw \
-		--num-node-links 32 \
-		--ef-construction 100 200 300 \
-		--ef-search 100 200 300 500 1000 3000 \
-		--num-build-threads 16 \
-		--num-search-threads 1 \
-		--metric angular
-
-
 glove25-bench-flatnav:
 	poetry run python run-benchmark.py \
 		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
@@ -187,6 +189,96 @@ glove25-bench-hnsw:
 		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
 		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
 		--dataset-name glove-25-angular \
+		--index-type hnsw \
+		--num-node-links 32 \
+		--ef-construction 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric angular
+
+glove50-bench-flatnav:
+	poetry run python run-benchmark.py \
+		--dataset /root/data/glove-50-angular/glove-50-angular.train.npy \
+		--queries /root/data/glove-50-angular/glove-50-angular.test.npy \
+		--gtruth /root/data/glove-50-angular/glove-50-angular.gtruth.npy \
+		--dataset-name glove-50-angular \
+		--index-type flatnav \
+		--use-hnsw-base-layer \
+                --hnsw-base-layer-filename glove50.mtx \
+		--num-node-links 32 \
+		--ef-construction 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric angular
+
+glove50-bench-hnsw:
+	poetry run python run-benchmark.py \
+		--dataset /root/data/glove-50-angular/glove-50-angular.train.npy \
+		--queries /root/data/glove-50-angular/glove-50-angular.test.npy \
+		--gtruth /root/data/glove-50-angular/glove-50-angular.gtruth.npy \
+		--dataset-name glove-50-angular \
+		--index-type hnsw \
+		--num-node-links 32 \
+		--ef-construction 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric angular
+
+glove100-bench-flatnav:
+	poetry run python run-benchmark.py \
+		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
+		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
+		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
+		--dataset-name glove-100-angular \
+		--index-type flatnav \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename glove100.mtx \
+		--num-node-links 32 \
+		--ef-construction 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric angular
+
+glove100-bench-hnsw:
+	poetry run python run-benchmark.py \
+		--dataset /root/data/glove-200-angular/glove-200-angular.train.npy \
+		--queries /root/data/glove-200-angular/glove-200-angular.test.npy \
+		--gtruth /root/data/glove-200-angular/glove-200-angular.gtruth.npy \
+		--dataset-name glove-200-angular \
+		--index-type hnsw \
+		--num-node-links 32 \
+		--ef-construction 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric angular
+
+glove200-bench-flatnav:
+	poetry run python run-benchmark.py \
+		--dataset /root/data/glove-200-angular/glove-200-angular.train.npy \
+		--queries /root/data/glove-200-angular/glove-200-angular.test.npy \
+		--gtruth /root/data/glove-200-angular/glove-200-angular.gtruth.npy \
+		--dataset-name glove-200-angular \
+		--index-type flatnav \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename glove200.mtx \
+		--num-node-links 32 \
+		--ef-construction 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric angular
+
+glove200-bench-hnsw:
+	poetry run python run-benchmark.py \
+		--dataset /root/data/glove-200-angular/glove-200-angular.train.npy \
+		--queries /root/data/glove-200-angular/glove-200-angular.test.npy \
+		--gtruth /root/data/glove-200-angular/glove-200-angular.gtruth.npy \
+		--dataset-name glove-200-angular \
 		--index-type hnsw \
 		--num-node-links 32 \
 		--ef-construction 100 200 300 \
@@ -225,6 +317,10 @@ nytimes-bench-hnsw:
 		--num-search-threads 1 \
 		--metric angular
 
+################################
+# End ANN Benchmarks
+################################
+
 setup: install-flatnav install-hnswlib
 
 # Install all dependencies including flatnav
@@ -246,6 +342,9 @@ install-hnswlib:
 	poetry install --no-root && \
 	poetry run python setup.py bdist_wheel 
 	poetry add hnswlib-original/python_bindings/dist/*.whl
+
+s3-push:
+	poetry run python push-snapshot-to-s3.py
 
 cleanup:
 	rm -rf hnswlib-original 
