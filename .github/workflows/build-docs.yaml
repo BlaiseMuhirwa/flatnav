@@ -38,6 +38,10 @@ jobs:
         run: |
           # using the -f flag to force building the Python library.
           ./generate_docs.sh -f
+
+      - name: Create .nojekyll file
+        run: |
+          touch _build/html/.nojekyll
           
       # This creates a branch called gh-pages and deploys the contents of the _build/html folder to GitHub Pages.
       # GitHub automatically creates the token to use in the workflow
