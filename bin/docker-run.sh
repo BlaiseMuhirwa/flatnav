@@ -4,13 +4,14 @@
 # Optionally, you can set the environment variable INCLUDE_HNSWLIB to false to build
 # the docker image without hnswlib. This is useful for experiments that only require 
 # FlatNav. 
-# Example usage:
+# Example usage:``
 # export INLCUDE_HNSWLIB=false
+# export DATA_DIR=/path/to/data
 # ./bin/docker-test.sh sift-bench 
 
 
-# Print commands and exit on errors
-set -ex 
+# Exit on errors
+set -e 
 
 # Make sure we are one level above this directory
 cd "$(dirname "$0")/.."
@@ -62,6 +63,10 @@ function get_tag_name() {
 
 # Get the tag name
 TAG_NAME=$(get_tag_name)
+
+# Print commands and their arguments as they are executed
+set -x
+
 DATA_DIR=${DATA_DIR:-$(pwd)/data}
 
 # Directory for storing metrics and plots. 

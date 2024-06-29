@@ -5,7 +5,6 @@ cd "$(dirname "$0")/.."
 
 BUILD_TESTS=OFF
 BUILD_EXAMPLES=OFF 
-BUILD_BENCHMARKS=OFF
 NO_SIMD_VECTORIZATION=OFF
 MAKE_VERBOSE=0
 CMAKE_BUILD_TYPE=Release
@@ -17,7 +16,6 @@ function print_usage() {
     echo "  -t, --tests:                    Build tests"
     echo "  -e, --examples:                 Build examples"
     echo "  -v, --verbose:                  Make verbose"
-    echo "  -b, --benchmark:                Build benchmarks"
     echo "  -bt, --build_type:              Build type (Debug, Release, RelWithDebInfo, MinSizeRel)"
     echo "  -nsv, --no_simd_vectorization:Disable SIMD vectorization"
     echo "  -h, --help:                     Print this help message"
@@ -27,11 +25,22 @@ function print_usage() {
     exit 1
 }
 
-function check_clang_installed() {
-    if [[ ! -x "$(command -v clang)" ]]; then
-        echo "clang is not installed. Installing it..."
-        ./bin/install_clang.sh
+function set_compilers() {
+    # Use clang/clang++ as the default compiler. If not available, fall back to gcc/g++ 
+    if command -v clang &> /dev/null 2>&1; then 
+        echo "Building with clang/clang++ compilers"
+        export CC=$(command -v clang)
+        export CXX=$(command -v clang++)
+    
+    elif command -v gcc &> /dev/null 2>&1; then
+        echo "Building with gcc/g++ compilers"
+        export CC=$(command -v gcc)
+        export CXX=$(command -v g++)
+    else
+        echo "Please install either clang or gcc. Exiting..."
+        exit 1
     fi
+
 }
 
 # Process the options and arguments     
@@ -40,7 +49,6 @@ while [[ "$#" -gt 0 ]]; do
         -t|--tests) BUILD_TESTS=ON; shift ;;
         -e|--examples) BUILD_EXAMPLES=ON; shift ;; 
         -v|--verbose) MAKE_VERBOSE=1; shift ;;
-        -b|--benchmark) BUILD_BENCHMARKS=ON; shift ;;
         -nsv|--NO_SIMD_VECTORIZATION) NO_SIMD_VECTORIZATION=ON; shift ;;
         -bt|--build_type) CMAKE_BUILD_TYPE=$2; shift; shift ;;
         *) print_usage ;;
@@ -49,25 +57,23 @@ done
 
 
 
-check_clang_installed
-
-export CC=/usr/bin/clang
-export CXX=/usr/bin/clang++
+set_compilers
 
 if [[ "$(uname)" == "Darwin" ]]; then
-    echo "Using LLVM clang"
-    export CC=/opt/homebrew/opt/llvm/bin/clang
-    export CXX=/opt/homebrew/opt/llvm/bin/clang++
-    export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
-    export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
+    if [[ -x "/opt/homebrew/opt/llvm/bin/clang" ]]; then
+        echo "Using LLVM clang"
+        export CC=/opt/homebrew/opt/llvm/bin/clang
+        export CXX=/opt/homebrew/opt/llvm/bin/clang++
+        export LDFLAGS="-L/opt/homebrew/opt/libomp/lib"
+        export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
+    fi
 elif [[ "$(uname)" == "Linux" ]]; then
-    echo "Using system clang"
+    echo "Using system compiler: ${CC} and ${CXX}"
 else
     echo "Unsupported Operating System. Exiting..."
     exit 1
 fi
 
-echo "Using CC=${CC} and CXX=${CXX} compilers for building."
 
 mkdir -p build 
 cd build && cmake \
@@ -76,6 +82,5 @@ cd build && cmake \
                 -DNO_SIMD_VECTORIZATION=${NO_SIMD_VECTORIZATION} \
                 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
                 -DBUILD_TESTS=${BUILD_TESTS} \
-                -DBUILD_EXAMPLES=${BUILD_EXAMPLES} \
-                -DBUILD_BENCHMARKS=${BUILD_BENCHMARKS} .. 
+                -DBUILD_EXAMPLES=${BUILD_EXAMPLES} ..
 make -j VERBOSE=${MAKE_VERBOSE}

@@ -1,9 +1,8 @@
 import time
-from typing import Union
 import json
 import hnswlib
 import numpy as np
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict, Union
 import numpy as np
 import os
 import logging
@@ -236,7 +235,7 @@ def train_index(
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
-            verbose=True,
+            verbose=False,
             collect_stats=True,
         )
         index.set_num_threads(num_build_threads)
@@ -560,10 +559,15 @@ def plot_all_metrics(
     with open(metrics_file_path, "r") as file:
         all_metrics = json.load(file)
 
+<<<<<<< HEAD:experiments/run_benchmark.py
     # Filter keys based on the dataset_name. This is because we want a plot for each dataset.
     all_metrics = {
         key: value for key, value in all_metrics.items() if dataset_name in key
     }
+=======
+    # Only consider data for the current benchmark dataset.
+    all_metrics = {key: value for key, value in all_metrics.items() if dataset_name in key}
+>>>>>>> 6f2f33006b2b5f673fcd9d8a2c07b7a8e20eabcb:experiments/run-benchmark.py
 
     linestyles = create_linestyles(unique_algorithms=all_metrics.keys())
     metrics_dir = os.path.dirname(metrics_file_path)

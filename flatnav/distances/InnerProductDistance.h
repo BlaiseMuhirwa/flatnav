@@ -15,6 +15,19 @@ namespace flatnav {
 // This is the base distance function implementation for inner product distances
 // on floating-point inputs.
 
+struct DefaultInnerProduct {
+  static constexpr float compute(const void *x, const void *y,
+                                 const size_t &dimension) {
+    float *p_x = static_cast<float *>(const_cast<void *>(x));
+    float *p_y = static_cast<float *>(const_cast<void *>(y));
+    float result = 0;
+    for (size_t i = 0; i < dimension; i++) {
+      result += p_x[i] * p_y[i];
+    }
+    return 1.0 - result;
+  }
+};
+
 class InnerProductDistance : public DistanceInterface<InnerProductDistance> {
 
   friend class DistanceInterface<InnerProductDistance>;
@@ -152,13 +165,7 @@ private:
                             const size_t &dimension) const {
     // Default implementation of inner product distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
-    float *p_x = static_cast<float *>(const_cast<void *>(x));
-    float *p_y = static_cast<float *>(const_cast<void *>(y));
-    float result = 0;
-    for (size_t i = 0; i < dimension; i++) {
-      result += p_x[i] * p_y[i];
-    }
-    return 1.0 - result;
+    return DefaultInnerProduct::compute(x, y, dimension);
   }
 };
 
