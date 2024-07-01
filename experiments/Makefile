@@ -213,36 +213,6 @@ sift-bench-hnsw:
 		--num-build-threads 16 \
 		--num-search-threads 1
 
-glove25-bench-flatnav:
-	poetry run python run-benchmark.py \
-		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
-		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
-		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
-		--dataset-name glove-25-angular \
-		--index-type flatnav \
-		--use-hnsw-base-layer \
-                --hnsw-base-layer-filename glove25.mtx \
-		--num-node-links 32 \
-		--ef-construction 100 200 300 \
-		--ef-search 100 200 300 500 1000 3000 \
-		--num-build-threads 16 \
-		--num-search-threads 1 \
-		--metric angular
-
-glove25-bench-hnsw:
-	poetry run python run-benchmark.py \
-		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
-		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
-		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
-		--dataset-name glove-25-angular \
-		--index-type hnsw \
-		--num-node-links 32 \
-		--ef-construction 100 200 300 \
-		--ef-search 100 200 300 500 1000 3000 \
-		--num-build-threads 16 \
-		--num-search-threads 1 \
-		--metric angular
-
 glove50-bench-flatnav:
 	poetry run python run-benchmark.py \
 		--dataset /root/data/glove-50-angular/glove-50-angular.train.npy \

@@ -773,15 +773,15 @@ private:
     }
 
     while (!candidates.empty()) {
-      dist_node_t d_node = candidates.top();
+      auto [distance, node] = candidates.top();
 
-      if ((-d_node.first) > max_dist && neighbors.size() >= buffer_size) {
+      if ( -distance > max_dist && neighbors.size() >= buffer_size) {
         break;
       }
       candidates.pop();
 
       processCandidateNode<is_search_stage>(
-          /* query = */ query, /* node = */ d_node.second,
+          /* query = */ query, /* node = */ node,
           /* max_dist = */ max_dist, /* buffer_size = */ buffer_size,
           /* visited_set = */ visited_set,
           /* neighbors = */ neighbors, /* candidates = */ candidates);

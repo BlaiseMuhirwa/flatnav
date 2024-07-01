@@ -1,12 +1,12 @@
-
 import logging
 from scipy.stats import mannwhitneyu, ttest_ind
 import pickle
-import json 
-import numpy as np 
+import json
+import numpy as np
 import os
-from typing import List
-import argparse
+from typing import List, Tuple
+import pandas as pd 
+
 
 # This should be a persistent volume mount.
 DISTRIBUTIONS_SAVE_PATH = "/root/node-access-distributions"
@@ -47,6 +47,7 @@ ANN_DATASETS = [
     "spacev-10m-euclidean",
 ]
 
+
 class HubNodesConnectivityTester:
     """
     Class to test the connectivity of the hub nodes using a hypothesis test.
@@ -81,9 +82,11 @@ class HubNodesConnectivityTester:
         outdegree_table_path: str,
         node_access_counts_path: str,
         dataset_name: str,
+        sample_size: int = 500,
         include_hub_nodes_in_sample: bool = False,
     ):
         self.dataset_name = dataset_name
+        self.sample_size = sample_size
         self.include_hub_nodes_in_sample = include_hub_nodes_in_sample
         self.outdegree_table = self._load_outdegree_table(outdegree_table_path)
         self.node_access_counts = self._load_node_access_counts(node_access_counts_path)
@@ -127,6 +130,11 @@ class HubNodesConnectivityTester:
             for node, count in self.node_access_counts.items()
             if count >= threshold
         ]
+        # If the selected number of nodes is higher than the sample size, randomly select
+        # self.sample_size without replacement.
+        if len(selected_nodes) > self.sample_size:
+            selected_nodes = np.random.choice(selected_nodes, size=self.sample_size, replace=False)
+
         return selected_nodes
 
     def _calculate_hub_hub_connections(self, hub_nodes: List[int]) -> List[int]:
@@ -176,6 +184,32 @@ class HubNodesConnectivityTester:
             random_hub_connections.append(len(intersection))
         return random_hub_connections
 
+    def calculate_effect_size(
+        self, hub_hub_connections: List[int], random_hub_connections: List[int]
+    ) -> float:
+        """
+        Computes Cohen's D effect size between hub-hub and random-hub.
+        """
+        n1, n2 = len(hub_hub_connections), len(random_hub_connections)
+        mean_difference = np.mean(hub_hub_connections) - np.mean(random_hub_connections)
+        pooled_variance = (n1 - 1) * np.std(hub_hub_connections) ** 2 + (
+            n2 - 1
+        ) * np.std(random_hub_connections) ** 2
+        pooled_variance /= n1 + n2 - 2
+        effect_size = mean_difference / np.sqrt(pooled_variance + 1e-10)
+        return effect_size
+    
+    def calculate_descriptive_stats(self, connections: List[int]) -> Tuple[float, float, float, float]: 
+        """
+        Computes the mean, std, median and interquartile range (IQR) of the connections.
+        """
+        mean = np.mean(connections)
+        std = np.std(connections)
+        median = np.median(connections)
+        q1, q3 = np.percentile(connections, [25, 75])
+        iqr = q3 - q1
+        return mean, std, median, iqr
+
     def run_hypothesis_tests(self, percentile: float) -> dict[str, list[float, float]]:
         """
         Run the hypothesis test to determine if hub nodes are more connected to each
@@ -202,17 +236,26 @@ class HubNodesConnectivityTester:
         u_statistic, mann_whitney_p_value = mannwhitneyu(
             hub_hub_connections, random_hub_connections, alternative="greater"
         )
-        logging.info(f"Mann-Whitney U test: (u_stat={u_statistic}, p-value={mann_whitney_p_value})")
+        logging.info(
+            f"Mann-Whitney U test: (u_stat={u_statistic}, p-value={mann_whitney_p_value})"
+        )
 
-        # Two sample t-test. This will be the Welch's t-test since we are not assuming 
-        # equal vairances. 
+        # Two sample t-test. This will be the Welch's t-test since we are not assuming
+        # equal vairances.
         t_statistic, ttest_p_value = ttest_ind(
             hub_hub_connections,
             random_hub_connections,
             equal_var=False,
             alternative="greater",
         )
-        logging.info(f"Two-sample t-test: (t_stat={t_statistic}, p-value={ttest_p_value})\n")
+        logging.info(
+            f"Two-sample t-test: (t_stat={t_statistic}, p-value={ttest_p_value})\n"
+        )
+
+        effect_size = self.calculate_effect_size(hub_hub_connections, random_hub_connections)
+        hub_stats = self.calculate_descriptive_stats(hub_hub_connections)
+        random_stats = self.calculate_descriptive_stats(random_hub_connections)
+
 
         return {
             "mann-whitney-u-statistic": u_statistic,
@@ -220,12 +263,28 @@ class HubNodesConnectivityTester:
             "two-sample-t-statistic": t_statistic,
             "two-sample-t-test-p-value": ttest_p_value,
             "num-hub-nodes": len(hub_nodes),
+            "effect_size": effect_size,
+            "hub_stats": {
+                "mean": hub_stats[0],
+                "std": hub_stats[1],
+                "median": hub_stats[2],
+                "iqr": hub_stats[3],
+            },
+            "random_stats": {
+                "mean": random_stats[0],
+                "std": random_stats[1],
+                "median": random_stats[2],
+                "iqr": random_stats[3],
+            },
         }
+
 
 def run_hypothesis_tests() -> None:
     all_test_results = {}
     save_filename = "hypothesis_tests.json"
+    csv_filename = "hypothesis_tests.csv"
     save_filename = os.path.join(METRICS_DIR, save_filename)
+    csv_filename = os.path.join(METRICS_DIR, csv_filename)
 
     for dataset_name in SYNTHETIC_DATASETS + ANN_DATASETS:
         outdegree_table_path = os.path.join(
@@ -241,14 +300,27 @@ def run_hypothesis_tests() -> None:
             dataset_name=dataset_name,
             include_hub_nodes_in_sample=True,
         )
-        test_results = tester.run_hypothesis_tests(percentile=99.9)
+        test_results = tester.run_hypothesis_tests(percentile=90)
 
         # Append the test results to a JSON file containing all the results.
         all_test_results[dataset_name] = test_results
         with open(save_filename, "w") as f:
             json.dump(all_test_results, f, indent=4)
 
+    # Convert JSON to CSV
+    with open(save_filename, "r") as f:
+        json_data = json.load(f)
 
-if __name__=="__main__":
+    # Flatten the JSON data for CSV conversion
+    flat_data = []
+    for dataset, metrics in json_data.items():
+        flat_record = {"dataset_name": dataset}
+        flat_record.update(metrics)
+        flat_data.append(flat_record)
+
+    df = pd.DataFrame(flat_data)
+    df.to_csv(csv_filename, index=False)
+
+
+if __name__ == "__main__":
     run_hypothesis_tests()
-

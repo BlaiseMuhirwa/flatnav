@@ -598,7 +598,8 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
       py::arg("max_edges_per_node"), py::arg("verbose") = false,
       py::arg("collect_stats") = false,
-      py::arg("use_random_initialization") = false, CONSTRUCTOR_DOCSTRING);
+      py::arg("use_random_initialization") = false, 
+      py::arg("random_seed") = std::nullopt, CONSTRUCTOR_DOCSTRING);
 
   py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
       index_submodule, "L2Index");
