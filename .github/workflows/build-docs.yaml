@@ -1,0 +1,55 @@
+name: Publish Documentation
+
+on:
+  push:
+    branches:
+      - main 
+
+env:
+  PYTHON_VERSION: "3.11"
+  POETRY_VERSION: "1.8.1" 
+
+jobs:
+  build-and-publish-docs:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: docs
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}  
+
+      - name: Generate Doxygen & Sphinx documentation
+        run: |
+          # using the -f flag to force building the Python library.
+          ./generate_docs.sh -f
+
+      - name: Create .nojekyll file
+        run: |
+          touch _build/html/.nojekyll
+          
+      # This creates a branch called gh-pages and deploys the contents of the _build/html folder to GitHub Pages.
+      # GitHub automatically creates the token to use in the workflow
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4.3.3
+        with:
+          branch: gh-pages  
+          folder: docs/_build/html 
+          # Automatically remove deleted files from the deploy branch 
+          clean: true  
+          commit-message: "Deploy GitHub Pages"
+          token: ${{ secrets.GITHUB_TOKEN }}

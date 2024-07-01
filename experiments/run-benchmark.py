@@ -1,9 +1,8 @@
 import time
-from typing import Union
 import json
 import hnswlib
 import numpy as np
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict, Union
 import numpy as np
 import os
 import logging
@@ -217,7 +216,7 @@ def train_index(
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
-            verbose=True,
+            verbose=False,
             collect_stats=True,
         )
 
@@ -235,7 +234,7 @@ def train_index(
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
-            verbose=True,
+            verbose=False,
             collect_stats=True,
         )
         index.set_num_threads(num_build_threads)

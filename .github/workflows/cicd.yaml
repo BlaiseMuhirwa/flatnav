@@ -45,3 +45,33 @@ jobs:
       run: |
         cd flatnav_python
         poetry run pytest -vs unit_tests
+
+  run-cpp-unit-tests:
+    strategy:
+      # Ensure that failure for one test does not cancel other actions
+      fail-fast: false
+      matrix:
+        # TODO: Would love to add macos here. 
+        os: [ubuntu-latest] 
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+      with:
+        submodules: 'recursive'
+
+    - name: Install dependencies
+      run: |
+        # Install CMake and clang
+        ./bin/install_clang.sh
+        ./bin/install_cmake.sh
+
+    - name: Build flatnav 
+      run: |
+        # Build flatnav as well as all tests and examples 
+        ./bin/build.sh -e -t 
+
+    - name: Run Unit Tests
+      run: |
+        ./build/test_distances
+        ./build/test_serialization
