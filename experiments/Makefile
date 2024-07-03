@@ -111,21 +111,6 @@ yandex-deep-100m-flatnav:
         	--num-search-threads 1
 
 
-yandex-deep-100m-hnsw:
-	poetry run python run-benchmark.py \
-                --dataset-name yandex-deep-100m \
-                --dataset /root/data/yandex-deep-100m/yandex_train_100m.npy \
-                --queries /root/data/yandex-deep-100m/yandex_queries.npy \
-                --gtruth /root/data/yandex-deep-100m/yandex_ground_truth_100m.npy \
-            	--index-type hnsw \
-                --num-node-links 32 \
-                --ef-construction 50 100 200 \
-                --ef-search 100 200 300 500 1000 3000 \
-                --metric l2 \
-                --num-build-threads 16 \
-                --num-search-threads 1
-
-
 spacev-100m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name spacev-100m \
