@@ -84,7 +84,9 @@ private:
 
   void getSummaryImpl() {
     std::cout << "\nInnerProductDistance Parameters" << std::flush;
-    std::cout << "\n-----------------------------" << "\n" << std::flush;
+    std::cout << "\n-----------------------------"
+              << "\n"
+              << std::flush;
     std::cout << "Dimension: " << _dimension << "\n" << std::flush;
   }
 

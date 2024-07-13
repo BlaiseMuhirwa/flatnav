@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "docs"
+version = "0.1.0"
+description = "Documentation for the C++/Python FlatNav library"
+authors = [
+  "Benjamin Coleman <benjamin.ray.coleman@gmail.com>",
+  "Blaise Munyampirwa <blaisemunyampirwa@gmail.com>",
+  "Vihan Lakshman <vihan.lakshman@gmail.com>"
+]
+license = "Apache 2.0"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.10"
+sphinx = "^7.2.6"
+breathe = "^4.35.0"
+sphinx-rtd-theme = "^2.0.0"
+recommonmark = "^0.7.1"
+myst-parser = "^2.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

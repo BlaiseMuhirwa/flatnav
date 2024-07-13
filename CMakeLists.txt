@@ -115,4 +115,3 @@ if(BUILD_TESTS)
   add_subdirectory(${PROJECT_SOURCE_DIR}/flatnav/tests)
   # add_subdirectory(${PROJECT_SOURCE_DIR}/quantization/tests)
 endif()
-

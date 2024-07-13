@@ -64,7 +64,6 @@ no_simd_vectorization = int(os.environ.get("NO_SIMD_VECTORIZATION", "0"))
 
 if not no_simd_vectorization:
     SIMD_EXTENSIONS = ["sse", "sse3", "avx", "avx512f"]
-    # SIMD_EXTENSIONS = ["sse", "sse3"]
     found_single_extension = False
     for extension in SIMD_EXTENSIONS:
         if simd_extension_supported(extension=extension):
@@ -103,5 +102,5 @@ setup(
     ext_modules=ext_modules,
     cmdclass={"build_ext": build_ext},
     zip_safe=False,
-    python_requires=">=3.7",
+    python_requires=">=3.9",
 )

@@ -19,6 +19,10 @@ flatnav_python/__pycache__
 flatnav_python/unit_tests/__pycache__
 
 
+# Documentation related files
+docs/_build/
+docs/doxygen_output
+
 # other files
 data/
 baselines/

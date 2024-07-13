@@ -21,7 +21,7 @@
 // node currently labeled "i". That is, to find the new label of
 // node "i", we look at P[i].
 
-namespace flatnav {
+namespace flatnav::util {
 
 template <typename node_id_t>
 std::vector<node_id_t>
@@ -203,4 +203,4 @@ rcmOrder(std::vector<std::vector<node_id_t>> &outdegree_table) {
   return Pinv;
 }
 
-} // namespace flatnav
+} // namespace flatnav::util
