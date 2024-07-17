@@ -1,44 +1,42 @@
 #pragma once
+
 #include <cereal/access.hpp>
-#include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/util/SquaredL2SimdExtensions.h>
+#include <flatnav/distance_interface.h>
+#include <flatnav/util/inner_product_simd_extensions.h>
 #include <functional>
 #include <iostream>
-
-// This is the base distance function implementation for the L2 distance on
-// floating-point inputs. We provide specializations that use SIMD when
-// supported by the compiler and compatible with the input _dimension.
+#include <limits>
 
 namespace flatnav {
 
-struct DefaultSquaredL2 {
+// This is the base distance function implementation for inner product distances
+// on floating-point inputs.
+
+struct DefaultInnerProduct {
   static constexpr float compute(const void *x, const void *y,
                                  const size_t &dimension) {
-    float *p_x = const_cast<float *>(static_cast<const float *>(x));
-    float *p_y = const_cast<float *>(static_cast<const float *>(y));
-    float squared_distance = 0;
+    float *p_x = static_cast<float *>(const_cast<void *>(x));
+    float *p_y = static_cast<float *>(const_cast<void *>(y));
+    float result = 0;
     for (size_t i = 0; i < dimension; i++) {
-      float difference = *p_x - *p_y;
-      p_x++;
-      p_y++;
-      squared_distance += difference * difference;
+      result += p_x[i] * p_y[i];
     }
-    return squared_distance;
+    return 1.0 - result;
   }
 };
 
-class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
+class InnerProductDistance : public DistanceInterface<InnerProductDistance> {
 
-  friend class DistanceInterface<SquaredL2Distance>;
-  enum { DISTANCE_ID = 0 };
+  friend class DistanceInterface<InnerProductDistance>;
+  // Enum for compile-time constant
+  enum { DISTANCE_ID = 1 };
 
 public:
-  SquaredL2Distance() = default;
-  explicit SquaredL2Distance(size_t dim)
+  InnerProductDistance() = default;
+  explicit InnerProductDistance(size_t dim)
       : _dimension(dim), _data_size_bytes(dim * sizeof(float)),
         _distance_computer(
             [this](const void *x, const void *y, const size_t &dimension) {
@@ -46,8 +44,6 @@ public:
             }) {
     setDistanceFunction();
   }
-
-  inline size_t getDimension() const { return _dimension; }
 
   float distanceImpl(const void *x, const void *y,
                      bool asymmetric = false) const {
@@ -61,28 +57,33 @@ private:
   std::function<float(const void *, const void *, const size_t &)>
       _distance_computer;
 
-  friend class ::cereal::access;
+  friend class cereal::access;
 
   template <typename Archive> void serialize(Archive &ar) {
-    ar(_dimension, _data_size_bytes);
+    ar(_dimension);
 
+    // If loading, we need to set the data size bytes
     if (Archive::is_loading::value) {
+      _data_size_bytes = _dimension * sizeof(float);
       _distance_computer = [this](const void *x, const void *y,
                                   const size_t &dimension) {
         return defaultDistanceImpl(x, y, dimension);
       };
+
       setDistanceFunction();
     }
   }
 
+  inline size_t getDimension() const { return _dimension; }
+
   size_t dataSizeImpl() { return _data_size_bytes; }
 
-  void transformDataImpl(void *destination, const void *src) {
-    std::memcpy(destination, src, _data_size_bytes);
+  void transformDataImpl(void *dst, const void *src) {
+    std::memcpy(dst, src, _data_size_bytes);
   }
 
   void getSummaryImpl() {
-    std::cout << "\nSquaredL2Distance Parameters" << std::flush;
+    std::cout << "\nInnerProductDistance Parameters" << std::flush;
     std::cout << "\n-----------------------------"
               << "\n"
               << std::flush;
@@ -93,7 +94,7 @@ private:
 #ifndef NO_SIMD_VECTORIZATION
     selectOptimalSimdStrategy();
     adjustForNonOptimalDimensions();
-#endif // NO_SIMD_VECTORIZATION
+#endif
   }
 
   void selectOptimalSimdStrategy() {
@@ -101,7 +102,7 @@ private:
 #if defined(USE_SSE)
     _distance_computer = [this](const void *x, const void *y,
                                 const size_t &dimension) {
-      return flatnav::util::computeL2_Sse(x, y, dimension);
+      return flatnav::util::computeIP_Sse(x, y, dimension);
     };
 #endif // USE_SSE
 
@@ -109,7 +110,7 @@ private:
     if (platformSupportsAvx512) {
       _distance_computer = [this](const void *x, const void *y,
                                   const size_t &dimension) {
-        return flatnav::util::computeL2_Avx512(x, y, dimension);
+        return flatnav::util::computeIP_Avx512(x, y, dimension);
       };
       return;
     }
@@ -120,7 +121,7 @@ private:
     if (platformSupportsAvx) {
       _distance_computer = [this](const void *x, const void *y,
                                   const size_t &dimension) {
-        return flatnav::util::computeL2_Avx2(x, y, dimension);
+        return flatnav::util::computeIP_Avx(x, y, dimension);
       };
       return;
     }
@@ -129,32 +130,42 @@ private:
   }
 
   void adjustForNonOptimalDimensions() {
-#if defined(USE_SSE)
+#if defined(USE_SSE) || defined(USE_AVX)
 
     if (_dimension % 16 != 0) {
       if (_dimension % 4 == 0) {
+#if defined(USE_AVX)
         _distance_computer = [this](const void *x, const void *y,
                                     const size_t &dimension) {
-          return flatnav::util::computeL2_Sse4Aligned(x, y, dimension);
+          return flatnav::util::computeIP_Avx_4aligned(x, y, dimension);
         };
+#else
+        _distance_computer = [this](const void *x, const void *y,
+                                    const size_t &dimension) {
+          return flatnav::util::computeIP_Sse_4aligned(x, y, dimension);
+        };
+
+#endif // USE_AVX
       } else if (_dimension > 16) {
         _distance_computer = [this](const void *x, const void *y,
                                     const size_t &dimension) {
-          return flatnav::util::computeL2_SseWithResidual_16(x, y, dimension);
+          return flatnav::util::computeIP_SseWithResidual_16(x, y, dimension);
         };
       } else if (_dimension > 4) {
         _distance_computer = [this](const void *x, const void *y,
                                     const size_t &dimension) {
-          return flatnav::util::computeL2_SseWithResidual_4(x, y, dimension);
+          return flatnav::util::computeIP_SseWithResidual_4(x, y, dimension);
         };
       }
     }
-#endif // USE_SSE
+#endif // USE_SSE || USE_AVX
   }
 
   float defaultDistanceImpl(const void *x, const void *y,
                             const size_t &dimension) const {
-    return DefaultSquaredL2::compute(x, y, dimension);
+    // Default implementation of inner product distance, in case we cannot
+    // support the SIMD specializations for special input _dimension sizes.
+    return DefaultInnerProduct::compute(x, y, dimension);
   }
 };
 
