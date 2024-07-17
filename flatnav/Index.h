@@ -1,6 +1,5 @@
 #pragma once
 
-#include "util/VisitedSetPool.h"
 #include <algorithm>
 #include <atomic>
 #include <cassert>

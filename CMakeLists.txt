@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
+set(CMAKE_CXX_COMPILER /usr/local/opt/llvm/bin/clang++)
+
+
 project(FlatNav CXX)
 
 # print ${PROJECT_SOURCE_DIR} and ${PROJECT_BINARY_DIR}
