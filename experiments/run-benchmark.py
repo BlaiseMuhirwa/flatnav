@@ -160,6 +160,8 @@ def train_index(
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
     num_build_threads: int = 1,
+    checkpoint_filepath: Optional[str] = None,
+    checkpoint_every: Optional[float] = None,
 ) -> Union[flatnav.index.L2Index, flatnav.index.IPIndex, hnswlib.Index]:
     """
     Creates and trains an index on the given dataset.
@@ -173,6 +175,8 @@ def train_index(
     :param use_hnsw_base_layer: If set, use HNSW's base layer's connectivity for the Flatnav index.
     :param hnsw_base_layer_filename: Filename to save the HNSW base layer graph to.
     :param num_build_threads: The number of threads to use during index construction.
+    :param checkpoint_filepath: Path to save index checkpoints to.
+    :param checkpoint_every: Percentage of dataset inserted before the next checkpoint.
     :return: The trained index.
     """
     if index_type == "hnsw":
@@ -242,7 +246,11 @@ def train_index(
         # Train the index.
         start = time.time()
         index.add(
-            data=train_dataset, ef_construction=ef_construction, num_initializations=100
+            data=train_dataset, 
+            ef_construction=ef_construction, 
+            checkpoint_every=checkpoint_every, 
+            checkpoint_filepath=checkpoint_filepath,
+            num_initializations=100
         )
         end = time.time()
 
@@ -269,6 +277,8 @@ def main(
     num_initializations: Optional[List[int]] = None,
     num_build_threads: int = 1,
     num_search_threads: int = 1,
+    checkpoint_filepath: Optional[str] = None,
+    checkpoint_every: Optional[float] = None,
 ):
     
     def build_and_run_knn_search(ef_cons: int, node_links: int):
@@ -288,6 +298,8 @@ def main(
             use_hnsw_base_layer=use_hnsw_base_layer,
             hnsw_base_layer_filename=hnsw_base_layer_filename,
             num_build_threads=num_build_threads,
+            checkpoint_filepath=checkpoint_filepath,
+            checkpoint_every=checkpoint_every,
         )
         
         if reordering_strategies is not None:
@@ -486,6 +498,21 @@ def parse_arguments() -> argparse.Namespace:
         help="The first element is the start index and the second element is the end index. Must be two integers.",
     )
 
+    parser.add_argument(
+        "--checkpoint-filepath",
+        required=False,
+        default=None,
+        help="Path for saving index checkpoints.",
+    )
+
+    parser.add_argument(
+        "--checkpoint-every",
+        required=False,
+        default=None,
+        type=float,
+        help="Percentage of dataset inserted before the next checkpoint.",
+    )
+
     return parser.parse_args()
 
 
@@ -573,6 +600,8 @@ def run_experiment():
         metrics_file=metrics_file_path,
         num_initializations=num_initializations,
         requested_metrics=args.requested_metrics,
+        checkpoint_filepath=args.checkpoint_filepath,
+        checkpoint_every=args.checkpoint_every,
     )
 
     plot_all_metrics(
