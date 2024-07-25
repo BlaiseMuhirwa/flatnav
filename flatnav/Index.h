@@ -443,7 +443,7 @@ public:
         /* initial_pool_size = */ 1,
         /* num_elements = */ index->_max_node_count);
     index->_distance = std::move(dist);
-    index->_num_threads = std::thread::hardware_concurrency();
+    index->_num_threads = std::max(1, (uint32_t)std::thread::hardware_concurrency() / 2);
     index->_node_links_mutexes =
         std::vector<std::mutex>(index->_max_node_count);
 
