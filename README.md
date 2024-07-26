@@ -1,12 +1,21 @@
-## Near Neighbor Graph Reordering
+## FlatNav 
 
-This repository implements a graph near neighbor index and provides various ways to reorder the nodes in the graph to improve query latency. To reproduce our experiments, there are three tools that can be run:
+FlatNav is a fast and header-only graph-based index for Approximate Nearest Neighbor Search (ANNS).
+Thanks to various graph re-ordering implementation techniques from [Coleman et al.](https://arxiv.org/pdf/2104.03221.pdf), optimization using SIMD intrinsics, and the design that leverages a single-layered 
+in-memory index, FlatNav provides billion-scale vector search with high recall, SoTA query latency and 
+significant memory savings. 
+
+### Near Neighbor Graph Reordering
+
+We provide various ways to re-order nodes in the graph to improve query latency. To reproduce our experiments, there are three tools that can be run:
 
 - **construct** - creates a near neighbor index from a data file
 - **reorder** - applies graph reordering to permute the node ordering of the index
 - **query** - queries the index and computes recall and other performance metrics
 
 The tools are largely self-documenting and will provide help if run without any command line arguments. Note that the reordering tools can generally run without needing access to the dataset, queries or distance metrics (unless profile-guided reordering is used).
+
+For python examples that involve re-ordering, you can run [run-benchmark.py](https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/experiments/run-benchmark.py) with `--reodering-strategies gorder rcm`. See example runs in the [Makefile](https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/experiments/Makefile).
 
 ### Installation 
 FlatNav is implemented in C++ with a complete Python extension with [cereal](https://uscilab.github.io/cereal/) as the only external dependency. The C++ library can be built from source using CMake. 
@@ -17,18 +26,19 @@ you will need
 * C++17 compiler with OpenMP support (version >= 2.0)
 * CMake (version >= 3.14)
 
-We provide some helpful scripts for installing the above in the [bin](/bin/) directory. 
+We provide some helpful scripts for installing the above in the [bin](https://github.com/BlaiseMuhirwa/flatnav-experimental/tree/main/bin) directory. 
 
 To build the library with CMake, run 
 
 ```shell
-> git clone https://github.com/BlaiseMuhirwa/flatnav-experimental.git --recurse-submodules
-> cd flatnav-experimental
-> ./bin/build.sh -h 
+$ git clone https://github.com/BlaiseMuhirwa/flatnav-experimental.git --recurse-submodules
+$ cd flatnav-experimental
+$ ./bin/build.sh -h
 ```
+
 This will display all available build options:
 
-```
+```shell
 Usage ./build.sh [OPTIONS]
 
 Available Options:
@@ -43,7 +53,8 @@ Available Options:
 Example Usage:
   ./build.sh -t -e -v
 ```
-To build the Python bindings, follow instructions [here](/flatnav_python/README.md). There are also examples for how to use the library to build an index and run queries on top of it [here](/flatnav_python/test_index.py).
+
+To build the Python bindings, follow instructions [here](https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/flatnav_python/README.md). There are also examples for how to use the library to build an index and run queries on top of it [here](https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/flatnav_python/unit_tests/test_index.py).
 
 ### Support for SIMD Extensions 
 
@@ -62,7 +73,7 @@ ANN-Benchmarks provides HDF5 files for a standard benchmark of near-neighbor dat
 To generate the [ANNS benchmark datasets](https://github.com/erikbern/ann-benchmarks?tab=readme-ov-file#data-sets), run the following script
 
 ```shell
-> ./bin/download_anns_datasets.sh <dataset-name> [--normalize]
+$ ./bin/download_anns_datasets.sh <dataset-name> [--normalize]
 ```
 
 For datasets that use the angular/cosine similarity, you will need to use `--normalize` option so that the dataset is normalized. 

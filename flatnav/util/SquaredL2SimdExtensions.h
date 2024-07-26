@@ -116,7 +116,7 @@ static float computeL2_Avx2(const void *x, const void *y,
   float *pointer_x = static_cast<float *>(const_cast<void *>(x));
   float *pointer_y = static_cast<float *>(const_cast<void *>(y));
 
-  const float *end_x = pointer_x + (dimension >> 4 << 4);
+  const float *end_x = pointer_x + (dimension & ~7);
   simd8float32 difference, v1, v2;
   simd8float32 sum(0.0f);
 
@@ -125,11 +125,23 @@ static float computeL2_Avx2(const void *x, const void *y,
     v2.loadu(pointer_y);
     difference = v1 - v2;
     sum += difference * difference;
+
+    pointer_x += 8;
+    pointer_y += 8;
+
+    v1.loadu(pointer_x);
+    v2.loadu(pointer_y);
+    difference = v1 - v2;
+    sum += difference * difference;
+
     pointer_x += 8;
     pointer_y += 8;
   }
 
-  return sum.reduce_add();
+  float result[8];
+  sum.storeu(result);
+  return result[0] + result[1] + result[2] + result[3] + result[4] + result[5] +
+         result[6] + result[7];
 }
 
 #endif // USE_AVX

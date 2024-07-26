@@ -122,11 +122,17 @@ class BvecsDatasetLoader(DatasetLoader):
         return train_data, queries_data, ground_truth
 
 
-class FbinDatasetLoader(DatasetLoader):
+class BinaryDatasetLoader(DatasetLoader):
     """
-    NOTE: This is mostly for loading the DEEP1B dataset.
-    Uses numpy's memmap to map the file to memory, which is useful for large files like the DEEP1B dataset.
+    Dataset loader for binary files. This can be used to load .fbin, .u8bin and .i8bin files.
+    The `dtype` constructor parameter must be set to the appropriate numpy dtype.
+    That is, dtype=np.uint8 for .u8bin files, dtype=np.int8 for .i8bin files, 
+    and dtype=np.float32 for .fbin files.
     """
+
+    def __init__(self, dtype: np.dtype, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.dtype = dtype
 
     def load_ground_truth(self, path: str) -> Tuple[np.ndarray, np.ndarray, int, int]:
         """
@@ -174,27 +180,28 @@ class FbinDatasetLoader(DatasetLoader):
             chunk_size = end_index - start_index
 
             # Calculate the bytes offset from the start of the file data (after header)
-            # Each point consists of num_dimensions floats, and each float is np.float32.itemsize (4) bytes
-            offset = 8 + start_index * num_dimensions * np.dtype(np.float32).itemsize
+            # Each point consists of num_dimensions floats, and each float 
+            # is np.dtype(np.dtype).itemsize bytes
+            offset = 8 + start_index * num_dimensions * np.dtype(self.dtype).itemsize
 
             # Using np.memmap to map the chunk of the file
             train_dataset = np.memmap(
                 self.train_dataset_path,
-                dtype=np.float32,
+                dtype=self.dtype,
                 mode="r",
                 offset=offset,
                 shape=(chunk_size, num_dimensions),
             )
         else:
             train_dataset = np.fromfile(
-                self.train_dataset_path, dtype=np.float32, offset=8
+                self.train_dataset_path, dtype=self.dtype, offset=8
             )
             train_dataset = train_dataset.reshape((num_points, num_dimensions))
 
         ground_truth, _, num_queries, _ = self.load_ground_truth(self.ground_truth_path)
         queries_dataset = np.fromfile(
             self.queries_path,
-            dtype=np.float32,
+            dtype=self.dtype,
             offset=8,
         )
         queries_dataset = queries_dataset.reshape((num_queries, num_dimensions))
@@ -210,12 +217,17 @@ def get_data_loader(**kwargs) -> DatasetLoader:
     train_dataset_path = kwargs.get("train_dataset_path")
     if not train_dataset_path:
         raise ValueError("The train_dataset_path parameter is required.")
+    
+    file_extension_to_loader = {
+        ".npy": NpyDatasetLoader,
+        ".bvecs": BvecsDatasetLoader,
+        ".fbin": lambda **kw: BinaryDatasetLoader(dtype=np.float32, **kw),
+        ".u8bin": lambda **kw: BinaryDatasetLoader(dtype=np.uint8, **kw),
+        ".i8bin": lambda **kw: BinaryDatasetLoader(dtype=np.int8, **kw),
+    }
 
-    if train_dataset_path.endswith(".npy"):
-        return NpyDatasetLoader(**kwargs)
-    elif train_dataset_path.endswith(".bvecs"):
-        return BvecsDatasetLoader(**kwargs)
-    elif train_dataset_path.endswith(".fbin"):
-        return FbinDatasetLoader(**kwargs)
-
+    for extension, loader in file_extension_to_loader.items():
+        if train_dataset_path.endswith(extension):
+            return loader(**kwargs)
+        
     raise ValueError("Invalid file extension for the training dataset.")

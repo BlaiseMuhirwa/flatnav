@@ -1,66 +1,58 @@
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
-# Code adapted from PyTorch:
-# https://github.com/pytorch/pytorch/blob/main/cmake/Modules/FindAVX.cmake
-include(CheckCXXSourceRuns)
-set(AVX_CODE
-    "
-      #include <immintrin.h>
-      int main() {
-        __m256 a;
-        a = _mm256_set1_ps(0);
-        return 0;
-      }
-    ")
 
-set(AVX512_CODE
-    "
-    #include <immintrin.h>
-    int main() {
-      __m512 a = _mm512_set1_epi32(10);
-      __m512 b = _mm512_set1_epi32(20);
+if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+  EXEC_PROGRAM(cat ARGS "/proc/cpuinfo" OUTPUT_VARIABLE CPUINFO)
 
-      __m512 result = _mm512_add_epi32(a, b);
-      return 0;
-    }
-    ")
+  STRING(REGEX MATCH ".*\\ssse.*" SSE_FOUND ${CPUINFO})
+  STRING(REGEX MATCH ".*\\ssse3.*" SSE3_FOUND ${CPUINFO})
+  STRING(REGEX MATCH ".*\\avx.*" AVX_FOUND ${CPUINFO})
+  STRING(REGEX MATCH ".*\\avx2.*" AVX2_FOUND ${CPUINFO})
+  STRING(REGEX MATCH ".*\\avx512.*" AVX512_FOUND ${CPUINFO})
 
-include(CheckCXXCompilerFlag)
-
-# Function to check compiler support and hardware capability for a given flag
-function(check_compiler_and_hardware_support FLAG CODE_VAR EXTENSION_NAME)
-  check_cxx_compiler_flag(${FLAG} COMPILER_SUPPORTS_${EXTENSION_NAME})
-  if(COMPILER_SUPPORTS_${EXTENSION_NAME})
-    set(CMAKE_REQUIRED_FLAGS_SAVE ${CMAKE_REQUIRED_FLAGS})
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${FLAG}")
-
-    check_cxx_source_runs("${${CODE_VAR}}"
-                          SYSTEM_SUPPORTS_${EXTENSION_NAME}_EXTENSIONS)
-    set(CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS_SAVE})
-
-    if(SYSTEM_SUPPORTS_${EXTENSION_NAME}_EXTENSIONS)
-      set(CMAKE_CXX_FLAGS
-          "${CMAKE_CXX_FLAGS} ${FLAG}"
-          PARENT_SCOPE)
-      message(STATUS "Building with ${FLAG}")
-    else()
-      message(
-        STATUS "Compiler supports ${FLAG} flag but the target machine does not "
-               "support ${EXTENSION_NAME} instructions")
-    endif()
-  endif()
-endfunction()
-
-# Build SSE/AVX/AVX512 code only on x86-64 processors.
-if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "(x86_64)|(AMD64|amd64)|(^i.86$)")
-  check_compiler_and_hardware_support("-mavx512f -mavx512dq -mavx512vl -mavx512bw -mavx512vnni" "AVX512_CODE" "AVX512")
-  # check_compiler_and_hardware_support("-mavx512bw" "AVX512_CODE" "AVX512")
-  # check_compiler_and_hardware_support("-mavx512vl" "AVX512_CODE" "AVX512")
-  check_compiler_and_hardware_support("-mavx" "AVX_CODE" "AVX")
-
-  check_cxx_compiler_flag("-msse" CXX_SSE)
-  if(CXX_SSE)
+  if(SSE_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse")
     message(STATUS "Building with SSE")
   endif()
+
+  if(SSE3_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse3")
+    message(STATUS "Building with SSE3")
+  endif()
+
+  if(AVX_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx")
+    message(STATUS "Building with AVX")
+  endif()
+
+  if(AVX2_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
+    message(STATUS "Building with AVX2")
+  endif()
+
+  if(AVX512_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx512f -mavx512dq -mavx512vl -mavx512bw -mavx512vnni")
+    message(STATUS "Building with AVX512")
+  endif()
+
+elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+  EXEC_PROGRAM("/usr/sbin/sysctl -n machdep.cpu.features" OUTPUT_VARIABLE CPUINFO)
+
+  STRING(REGEX REPLACE "^.*[^S](SSE).*$" "\\1" SSE_FOUND ${CPUINFO})
+  STRING(REGEX REPLACE "^.*[^S](SSE3).*$" "\\1" SSE3_FOUND ${CPUINFO})
+
+  STRING(COMPARE EQUAL "SSE" ${SSE_FOUND} SSE_FOUND)
+  STRING(COMPARE EQUAL "SSE3" ${SSE3_FOUND} SSE3_FOUND)
+
+  if(SSE_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse")
+    message(STATUS "Building with SSE")
+  endif()
+
+  if(SSE3_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse3")
+    message(STATUS "Building with SSE2")
+  endif()
+
+
 endif()

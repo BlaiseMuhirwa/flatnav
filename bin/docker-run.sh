@@ -1,7 +1,7 @@
 #!/bin/bash 
 
-# Print commands and exit on errors
-set -ex 
+# Exit on errors
+set -e 
 
 # Make sure we are one level above this directory
 cd "$(dirname "$0")/.."
@@ -53,6 +53,10 @@ function get_tag_name() {
 
 # Get the tag name
 TAG_NAME=$(get_tag_name)
+
+# Print commands and their arguments as they are executed
+set -x
+
 DATA_DIR=${DATA_DIR:-$(pwd)/data}
 
 # Directory for storing metrics and plots. 
@@ -86,8 +90,15 @@ fi
 
 # Run the container and mount the data/ directory as volume to /root/data
 # Pass the make target as argument to the container. 
+# NOTE: Mounting the ~/.aws directory so that the container can access the aws credentials
+# to upload the indexes to s3. This is not the most secure thing to do, but it's the easiest.
 docker run \
+        --name benchmark-runner \
         -it \
+        -e MAKE_TARGET=$1 \
+        --env-file bin/.env-vars \
+        --volume ~/.aws:/root/.aws:ro \
         --volume ${DATA_DIR}:/root/data \
         --volume ${METRICS_DIR}:/root/metrics \
-        --rm flatnav:$TAG_NAME make $1
+        --rm flatnav:$TAG_NAME \
+        /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

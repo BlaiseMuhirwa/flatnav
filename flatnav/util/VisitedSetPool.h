@@ -11,7 +11,7 @@
 #include <thread>
 #include <vector>
 
-namespace flatnav {
+namespace flatnav::util {
 
 class VisitedSet {
 private:
@@ -171,6 +171,8 @@ public:
     }
   }
 
+  size_t poolSize() const { return _visisted_set_pool.size(); }
+
   void pushVisitedSet(VisitedSet *visited_set) {
     std::unique_lock<std::mutex> lock(_pool_guard);
 
@@ -203,4 +205,4 @@ public:
   }
 };
 
-} // namespace flatnav
+} // namespace flatnav::util

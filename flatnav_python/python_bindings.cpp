@@ -61,6 +61,20 @@ public:
         _data_type(data_type) {
 
     if (_verbose) {
+      uint64_t total_index_memory = _index->getTotalIndexMemory();
+      uint64_t visited_set_allocated_memory =
+          _index->visitedSetPoolAllocatedMemory();
+      uint64_t mutexes_allocated_memory = _index->mutexesAllocatedMemory();
+
+      auto total_memory = total_index_memory + visited_set_allocated_memory +
+                          mutexes_allocated_memory;
+
+      std::cout << "Total allocated index memory: " << total_memory / 1e9
+                << " GB \n"
+                << std::flush;
+      std::cout << "[WARN]: More memory might be allocated due to visited sets "
+                   "in multi-threaded environments.\n"
+                << std::flush;
       _index->getIndexSummary();
     }
   }
@@ -343,6 +357,142 @@ template <typename IndexType> struct Add {
                                        num_initializations, labels);
   }
 };
+static const char *ADD_DOCSTRING = R"pbdoc(
+Add vectors(data) to the index with the given `ef_construction` parameter and optional labels. 
+`ef_construction` determines how many vertices are visited while inserting every vector in 
+the underlying graph structure.
+Args:
+    data (np.ndarray): The data to add to the index.
+    ef_construction (int): The number of vertices to visit while inserting every vector in the graph.
+    num_initializations (int, optional): The number of initializations to perform. Defaults to 100.
+    labels (Optional[np.ndarray], optional): The labels for the data. Defaults to None.
+Returns:
+    None
+)pbdoc";
+
+static const char *ALLOCATE_NODES_DOCSTRING = R"pbdoc(
+Allocate nodes in the underlying graph structure for the given data. Unlike the add method, 
+this method does not construct the edge connectivity. It only allocates memory for each node 
+in the graph. When using this method, you should invoke `build_graph_links` explicity. 
+```NOTE```: In most cases you should not need to use this method.
+Args:
+    data (np.ndarray): The data to add to the index.
+Returns:
+    None
+)pbdoc";
+
+static const char *SEARCH_SINGLE_DOCSTRING = R"pbdoc(
+Return top `K` closest data points for the given `query`. The results are returned as a Tuple of 
+distances and label ID's. The `ef_search` parameter determines how many neighbors are visited 
+while finding the closest neighbors for the query.
+
+Args:
+    query (np.ndarray): The query vector.
+    K (int): The number of neighbors to return.
+    ef_search (int): The number of neighbors to visit while finding the closest neighbors for the query.
+    num_initializations (int, optional): The number of initializations to perform. Defaults to 100.
+Returns:
+    Tuple[np.ndarray, np.ndarray]: The distances and label ID's of the closest neighbors.
+)pbdoc";
+
+static const char *SEARCH_DOCSTRING = R"pbdoc(
+This is a batched version of the `search_single` method.
+Return top `K` closest data points for every query in the provided `queries`. The results are returned as a Tuple of
+distances and label ID's. The `ef_search` parameter determines how many neighbors are visited while finding the closest neighbors
+for every query.
+
+Args:
+    queries (np.ndarray): The query vectors.
+    K (int): The number of neighbors to return.
+    ef_search (int): The number of neighbors to visit while finding the closest neighbors for every query.
+    num_initializations (int, optional): The number of initializations to perform. Defaults to 100.
+Returns:
+    Tuple[np.ndarray, np.ndarray]: The distances and label ID's of the closest neighbors.
+)pbdoc";
+
+static const char *GET_GRAPH_OUTDEGREE_TABLE_DOCSTRING = R"pbdoc(
+Returns the outdegree table (adjacency list) representation of the underlying graph.
+Returns:
+    List[List[int]]: The outdegree table.
+)pbdoc";
+
+static const char *BUILD_GRAPH_LINKS_DOCSTRING = R"pbdoc(
+Construct the edge connectivity of the underlying graph. This method should be invoked after 
+allocating nodes using the `allocate_nodes` method.
+Args:
+    mtx_filename (str): The filename of the matrix file.
+
+Returns:
+    None
+)pbdoc";
+
+static const char *REORDER_DOCSTRING = R"pbdoc(
+Perform graph re-ordering based on the given sequence of re-ordering strategies.
+Supported re-ordering strategies include `gorder` and `rcm`.
+Reference: 
+  1. Graph Reordering for Cache-Efficient Near Neighbor Search: https://arxiv.org/pdf/2104.03221
+Args:
+    strategies (List[str]): The sequence of re-ordering strategies.
+Returns:
+    None
+)pbdoc";
+
+static const char *SET_NUM_THREADS_DOCSTRING = R"pbdoc(
+Set the number of threads to use for constructing the graph and/or performing KNN search.
+Args:
+    num_threads (int): The number of threads to use.
+Returns:
+    None
+)pbdoc";
+
+static const char *NUM_THREADS_DOCSTRING = R"pbdoc(
+Returns the number of threads used for constructing the graph and/or performing KNN search.
+Returns:
+    int: The number of threads.
+)pbdoc";
+
+static const char *MAX_EDGES_PER_NODE_DOCSTRING = R"pbdoc(
+Maximum number of edges(links) per node in the underlying NSW graph data structure.
+Returns:
+    int: The maximum number of edges per node.
+)pbdoc";
+
+static const char *SAVE_DOCSTRING = R"pbdoc(
+Save a FlatNav index at the given file location.
+Args:
+    filename (str): The file location to save the index.
+Returns:
+    None
+)pbdoc";
+
+static const char *LOAD_DOCSTRING = R"pbdoc(
+Load a FlatNav index from a given file location.
+Args:
+    filename (str): The file location to load the index from.
+Returns:
+    Union[L2Inde, IPIndex]: The loaded index.
+)pbdoc";
+
+static const char *GET_QUERY_DISTANCE_COMPUTATIONS_DOCSTRING = R"pbdoc(
+Returns the number of distance computations performed during the last search operation. 
+This method also resets the distance computations counter.
+Returns:
+    int: The number of distance computations.
+)pbdoc";
+
+static const char *CONSTRUCTOR_DOCSTRING = R"pbdoc(
+Constructs a an in-memory index with the parameters.
+Args:
+    distance_type (str): The type of distance metric to use ('l2' for Euclidean, 'angular' for inner product).
+    dim (int): The number of dimensions in the dataset.
+    dataset_size (int): The number of vectors in the dataset.
+    max_edges_per_node (int): The maximum number of edges per node in the graph.
+    verbose (bool, optional): Enables verbose output. Defaults to False.
+    collect_stats (bool, optional): Collects performance statistics. Defaults to False.
+
+Returns:
+    Union[L2Index, IPIndex]: The constructed index.
+)pbdoc";
 
 template <typename IndexType>
 void bindIndexMethods(
@@ -355,10 +505,9 @@ void bindIndexMethods(
             auto index = index_type.getIndex();
             index->saveIndex(/* filename = */ filename);
           },
-          py::arg("filename"),
-          "Save a FlatNav index at the given file location.")
+          py::arg("filename"), SAVE_DOCSTRING)
       .def_static("load", &IndexType::loadIndex, py::arg("filename"),
-                  "Load a FlatNav index from a given file location")
+                  LOAD_DOCSTRING)
       .def(
           "add",
           [](IndexType &index_type,
@@ -372,18 +521,9 @@ void bindIndexMethods(
           },
           py::arg("data"), py::arg("ef_construction"),
           py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
-          "Add vectors(data) to the index with the given `ef_construction` "
-          "parameter and optional labels. `ef_construction` determines how "
-          "many "
-          "vertices are visited while inserting every vector in the "
-          "underlying graph structure.")
+          ADD_DOCSTRING)
       .def("allocate_nodes", &IndexType::allocateNodes, py::arg("data"),
-           "Allocate nodes in the underlying graph structure for the given "
-           "data. Unlike the add method, this method does not construct the "
-           "edge connectivity. It only allocates memory for each node in the "
-           "grpah. When using this method, you should invoke "
-           "`build_graph_links` explicity. NOTE: In most cases you should not "
-           "need to use this method.")
+           ALLOCATE_NODES_DOCSTRING)  
       .def(
           "search_single",
           [](IndexType &index_type,
@@ -396,15 +536,10 @@ void bindIndexMethods(
           },
           py::arg("query"), py::arg("K"), py::arg("ef_search"),
           py::arg("num_initializations") = 100,
-          "Return top `K` closest data points for the given `query`. The "
-          "results are returned as a Tuple of distances and label ID's. The "
-          "`ef_search` parameter determines how many neighbors are visited "
-          "while finding the closest neighbors for the query.")
+          SEARCH_SINGLE_DOCSTRING)
       .def("get_query_distance_computations",
            &IndexType::getQueryDistanceComputations,
-           "Returns the number of distance computations performed during the "
-           "last search operation. This method also resets the distance "
-           "computations counter.")
+           GET_QUERY_DISTANCE_COMPUTATIONS_DOCSTRING)
       .def(
           "search",
           [](IndexType &index_type,
@@ -417,33 +552,21 @@ void bindIndexMethods(
           },
           py::arg("queries"), py::arg("K"), py::arg("ef_search"),
           py::arg("num_initializations") = 100,
-          "Return top `K` closest data points for every query in the "
-          "provided `queries`. The results are returned as a Tuple of "
-          "distances and label ID's. The `ef_search` parameter determines "
-          "how "
-          "many neighbors are visited while finding the closest neighbors "
-          "for every query.")
+          SEARCH_DOCSTRING)
       .def(
           "get_graph_outdegree_table",
           [](IndexType &index_type) -> std::vector<std::vector<uint32_t>> {
             auto index = index_type.getIndex();
             return index->getGraphOutdegreeTable();
           },
-          "Returns the outdegree table (adjacency list) representation of "
-          "the "
-          "underlying graph.")
+          GET_GRAPH_OUTDEGREE_TABLE_DOCSTRING)
       .def(
           "build_graph_links",
           [](IndexType &index_type, const std::string &mtx_filename) {
             auto index = index_type.getIndex();
             index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
           },
-          py::arg("mtx_filename"),
-          "Construct the edge connectivity of the underlying graph. This "
-          "method "
-          "should be invoked after allocating nodes using the "
-          "`allocate_nodes` "
-          "method.")
+          py::arg("mtx_filename"), BUILD_GRAPH_LINKS_DOCSTRING)
       .def(
           "reorder",
           [](IndexType &index_type,
@@ -462,36 +585,27 @@ void bindIndexMethods(
             }
             index->doGraphReordering(strategies);
           },
-          py::arg("strategies"),
-          "Perform graph re-ordering based on the given sequence of "
-          "re-ordering strategies. "
-          "Supported re-ordering strategies include `gorder` and `rcm`.")
+          py::arg("strategies"), REORDER_DOCSTRING)
       .def(
           "set_num_threads",
           [](IndexType &index_type, uint32_t num_threads) {
             auto *index = index_type.getIndex();
             index->setNumThreads(num_threads);
           },
-          py::arg("num_threads"),
-          "Set the number of threads to use for constructing the graph and/or "
-          "performing KNN search.")
+          py::arg("num_threads"), SET_NUM_THREADS_DOCSTRING)
       .def_property_readonly(
           "num_threads",
           [](IndexType &index_type) {
             auto *index = index_type.getIndex();
             return index->getNumThreads();
           },
-          "Returns the number of threads used for "
-          "constructing the graph and/or performing KNN "
-          "search.")
+          NUM_THREADS_DOCSTRING)
       .def_property_readonly(
           "max_edges_per_node",
           [](IndexType &index_type) {
             return index_type.getIndex()->maxEdgesPerNode();
           },
-          "Maximum number of edges(links) per node in the underlying NSW "
-          "graph "
-          "data structure.");
+          MAX_EDGES_PER_NODE_DOCSTRING);
 }
 
 void validateDistanceType(const std::string &distance_type) {
@@ -580,9 +694,7 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
       py::arg("max_edges_per_node"), py::arg("index_data_type") = "float32",
       py::arg("verbose") = false, py::arg("collect_stats") = false,
-      "Creates a FlatNav index given the corresponding "
-      "parameters. The `distance_type` argument determines the "
-      "kind of index created (either L2Index or IPIndex)");
+      CONSTRUCTOR_DOCSTRING);
 
   py::class_<L2FlatNavIndex, std::shared_ptr<L2FlatNavIndex>> l2_index_class(
       index_submodule, "L2Index");

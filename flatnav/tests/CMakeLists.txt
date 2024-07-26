@@ -3,8 +3,7 @@ enable_testing()
 include(GoogleTest)
 
 # Add test executables here 
-set(FLAT_NAV_LIB_TESTS test_serialization test_simd_int8_instructions)
-
+set(FLAT_NAV_LIB_TESTS test_serialization test_distances test_simd_int8_instructions)
 
 foreach(TEST IN LISTS FLAT_NAV_LIB_TESTS)
   add_executable(${TEST} ${TEST}.cpp)

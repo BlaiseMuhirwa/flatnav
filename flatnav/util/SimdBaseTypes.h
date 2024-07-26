@@ -40,6 +40,23 @@ using mask_intrinsic_t = typename MaskIntrinsic<T>::mask_type;
 template <size_t N>
 using mask_intrinsic_from_length = mask_intrinsic_t<mask_repr_t<N>>;
 
+// clang-format off
+/**
+ * @file SimdBaseTypes.h
+ * @brief This file contains the definition of base types that serve as wrappers for low-level SIMD intrinsics.
+ * 
+ * The namespace `flatnav::util` contains the following base types:
+ * - `simd128bit`: Represents a 128-bit SIMD register and provides operations for loading, storing, and manipulating data.
+ * - `simd4float32`: Represents a vector of 4 32-bit floating-point numbers and provides arithmetic operations.
+ * - `simd256bit`: Represents a 256-bit SIMD register and provides operations for loading, storing, and manipulating data.
+ * - `simd8float32`: Represents a vector of 8 32-bit floating-point numbers and provides arithmetic operations.
+ * - `simd512bit`: Represents a 512-bit SIMD register and provides operations for loading, storing, and manipulating data.
+ * - `simd16float32`: Represents a vector of 16 32-bit floating-point numbers and provides arithmetic operations.
+ * 
+ * These base types are designed to work with different SIMD instruction sets, such as SSE, AVX, and AVX512.
+ * They encapsulate the low-level SIMD intrinsics and provide a higher-level interface for SIMD programming.
+ */
+
 #if defined(USE_SSE)
 struct simd128bit {
   union {
@@ -52,21 +69,21 @@ struct simd128bit {
   explicit simd128bit(const void *x)
       : _int(_mm_loadu_si128((const __m128i *)x)) {}
 
-  void storeu(void *pointer) const {
+  inline void storeu(void *pointer) const {
     _mm_storeu_si128((__m128i *)pointer, _int);
   }
-  void store(void *pointer) const {
+  inline void store(void *pointer) const {
     // This requires 16-byte alignment for pointer
     _mm_store_si128((__m128i *)pointer, _int);
   }
 
   void clear() { _int = _mm_setzero_si128(); }
 
-  void loadu(const void *pointer) {
+  inline void loadu(const void *pointer) {
     _float = _mm_loadu_ps((const float *)pointer);
   }
 
-  float reduce_add() const {
+  inline float reduce_add() const {
 #if defined(USE_SSE3)
     // _mm_hadd_ps is only available in SSE3
     __m128 sum = _mm_hadd_ps(_float, _float);
@@ -82,7 +99,7 @@ struct simd128bit {
 #endif
   }
 
-  bool operator=(const simd128bit &other) {
+  bool operator==(const simd128bit &other) {
     const __m128i eq = _mm_cmpeq_epi32(_int, other._int);
     return _mm_movemask_epi8(eq) == 0xffffU;
   }
@@ -101,27 +118,27 @@ struct simd4float32 : public simd128bit {
   explicit simd4float32(float x0, float x1, float x2, float x3)
       : simd128bit(_mm_setr_ps(x3, x2, x1, x0)) {}
 
-  simd4float32 operator+(const simd4float32 &other) const {
+  inline simd4float32 operator+(const simd4float32 &other) const {
     __m128 result = _mm_add_ps(_float, other._float);
     return simd4float32(result);
   }
 
-  simd4float32 operator*(const simd4float32 &other) const {
+  inline simd4float32 operator*(const simd4float32 &other) const {
     __m128 result = _mm_mul_ps(_float, other._float);
     return simd4float32(result);
   }
 
-  simd4float32 operator/(const simd4float32 &other) const {
+  inline simd4float32 operator/(const simd4float32 &other) const {
     __m128 result = _mm_div_ps(_float, other._float);
     return simd4float32(result);
   }
 
-  simd4float32 operator-(const simd4float32 &other) const {
+  inline simd4float32 operator-(const simd4float32 &other) const {
     __m128 result = _mm_sub_ps(_float, other._float);
     return simd4float32(result);
   }
 
-  simd4float32 &operator+=(const simd4float32 &other) {
+  inline simd4float32 &operator+=(const simd4float32 &other) {
     _float = _mm_add_ps(_float, other._float);
     return *this;
   }
@@ -160,31 +177,46 @@ struct simd256bit {
   __m128 get_low() const { return _mm256_extractf128_ps(_float, 0); }
   __m128 get_high() const { return _mm256_extractf128_ps(_float, 1); }
 
-  void loadu(const void *pointer) {
+  inline void loadu(const void *pointer) {
     _float = _mm256_loadu_ps((const float *)pointer);
   }
 
-  // This is supposed to be faster than using _mm256_store_ps to store
-  // a simd256bit type into a float array of size 8 and then performing
-  // scalar addition.
-  // TODO: Actually run some benchmarks to verify this.
+  // clang-format off
+  /**
+   * Computes the sum of all numbers in a SIMD register using AVX instructions.
+   * This is actually a bit faster than doing the following
+   * ```cpp
+   * float result[8];
+   * _mm256_storeu_ps(result, _float);
+   * return result[0] + result[1] + result[2] + result[3] + result[4] +
+   * result[5] + result[6] + result[7];
+   * ```
+   * AVX512 has a dedicated instruction for this, but AVX/AVX2 do not.
+   * Example:
+   * If _float = [a, b, c, d, e, f, g, h], the following is what each
+   * instruction returns:
+   *  _mm256_hadd_ps(_float, _float) = [a+b, c+d, a+b, c+d, e+f, g+h, e+f, g+h] 
+   * _mm256_hadd_ps(sum, sum) = [a+b+c+d, a+b+c+d, e+f+g+h, e+f+g+h, ...] 
+   * _mm256_extractf128_ps(sum, 0) = [a+b+c+d, a+b+c+d, ...]
+   * _mm256_extractf128_ps(sum, 1) = [e+f+g+h, e+f+g+h, ...]
+   * _mm_add_ps(low128, high128) = [(a+b+c+d)+(e+f+g+h), (a+b+c+d)+(e+f+g+h), ...] 
+   * _mm_cvtss_f32(final_sum) = a+b+c+d+e+f+g+h
+   *
+   */
   float reduce_add() const {
-    // AVX doesn't have an equivalent intrinsic for _mm512_reduce_add_ps, but
-    // we can achieve the same result as follows:
+    // Horizontal add within each 128-bit lane
     __m256 sum = _mm256_hadd_ps(_float, _float);
     sum = _mm256_hadd_ps(sum, sum);
 
-    // Move the sum to the lower half of the register
-    __m128i low128 = _mm256_extractf128_si256(_mm256_castps_si256(sum), 0);
+    // Extract both 128-bit parts and add them together
+    __m128 low128 = _mm256_extractf128_ps(sum, 0);
+    __m128 high128 = _mm256_extractf128_ps(sum, 1);
+    // Adds corresponding elements of low128 and high128
+    __m128 final_sum = _mm_add_ps(low128, high128);
 
-    // Perform a final horizontal add if necessary (now on 128-bit lane)
-    // The elements in the lower 128 bits are now in the first and second
-    // positions
-    __m128 hsum128 =
-        _mm_hadd_ps(_mm_castsi128_ps(low128), _mm_castsi128_ps(low128));
-
-    // Extract the first element from the 128-bit lane
-    return _mm_cvtss_f32(hsum128);
+    // Extract the first element, which now holds the total sum of all eight
+    // original elements
+    return _mm_cvtss_f32(final_sum);
   }
 };
 
@@ -201,27 +233,27 @@ struct simd8float32 : public simd256bit {
                         float x5, float x6, float x7)
       : simd256bit(_mm256_setr_ps(x7, x6, x5, x4, x3, x2, x1, x0)) {}
 
-  simd8float32 operator+(const simd8float32 &other) const {
+  inline simd8float32 operator+(const simd8float32 &other) const {
     __m256 result = _mm256_add_ps(_float, other._float);
     return simd8float32(result);
   }
 
-  simd8float32 operator-(const simd8float32 &other) const {
+  inline simd8float32 operator-(const simd8float32 &other) const {
     __m256 result = _mm256_sub_ps(_float, other._float);
     return simd8float32(result);
   }
 
-  simd8float32 operator*(const simd8float32 &other) const {
+  inline simd8float32 operator*(const simd8float32 &other) const {
     __m256 result = _mm256_mul_ps(_float, other._float);
     return simd8float32(result);
   }
 
-  simd8float32 operator/(const simd8float32 &other) const {
+  inline simd8float32 operator/(const simd8float32 &other) const {
     __m256 result = _mm256_div_ps(_float, other._float);
     return simd8float32(result);
   }
 
-  simd8float32 &operator+=(const simd8float32 &other) {
+  inline simd8float32 &operator+=(const simd8float32 &other) {
     _float = _mm256_add_ps(_float, other._float);
     return *this;
   }
@@ -248,12 +280,8 @@ struct simd512bit {
   void storeu(void *pointer) const {
     _mm512_storeu_si512((__m512i *)pointer, _int);
   }
-  // void store(void *pointer) const {
-  //   // This requires 64-byte alignment for pointer
-  //   _mm512_store_si512((__m512i *)pointer, _int);
-  // }
 
-  void store(void *pointer) const {
+  inline void store(void *pointer) const {
     // This requires 64-byte alignment for pointer
     _mm512_store_ps((float *)pointer, _float);
   }
@@ -336,27 +364,27 @@ struct simd16float32 : public simd512bit {
   simd16float32(const simd8float32 &lo, const simd8float32 &hi)
       : simd512bit(lo, hi) {}
 
-  simd16float32 operator+(const simd16float32 &other) const {
+  inline simd16float32 operator+(const simd16float32 &other) const {
     __m512 result = _mm512_add_ps(_float, other._float);
     return simd16float32(result);
   }
 
-  simd16float32 operator*(const simd16float32 &other) const {
+  inline simd16float32 operator*(const simd16float32 &other) const {
     __m512 result = _mm512_mul_ps(_float, other._float);
     return simd16float32(result);
   }
 
-  simd16float32 operator/(const simd16float32 &other) const {
+  inline simd16float32 operator/(const simd16float32 &other) const {
     __m512 result = _mm512_div_ps(_float, other._float);
     return simd16float32(result);
   }
 
-  simd16float32 &operator+=(const simd16float32 &other) {
+  inline simd16float32 &operator+=(const simd16float32 &other) {
     _float = _mm512_add_ps(_float, other._float);
     return *this;
   }
 
-  simd16float32 operator-(const simd16float32 &other) const {
+  inline simd16float32 operator-(const simd16float32 &other) const {
     __m512 result = _mm512_sub_ps(_float, other._float);
     return simd16float32(result);
   }
