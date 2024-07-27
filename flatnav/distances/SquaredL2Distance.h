@@ -4,7 +4,7 @@
 #include <cereal/cereal.hpp>
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
-#include <flatnav/DistanceInterface.h>
+#include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/SquaredL2SimdExtensions.h>
 #include <functional>
@@ -15,7 +15,7 @@
 // floating-point inputs. We provide specializations that use SIMD when
 // supported by the compiler and compatible with the input _dimension.
 
-namespace flatnav {
+namespace flatnav::distances {
 
 using util::DataType;
 
@@ -48,9 +48,9 @@ template <DataType data_type = DataType::float32> struct OptimalL2SimdSelector {
   static void selectInt8(DistanceFunctionPtr &distance_function,
                          const size_t &dimension) {
 #if defined(USE_AVX512)
-    if (platformSupportsAvx512) {
+    if (platformSupportsAvx512()) {
       distance_function = std::make_unique<DistanceFunction>(
-          std::bind(&util::computeL2_Avx512_int8, std::placeholders::_1,
+          std::bind(&util::computeL2_Sse_int8, std::placeholders::_1,
                     std::placeholders::_2, std::cref(dimension)));
     }
 #endif // USE_AVX512
@@ -58,9 +58,12 @@ template <DataType data_type = DataType::float32> struct OptimalL2SimdSelector {
 
   static void selectUint8(DistanceFunctionPtr &distance_function,
                           const size_t &dimension) {
-    (void)distance_function;
-    (void)dimension;
-    throw std::runtime_error("Not yet implemented!");
+#if defined(USE_AVX512)
+    distance_function = std::make_unique<DistanceFunction>(
+        std::bind(&util::computeL2_Avx512_Uint8, std::placeholders::_1,
+                  std::placeholders::_2, std::cref(dimension)));
+#endif // USE_AVX512
+
   }
 
   static void selectFloat32(DistanceFunctionPtr &distance_function,
@@ -72,7 +75,7 @@ template <DataType data_type = DataType::float32> struct OptimalL2SimdSelector {
 #endif // USE_SSE
 
 #if defined(USE_AVX512)
-    if (platformSupportsAvx512) {
+    if (platformSupportsAvx512()) {
       distance_function = std::make_unique<DistanceFunction>(
           std::bind(&util::computeL2_Avx512, std::placeholders::_1,
                     std::placeholders::_2, std::cref(dimension)));
@@ -83,7 +86,7 @@ template <DataType data_type = DataType::float32> struct OptimalL2SimdSelector {
 #endif // USE_AVX512
 
 #if defined(USE_AVX)
-    if (platformSupportsAvx) {
+    if (platformSupportsAvx()) {
 
       distance_function = std::make_unique<DistanceFunction>(
           std::bind(&util::computeL2_Avx2, std::placeholders::_1,
@@ -125,10 +128,11 @@ template <DataType data_type = DataType::float32> struct OptimalL2SimdSelector {
 
 
 struct DefaultSquaredL2 {
+  template<typename T>
   static constexpr float compute(const void *x, const void *y,
                                  const size_t &dimension) {
-    float *p_x = const_cast<float *>(static_cast<const float *>(x));
-    float *p_y = const_cast<float *>(static_cast<const float *>(y));
+    T *p_x = const_cast<T *>(static_cast<const T *>(x));
+    T *p_y = const_cast<T *>(static_cast<const T *>(y));
     float squared_distance = 0;
     for (size_t i = 0; i < dimension; i++) {
       float difference = *p_x - *p_y;
@@ -231,8 +235,14 @@ private:
 
   float defaultDistanceImpl(const void *x, const void *y,
                             const size_t &dimension) const {
-    return DefaultSquaredL2::compute(x, y, dimension);
-  }
+    if (_data_type == DataType::float32) {
+      return DefaultSquaredL2::compute<float>(x, y, dimension);
+    } else if (_data_type == DataType::int8) {
+      return DefaultSquaredL2::compute<int8_t>(x, y, dimension);
+    } else if (_data_type == DataType::uint8) {
+      return DefaultSquaredL2::compute<uint8_t>(x, y, dimension);
+    }
+    throw std::runtime_error("Unsupported data type");}
 };
 
-} // namespace flatnav
+} // namespace flatnav::distances

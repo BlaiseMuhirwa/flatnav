@@ -1,14 +1,13 @@
 #pragma once
 
-#include <flatnav/util/SimdBaseTypes.h>
+#include <flatnav/util/SimdUtils.h>
 
 namespace flatnav::util {
 
 // Explicitly expresses that narrowing is either acceptable or known impossible.
-template <typename T, typename U> constexpr T narrow_cast(U&& u) noexcept {
-    return static_cast<T>(std::forward<U>(u));
+template <typename T, typename U> constexpr T narrow_cast(U &&u) noexcept {
+  return static_cast<T>(std::forward<U>(u));
 }
-
 
 #if defined(USE_AVX512)
 static float computeL2_Avx512(const void *x, const void *y,
@@ -33,6 +32,55 @@ static float computeL2_Avx512(const void *x, const void *y,
   return sum.reduce_add();
 }
 
+static float computeL2_Avx512_Uint8(const void *x, const void *y,
+                                    const size_t &dimension) {
+  const uint8_t *pointer_x = static_cast<const uint8_t *>(x);
+  const uint8_t *pointer_y = static_cast<const uint8_t *>(y);
+
+  // Initialize sum to zero
+  __m512i sum = _mm512_setzero_si512();
+
+  // Loop over the input arrays
+  for (size_t i = 0; i < dimension; i += 64) {
+    // Load 64 bytes from each array
+    __m512i v1 =
+        _mm512_loadu_si512(reinterpret_cast<const __m512i *>(pointer_x + i));
+    __m512i v2 =
+        _mm512_loadu_si512(reinterpret_cast<const __m512i *>(pointer_y + i));
+
+    // Unpack to 16-bit integers to avoid overflow
+    __m512i v1_lo = _mm512_unpacklo_epi8(v1, _mm512_setzero_si512());
+    __m512i v1_hi = _mm512_unpackhi_epi8(v1, _mm512_setzero_si512());
+    __m512i v2_lo = _mm512_unpacklo_epi8(v2, _mm512_setzero_si512());
+    __m512i v2_hi = _mm512_unpackhi_epi8(v2, _mm512_setzero_si512());
+
+    // Compute differences
+    __m512i diff_lo = _mm512_sub_epi16(v1_lo, v2_lo);
+    __m512i diff_hi = _mm512_sub_epi16(v1_hi, v2_hi);
+
+    // Square the differences
+    __m512i diff_squared_lo = _mm512_madd_epi16(diff_lo, diff_lo);
+    __m512i diff_squared_hi = _mm512_madd_epi16(diff_hi, diff_hi);
+
+    // Accumulate the results
+    sum = _mm512_add_epi32(sum, diff_squared_lo);
+    sum = _mm512_add_epi32(sum, diff_squared_hi);
+  }
+
+  // Sum all elements in the sum vector
+  __m256i sum256 = _mm512_extracti64x4_epi64(sum, 0);
+  sum256 = _mm256_add_epi32(sum256, _mm512_extracti64x4_epi64(sum, 1));
+  sum256 = _mm256_hadd_epi32(sum256, sum256);
+  sum256 = _mm256_hadd_epi32(sum256, sum256);
+
+  int32_t buffer[8];
+  _mm256_storeu_si256(reinterpret_cast<__m256i *>(buffer), sum256);
+
+  int32_t total_sum = buffer[0] + buffer[4];
+
+  return static_cast<float>(total_sum);
+}
+
 #if defined(USE_AVX512BW) && defined(USE_AVX512VNNI)
 
 // template <size_t N> static inline __mmask32 create_mask(const size_t &length)
@@ -54,8 +102,7 @@ constexpr __mmask32 create_mask(size_t remaining) {
 }
 
 template <size_t VecLength>
-constexpr mask_intrinsic_from_length<VecLength>
-create_mask(size_t dimension) {
+constexpr mask_intrinsic_from_length<VecLength> create_mask(size_t dimension) {
   using MaskType = mask_repr_t<VecLength>;
   constexpr MaskType one{0x1};
   MaskType shift = dimension % VecLength;
@@ -64,8 +111,9 @@ create_mask(size_t dimension) {
   return mask_raw;
 }
 
-template <size_t VecLength> constexpr mask_intrinsic_from_length<VecLength> no_mask() {
-    return std::numeric_limits<mask_repr_t<VecLength>>::max();
+template <size_t VecLength>
+constexpr mask_intrinsic_from_length<VecLength> no_mask() {
+  return std::numeric_limits<mask_repr_t<VecLength>>::max();
 }
 
 static constexpr size_t div_round_up(size_t x, size_t y) {
@@ -85,10 +133,12 @@ static float compute(const int8_t *a, const int8_t *b, const size_t &length) {
   auto all = no_mask<32>();
 
   for (; j < length; j += 32) {
-    auto temp_a = _mm256_maskz_loadu_epi8(islast<32>(length, j) ? mask : all, a + j);
+    auto temp_a =
+        _mm256_maskz_loadu_epi8(islast<32>(length, j) ? mask : all, a + j);
     auto va = _mm512_cvtepi8_epi16(temp_a);
 
-    auto temp_b = _mm256_maskz_loadu_epi8(islast<32>(length, j) ? mask : all, b + j);
+    auto temp_b =
+        _mm256_maskz_loadu_epi8(islast<32>(length, j) ? mask : all, b + j);
     auto vb = _mm512_cvtepi8_epi16(temp_b);
 
     auto diff = _mm512_sub_epi16(va, vb);

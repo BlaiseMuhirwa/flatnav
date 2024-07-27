@@ -7,7 +7,7 @@
 #include <functional>
 #include <iostream>
 
-namespace flatnav {
+namespace flatnav::distances {
 
 using util::DataType;
 typedef std::function<float(const void *, const void *, const size_t &)>
@@ -62,4 +62,4 @@ public:
   }
 };
 
-} // namespace flatnav
+} // namespace flatnav::distances

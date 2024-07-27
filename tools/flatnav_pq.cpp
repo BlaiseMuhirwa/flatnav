@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <flatnav/Index.h>
+#include <flatnav/index/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <fstream>
@@ -14,12 +14,12 @@
 #include <vector>
 
 using flatnav::Index;
-using flatnav::InnerProductDistance;
-using flatnav::SquaredL2Distance;
+using flatnav::distances::InnerProductDistance;
+using flatnav::distances::SquaredL2Distance;
 
 template <typename dist_t>
 void run(float *data,
-         std::unique_ptr<flatnav::DistanceInterface<dist_t>> &&distance, int N,
+         std::unique_ptr<flatnav::distances::DistanceInterface<dist_t>> &&distance, int N,
          int M, int dim, int ef_construction, const std::string &save_file) {
   auto index = new Index<dist_t, int>(
       /* dist = */ std::move(distance), /* dataset_size = */ N,

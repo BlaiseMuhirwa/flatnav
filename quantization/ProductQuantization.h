@@ -10,7 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <flatnav/DistanceInterface.h>
+#include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/util/Datatype.h>
@@ -84,8 +84,8 @@ template <typename n_bits_t> struct PQCodeManager {
  *
  */
 
-class ProductQuantizer : public flatnav::DistanceInterface<ProductQuantizer> {
-  friend class flatnav::DistanceInterface<ProductQuantizer>;
+class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQuantizer> {
+  friend class flatnav::distances::DistanceInterface<ProductQuantizer>;
 
   // Represents the block size used in ProductQuantizer::computePQCodes
   static const uint64_t BLOCK_SIZE = 256 * 1024;

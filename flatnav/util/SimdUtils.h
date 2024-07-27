@@ -42,7 +42,7 @@ using mask_intrinsic_from_length = mask_intrinsic_t<mask_repr_t<N>>;
 
 // clang-format off
 /**
- * @file SimdBaseTypes.h
+ * @file SimdUtils.h
  * @brief This file contains the definition of base types that serve as wrappers for low-level SIMD intrinsics.
  * 
  * The namespace `flatnav::util` contains the following base types:

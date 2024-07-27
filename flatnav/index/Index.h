@@ -9,9 +9,9 @@
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
 #include <cstring>
-#include <flatnav/DistanceInterface.h>
+#include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/util/Macros.h>
-#include <flatnav/util/ParallelConstructs.h>
+#include <flatnav/util/Multithreading.h>
 #include <flatnav/util/Reordering.h>
 #include <flatnav/util/VisitedSetPool.h>
 #include <fstream>

@@ -4,14 +4,14 @@
 #include <cereal/cereal.hpp>
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
-#include <flatnav/DistanceInterface.h>
+#include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/InnerProductSimdExtensions.h>
 #include <functional>
 #include <iostream>
 #include <limits>
 
-namespace flatnav {
+namespace flatnav::distances {
 
 // This is the base distance function implementation for inner product distances
 // on floating-point inputs.
@@ -126,10 +126,11 @@ struct OptimalInnerProductSimdSelector {
 };
 
 struct DefaultInnerProduct {
+  template<typename T>
   static constexpr float compute(const void *x, const void *y,
                                  const size_t &dimension) {
-    float *p_x = static_cast<float *>(const_cast<void *>(x));
-    float *p_y = static_cast<float *>(const_cast<void *>(y));
+    T *p_x = const_cast<T *>(static_cast<const T *>(x));
+    T *p_y = const_cast<T *>(static_cast<const T *>(y));
     float result = 0;
     for (size_t i = 0; i < dimension; i++) {
       result += p_x[i] * p_y[i];
@@ -237,8 +238,18 @@ private:
                             const size_t &dimension) const {
     // Default implementation of inner product distance, in case we cannot
     // support the SIMD specializations for special input _dimension sizes.
-    return DefaultInnerProduct::compute(x, y, dimension);
+
+    if (_data_type == DataType::float32) {
+      return DefaultInnerProduct::compute<float>(x, y, dimension);
+    }
+    else if (_data_type == DataType::uint8) {
+      return DefaultInnerProduct::compute<uint8_t>(x, y, dimension);
+    }
+    else if (_data_type == DataType::int8) {
+      return DefaultInnerProduct::compute<int8_t>(x, y, dimension);
+    }
+    throw std::runtime_error("Unsupported data type");
   }
 };
 
-} // namespace flatnav
+} // namespace flatnav::distances

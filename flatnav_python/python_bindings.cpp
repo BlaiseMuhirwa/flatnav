@@ -1,11 +1,11 @@
 #include <algorithm>
 #include <cstdint>
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/Index.h>
+#include <flatnav/distances/DistanceInterface.h>
+#include <flatnav/index/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/util/Datatype.h>
-#include <flatnav/util/ParallelConstructs.h>
+#include <flatnav/util/Multithreading.h>
 #include <iostream>
 #include <memory>
 #include <ostream>
@@ -17,10 +17,10 @@
 #include <utility>
 #include <vector>
 
-using flatnav::DistanceInterface;
+using flatnav::distances::DistanceInterface;
 using flatnav::Index;
-using flatnav::InnerProductDistance;
-using flatnav::SquaredL2Distance;
+using flatnav::distances::InnerProductDistance;
+using flatnav::distances::SquaredL2Distance;
 using flatnav::util::DataType;
 
 namespace py = pybind11;
@@ -69,7 +69,7 @@ public:
       auto total_memory = total_index_memory + visited_set_allocated_memory +
                           mutexes_allocated_memory;
 
-      std::cout << "Total allocated index memory: " << total_memory / 1e9
+      std::cout << "Total allocated index memory: " << (float)(total_memory / 1e9)
                 << " GB \n"
                 << std::flush;
       std::cout << "[WARN]: More memory might be allocated due to visited sets "
@@ -620,18 +620,6 @@ void validateDistanceType(const std::string &distance_type) {
   }
 }
 
-void validateIndexDataType(const std::string &index_data_type) {
-  auto data_type = index_data_type;
-  std::transform(data_type.begin(), data_type.end(), data_type.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-
-  if (data_type != "int8" && data_type != "uint8" && data_type != "float32") {
-    throw std::invalid_argument("Invalid data type: `" + data_type +
-                                "` during index construction. Valid options "
-                                "include `int8`, `uint8`, and `float32`.");
-  }
-}
-
 std::unique_ptr<SquaredL2Distance> createL2Distance(DataType data_type,
                                                     int dim) {
   switch (data_type) {
@@ -662,21 +650,18 @@ createInnerProductDistance(DataType data_type, int dim) {
 
 template <typename... Args>
 py::object createIndex(const std::string &distance_type,
-                       const std::string &index_data_type, int dim,
+                       DataType index_data_type, int dim,
                        Args &&...args) {
   validateDistanceType(distance_type);
-  validateIndexDataType(index_data_type);
-
-  DataType type = flatnav::util::type(index_data_type);
 
   if (distance_type == "l2") {
-    auto distance = createL2Distance(type, dim);
+    auto distance = createL2Distance(index_data_type, dim);
     distance->setDistanceFunctionWithType();
     return py::cast(std::make_shared<L2FlatNavIndex>(
         std::move(distance), std::forward<Args>(args)...));
   }
 
-  auto distance = createInnerProductDistance(type, dim);
+  auto distance = createInnerProductDistance(index_data_type, dim);
   distance->setDistanceFunctionWithType();
   return py::cast(std::make_shared<InnerProductFlatNavIndex>(
       std::move(distance), std::forward<Args>(args)...));
@@ -686,13 +671,13 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   index_submodule.def(
       "index_factory",
       [](const std::string &distance_type, int dim, int dataset_size,
-         int max_edges_per_node, const std::string &index_data_type,
+         int max_edges_per_node, DataType index_data_type,
          bool verbose = false, bool collect_stats = false) {
         return createIndex(distance_type, index_data_type, dim, dataset_size,
                            max_edges_per_node, verbose, collect_stats);
       },
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
-      py::arg("max_edges_per_node"), py::arg("index_data_type") = "float32",
+      py::arg("max_edges_per_node"), py::arg("index_data_type") = DataType::float32,
       py::arg("verbose") = false, py::arg("collect_stats") = false,
       CONSTRUCTOR_DOCSTRING);
 
@@ -706,8 +691,24 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
   bindIndexMethods(ip_index_class);
 }
 
-PYBIND11_MODULE(flatnav, module) {
-  auto index_submodule = module.def_submodule("index");
+void defineDataTypeSubmodule(py::module_ &data_type_submodule) {
+  // More enums are available, but these are the only ones that we support 
+  // for index construction. 
+  py::enum_<DataType>(data_type_submodule, "DataType")
+      .value(flatnav::util::name(DataType::float32), DataType::float32)
+      .value(flatnav::util::name(DataType::int8), DataType::int8)
+      .value(flatnav::util::name(DataType::uint8), DataType::uint8)
+      .export_values();
+}
 
+
+PYBIND11_MODULE(flatnav, module) {
+  auto data_type_submodule = module.def_submodule("data_type");
+  defineDataTypeSubmodule(data_type_submodule);
+
+  auto index_submodule = module.def_submodule("index");
   defineIndexSubmodule(index_submodule);
+
+
+
 }

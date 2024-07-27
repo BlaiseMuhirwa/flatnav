@@ -1,16 +1,16 @@
 #include "gtest/gtest.h"
 #include <cassert>
 #include <cstdio> // for remove
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/Index.h>
+#include <flatnav/distances/DistanceInterface.h>
+#include <flatnav/index/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <random>
 
-using flatnav::DistanceInterface;
+using flatnav::distances::DistanceInterface;
 using flatnav::Index;
-using flatnav::InnerProductDistance;
-using flatnav::SquaredL2Distance;
+using flatnav::distances::InnerProductDistance;
+using flatnav::distances::SquaredL2Distance;
 
 namespace flatnav::testing {
 

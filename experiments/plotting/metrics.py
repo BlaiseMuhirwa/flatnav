@@ -128,4 +128,5 @@ metric_manager.register_metric(
 metric_manager.register_metric(
     name="build_time",
     config=MetricConfig(description="Index build time (s)", worst_value=float("inf")),
+    function=lambda build_time: build_time,
 )

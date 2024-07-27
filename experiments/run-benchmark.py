@@ -9,9 +9,17 @@ import logging
 import platform, socket, psutil
 import argparse
 import flatnav
+from flatnav.data_type import DataType 
 from data_loader import get_data_loader
 from plotting.plot import create_plot, create_linestyles
 from plotting.metrics import metric_manager
+
+
+FLATNAV_DATA_TYPES = {
+    "float32": DataType.float32,
+    "uint8": DataType.uint8,
+    "int8": DataType.int8,
+}
 
 
 ENVIRONMENT_INFO = {
@@ -214,7 +222,7 @@ def train_index(
 
         index = flatnav.index.index_factory(
             distance_type=distance_type,
-            index_data_type=data_type,
+            index_data_type=FLATNAV_DATA_TYPES[data_type],
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
@@ -233,12 +241,12 @@ def train_index(
     else:
         index = flatnav.index.index_factory(
             distance_type=distance_type,
-            index_data_type=data_type,
+            index_data_type=FLATNAV_DATA_TYPES[data_type],
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
-            verbose=False,
-            collect_stats=True,
+            verbose=True,
+            collect_stats=False,
         )
         index.set_num_threads(num_build_threads)
 
@@ -338,7 +346,7 @@ def main(
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
 
-    experiment_key = f"{dataset_name}_{index_type}"
+    experiment_key = f"{dataset_name}_{index_type}_{data_type}"
 
     for node_links in num_node_links:
         metrics = {}

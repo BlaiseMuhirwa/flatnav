@@ -1,6 +1,6 @@
 #include <chrono>
 #include <cmath>
-#include <flatnav/Index.h>
+#include <flatnav/index/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/util/Datatype.h>
@@ -17,8 +17,8 @@
 #include <string>
 
 using flatnav::Index;
-using flatnav::InnerProductDistance;
-using flatnav::SquaredL2Distance;
+using flatnav::distances::InnerProductDistance;
+using flatnav::distances::SquaredL2Distance;
 // using flatnav::quantization::ProductQuantizer;
 using flatnav::util::DataType;
 

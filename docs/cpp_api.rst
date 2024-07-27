@@ -9,19 +9,19 @@ C++ API Documentation
    :protected-members:
    :undoc-members:
 
-.. doxygenclass:: flatnav::DistanceInterface
+.. doxygenclass:: flatnav::distances::DistanceInterface
    :project: FlatNav
    :members:
    :protected-members:
    :undoc-members:
 
-.. doxygenclass:: flatnav::SquaredL2Distance
+.. doxygenclass:: flatnav::distances::SquaredL2Distance
     :project: FlatNav
     :members:
     :protected-members:
     :undoc-members:
 
-.. doxygenclass:: flatnav::InnerProductDistance
+.. doxygenclass:: flatnav::distances::InnerProductDistance
     :project: FlatNav
     :members:
     :protected-members:

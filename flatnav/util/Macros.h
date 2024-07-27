@@ -21,11 +21,11 @@
 #error "AVX512BW not supported by the compiler"
 #endif // __AVX512BW__
 
-#ifdef __AVX512VNNI__
-#define USE_AVX512VNNI
-#else
-#error "AVX512VNNI not supported by the compiler"
-#endif // __AVX512VNNI__
+// #ifdef __AVX512VNNI__
+// #define USE_AVX512VNNI
+// #else
+// #error "AVX512VNNI not supported by the compiler"
+// #endif // __AVX512VNNI__
 
 #define USE_AVX512
 #endif // __AVX512F__

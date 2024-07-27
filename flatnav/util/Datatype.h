@@ -26,7 +26,7 @@ enum class DataType {
 /**
  * @brief Get a string representation of the data type
  */
-inline constexpr std::string_view name(DataType data_type) {
+inline constexpr const char* name(DataType data_type) {
   switch (data_type) {
   case DataType::uint8:
     return "uint8";
