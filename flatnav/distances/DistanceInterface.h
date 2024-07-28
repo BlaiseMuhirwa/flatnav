@@ -43,9 +43,6 @@ public:
   // Prints the parameters of the distance function.
   void getSummary() { static_cast<T *>(this)->getSummaryImpl(); }
 
-  inline constexpr DataType dataType() {
-    return static_cast<T *>(this)->dataTypeImpl();
-  }
 
   // This transforms the data located at src into a form that is writeable
   // to disk / storable in RAM. For distance functions that don't

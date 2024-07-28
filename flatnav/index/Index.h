@@ -1,6 +1,5 @@
 #pragma once
 
-#include "util/VisitedSetPool.h"
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -25,6 +24,8 @@
 
 using flatnav::util::VisitedSetPool;
 using flatnav::util::VisitedSet;
+using flatnav::distances::DistanceInterface;
+
 
 namespace flatnav {
 

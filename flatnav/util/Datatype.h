@@ -118,4 +118,18 @@ inline constexpr size_t size(DataType data_type) {
   }
 }
 
+// Some nice template metaprogramming (TMP) to allow us to get compile-time
+// distance dispatching.
+template <DataType data_type> struct type_for_data_type;
+
+template <> struct type_for_data_type<DataType::float32> {
+  using type = float;
+};
+template <> struct type_for_data_type<DataType::int8> { using type = int8_t; };
+template <> struct type_for_data_type<DataType::uint8> {
+  using type = uint8_t;
+};
+
+
+
 } // namespace flatnav::util

@@ -3,9 +3,9 @@
 #include <chrono>
 #include <cmath>
 #include <flatnav/distances/DistanceInterface.h>
-#include <flatnav/index/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/index/Index.h>
 #include <flatnav/util/Datatype.h>
 #include <fstream>
 #include <iostream>
@@ -20,8 +20,8 @@
 #include <utility>
 #include <vector>
 
-using flatnav::distances::DistanceInterface;
 using flatnav::Index;
+using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
 // using flatnav::quantization::ProductQuantizer;
@@ -31,13 +31,14 @@ template <typename dist_t>
 void buildIndex(float *data,
                 std::unique_ptr<DistanceInterface<dist_t>> distance, int N,
                 int M, int dim, int ef_construction,
+                int build_num_threads,
                 const std::string &save_file) {
 
   auto index = new Index<dist_t, int>(
       /* dist = */ std::move(distance), /* dataset_size = */ N,
       /* max_edges = */ M);
 
-  index->setNumThreads(std::thread::hardware_concurrency());
+  index->setNumThreads(build_num_threads);
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -59,8 +60,10 @@ void buildIndex(float *data,
   delete index;
 }
 
-void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
-         int ef_construction, const std::string &save_file,
+void run(float *data, flatnav::distances::METRIC_TYPE metric_type, int N, int M,
+         int dim, int ef_construction, 
+         int build_num_threads,
+         const std::string &save_file,
          bool quantize = false) {
 
   if (quantize) {
@@ -81,27 +84,26 @@ void run(float *data, flatnav::METRIC_TYPE metric_type, int N, int M, int dim,
     //                              ef_construction, save_file);
 
   } else {
-    if (metric_type == flatnav::METRIC_TYPE::EUCLIDEAN) {
-      auto distance = SquaredL2Distance::create<DataType::float32>(dim);
-      distance->setDistanceFunction<DataType::float32>();
+    if (metric_type == flatnav::distances::METRIC_TYPE::EUCLIDEAN) {
+      auto distance = SquaredL2Distance<DataType::float32>::create(dim);
+      buildIndex<SquaredL2Distance<DataType::float32>>(
+          data, std::move(distance), N, M, dim, ef_construction, build_num_threads, save_file);
 
-      buildIndex<SquaredL2Distance>(data, std::move(distance), N, M, dim,
-                                    ef_construction, save_file);
-    } else if (metric_type == flatnav::METRIC_TYPE::INNER_PRODUCT) {
-      auto distance = InnerProductDistance::create<DataType::float32>(dim);
-      distance->setDistanceFunction<DataType::float32>();
-      buildIndex<InnerProductDistance>(data, std::move(distance), N, M, dim,
-                                       ef_construction, save_file);
+    } else if (metric_type == flatnav::distances::METRIC_TYPE::INNER_PRODUCT) {
+      // auto distance = InnerProductDistance::create<DataType::float32>(dim);
+      // distance->setDistanceFunction<DataType::float32>();
+      // buildIndex<InnerProductDistance>(data, std::move(distance), N, M, dim,
+      //                                  ef_construction, save_file);
     }
   }
 }
 
 int main(int argc, char **argv) {
 
-  if (argc < 7) {
+  if (argc < 8) {
     std::clog << "Usage: " << std::endl;
     std::clog << "construct <quantize> <metric> <data> <M> <ef_construction> "
-                 "<outfile>"
+                 "<build_num_threads> <outfile>"
               << std::endl;
     std::clog << "\t <quantize> int, 0 for no quantization, 1 for quantization"
               << std::endl;
@@ -110,6 +112,7 @@ int main(int argc, char **argv) {
     std::clog << "\t <data> npy file from ann-benchmarks" << std::endl;
     std::clog << "\t <M>: int " << std::endl;
     std::clog << "\t <ef_construction>: int " << std::endl;
+    std::clog << "\t <build_num_threads>: int " << std::endl;
     std::clog << "\t <outfile>: where to stash the index" << std::endl;
 
     return -1;
@@ -131,14 +134,16 @@ int main(int argc, char **argv) {
   std::clog << "Loading " << dim << "-dimensional dataset with N = " << N
             << std::endl;
   float *data = datafile.data<float>();
-  flatnav::METRIC_TYPE metric_type = metric_id == 0
-                                         ? flatnav::METRIC_TYPE::EUCLIDEAN
-                                         : flatnav::METRIC_TYPE::INNER_PRODUCT;
+  flatnav::distances::METRIC_TYPE metric_type =
+      metric_id == 0 ? flatnav::distances::METRIC_TYPE::EUCLIDEAN
+                     : flatnav::distances::METRIC_TYPE::INNER_PRODUCT;
 
   run(/* data = */ data,
       /* metric_type = */ metric_type,
       /* N = */ N, /* M = */ M, /* dim = */ dim,
-      /* ef_construction = */ ef_construction, /* save_file = */ argv[6],
+      /* ef_construction = */ ef_construction, 
+      /* build_num_threads = */ std::stoi(argv[6]),
+      /* save_file = */ argv[7],
       /* quantize = */ quantize);
 
   return 0;

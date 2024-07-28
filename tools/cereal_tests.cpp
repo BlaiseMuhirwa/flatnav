@@ -10,6 +10,7 @@ using flatnav::distances::DistanceInterface;
 using flatnav::Index;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
+using flatnav::util::DataType;
 
 template <typename dist_t>
 void serializeIndex(float *data,
@@ -59,9 +60,8 @@ int main(int argc, char **argv) {
   int dim = 784;
   int N = 60000;
   float *data = datafile.data<float>();
-  auto l2_distance = SquaredL2Distance::create(dim);
-  l2_distance->setDistanceFunction();
-  serializeIndex<SquaredL2Distance>(data, std::move(l2_distance), N, M, dim,
+  auto l2_distance = SquaredL2Distance<DataType::float32>::create(dim);
+  serializeIndex<SquaredL2Distance<DataType::float32>>(data, std::move(l2_distance), N, M, dim,
                                     ef_construction,
                                     std::string("l2_flatnav.bin"));
 

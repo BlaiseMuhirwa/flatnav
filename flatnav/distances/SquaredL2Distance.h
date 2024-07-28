@@ -5,6 +5,7 @@
 #include <cstddef> // for size_t
 #include <cstring> // for memcpy
 #include <flatnav/distances/DistanceInterface.h>
+#include <flatnav/distances/L2DistanceDispatcher.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/SquaredL2SimdExtensions.h>
 #include <functional>
@@ -18,6 +19,7 @@
 namespace flatnav::distances {
 
 using util::DataType;
+using util::type_for_data_type;
 
 template <DataType data_type = DataType::float32> struct OptimalL2SimdSelector {
 
@@ -63,7 +65,6 @@ template <DataType data_type = DataType::float32> struct OptimalL2SimdSelector {
         std::bind(&util::computeL2_Avx512_Uint8, std::placeholders::_1,
                   std::placeholders::_2, std::cref(dimension)));
 #endif // USE_AVX512
-
   }
 
   static void selectFloat32(DistanceFunctionPtr &distance_function,
@@ -122,13 +123,10 @@ template <DataType data_type = DataType::float32> struct OptimalL2SimdSelector {
       throw std::runtime_error("Unsupported data type");
     }
   }
-
 };
 
-
-
 struct DefaultSquaredL2 {
-  template<typename T>
+  template <typename T>
   static constexpr float compute(const void *x, const void *y,
                                  const size_t &dimension) {
     T *p_x = const_cast<T *>(static_cast<const T *>(x));
@@ -144,78 +142,79 @@ struct DefaultSquaredL2 {
   }
 };
 
-class SquaredL2Distance : public DistanceInterface<SquaredL2Distance> {
+
+/**
+ * @brief The SquaredL2Distance class is designed to balance compile-time and
+ * runtime dispatching for efficient distance computation.
+ *
+ * This class template takes a util::DataType parameter, which allows it to
+ * leverage compile-time dispatch for selecting the appropriate distance
+ * computation strategy based on the data type. The compile-time dispatch is
+ * achieved using template specialization and the TypeForDataType struct, which
+ * maps util::DataType values to corresponding C++ types.
+ *
+ * The actual distance computation is performed by the distance::DistanceL2
+ * class, which relies on the L2Impl struct and its specializations. The
+ * appropriate L2Impl specialization is selected at compile-time based on the
+ * data type provided.
+ *
+ * For SIMD operations, which require runtime checks to determine hardware
+ * support (e.g., AVX, AVX512), the distance::L2Impl specializations include
+ * runtime checks to select the appropriate SIMD implementation. These runtime
+ * checks ensure that the most efficient SIMD instructions available on the
+ * platform are used.
+ *
+ * The key points of this design are:
+ * 1. Compile-time dispatch is used to select the appropriate distance
+ * computation strategy based on the data type, reducing runtime overhead and
+ * improving performance.
+ * 2. Runtime checks are used to determine the availability of SIMD
+ * instructions, ensuring that the best possible SIMD implementation is used
+ * based on the hardware capabilities.
+ * 3. The distanceImpl method in SquaredL2Distance uses the TypeForDataType
+ * struct to determine the C++ type corresponding to the util::DataType at
+ * compile-time, ensuring the correct L2Impl specialization is used.
+ *
+ * This design provides a balance between compile-time efficiency and runtime
+ * flexibility, making it well-suited for performance-critical paths where
+ * different data types and hardware capabilities must be handled efficiently.
+ */
+
+template <DataType data_type>
+class SquaredL2Distance
+    : public DistanceInterface<SquaredL2Distance<data_type>> {
 
   friend class DistanceInterface<SquaredL2Distance>;
   enum { DISTANCE_ID = 0 };
 
 public:
   SquaredL2Distance() = default;
-  SquaredL2Distance(size_t dim, DataType data_type = DataType::float32)
-      : _data_type(data_type), _dimension(dim),
-        _data_size_bytes(dim * util::size(data_type)) {}
-  // _distance_computer(nullptr) {}
+  SquaredL2Distance(size_t dim)
+      : _dimension(dim), _data_size_bytes(dim * util::size(data_type)) {}
 
-  template <DataType data_type = DataType::float32>
-  static std::unique_ptr<SquaredL2Distance> create(size_t dim) {
-    return std::make_unique<SquaredL2Distance>(dim, data_type);
+  static std::unique_ptr<SquaredL2Distance<data_type>> create(size_t dim) {
+    return std::make_unique<SquaredL2Distance<data_type>>(dim);
   }
 
   inline constexpr size_t getDimension() const { return _dimension; }
 
-  float distanceImpl(const void *x, const void *y,
-                     bool asymmetric = false) const {
+  constexpr float distanceImpl(const void *x, const void *y,
+                               bool asymmetric = false) const {
     (void)asymmetric;
-    return (*_distance_computer)(x, y, _dimension);
+    return L2DistanceDispatcher::dispatch(
+        static_cast<const typename type_for_data_type<data_type>::type *>(x),
+        static_cast<const typename type_for_data_type<data_type>::type *>(y),
+        _dimension);
   }
-
-  /**
-   * @brief Dispatcher for templating setDistanceFunction the right data type
-   */
-  void setDistanceFunctionWithType() {
-#ifndef NO_SIMD_VECTORIZATION
-    switch (_data_type) {
-    case DataType::float32:
-      setDistanceFunction<DataType::float32>();
-      break;
-    case DataType::uint8:
-      setDistanceFunction<DataType::uint8>();
-      break;
-
-    case DataType::int8:
-      setDistanceFunction<DataType::int8>();
-      break;
-
-    default:
-      throw std::runtime_error("Unsupported data type");
-    }
-#endif // NO_SIMD_VECTORIZATION
-  }
-
-  template <DataType data_type = DataType::float32> void setDistanceFunction() {
-    _distance_computer = std::make_unique<DistanceFunction>(std::bind(
-        &SquaredL2Distance::defaultDistanceImpl, this, std::placeholders::_1,
-        std::placeholders::_2, std::placeholders::_3));
-
-    OptimalL2SimdSelector<data_type>::select(_distance_computer, _dimension);
-  }
-
-  inline constexpr DataType dataTypeImpl() const { return _data_type; }
 
 private:
-  DataType _data_type;
   size_t _dimension;
   size_t _data_size_bytes;
-  DistanceFunctionPtr _distance_computer;
 
   friend class ::cereal::access;
 
   template <typename Archive> void serialize(Archive &ar) {
-    ar(_data_type, _dimension, _data_size_bytes);
-
-    if (Archive::is_loading::value) {
-      setDistanceFunctionWithType();
-    }
+    ar(_dimension, _data_size_bytes);
   }
 
   inline size_t dataSizeImpl() { return _data_size_bytes; }
@@ -230,19 +229,19 @@ private:
               << "\n"
               << std::flush;
     std::cout << "Dimension: " << _dimension << "\n" << std::flush;
-    std::cout << "Data Type: " << util::name(_data_type) << "\n" << std::flush;
   }
 
   float defaultDistanceImpl(const void *x, const void *y,
                             const size_t &dimension) const {
-    if (_data_type == DataType::float32) {
+    if (data_type == DataType::float32) {
       return DefaultSquaredL2::compute<float>(x, y, dimension);
-    } else if (_data_type == DataType::int8) {
+    } else if (data_type == DataType::int8) {
       return DefaultSquaredL2::compute<int8_t>(x, y, dimension);
-    } else if (_data_type == DataType::uint8) {
+    } else if (data_type == DataType::uint8) {
       return DefaultSquaredL2::compute<uint8_t>(x, y, dimension);
     }
-    throw std::runtime_error("Unsupported data type");}
+    throw std::runtime_error("Unsupported data type");
+  }
 };
 
 } // namespace flatnav::distances
