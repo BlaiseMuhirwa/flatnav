@@ -13,18 +13,34 @@ Index Classes
 
 Classes for managing FlatNav indices.
 
-L2Index
+IndexL2Float
 -------
 
-.. autoclass:: flatnav.index.L2Index
+.. autoclass:: flatnav.index.IndexL2Float
     :members:
     :undoc-members:
     :show-inheritance:
 
-IPIndex
+IndexL2Uint8
 -------
 
-.. autoclass:: flatnav.index.IPIndex
+.. autoclass:: flatnav.index.IndexL2Uint8
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+IndexIPFloat
+-------
+
+.. autoclass:: flatnav.index.IndexIPFloat
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+IndexIPUint8
+-------
+
+.. autoclass:: flatnav.index.IndexIPUint8
     :members:
     :undoc-members:
     :show-inheritance:

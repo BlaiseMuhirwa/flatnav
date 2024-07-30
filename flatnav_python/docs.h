@@ -117,7 +117,7 @@ Load a FlatNav index from a given file location.
 Args:
     filename (str): The file location to load the index from.
 Returns:
-    Union[L2Inde, IPIndex]: The loaded index.
+    Union[L2Inde, IndexIPFloat]: The loaded index.
 )pbdoc";
 
 static const char *GET_QUERY_DISTANCE_COMPUTATIONS_DOCSTRING = R"pbdoc(
@@ -138,5 +138,5 @@ Args:
     collect_stats (bool, optional): Collects performance statistics. Defaults to False.
 
 Returns:
-    Union[L2Index, IPIndex]: The constructed index.
+    Union[IndexL2Float, IndexIPFloat]: The constructed index.
 )pbdoc";
