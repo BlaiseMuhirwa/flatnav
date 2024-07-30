@@ -301,6 +301,8 @@ public:
     return _index->getGraphOutdegreeTable();
   }
 
+  uint32_t getMaxEdgesPerNode() { return _index->maxEdgesPerNode(); }
+
   void reorder(const std::vector<std::string> &strategies) {
     // validate the given strategies
     for (auto &strategy : strategies) {
@@ -502,6 +504,8 @@ void bindSpecialization(py::module_ &index_submodule) {
            SET_NUM_THREADS_DOCSTRING)
       .def_static("load_index", &IndexType::loadIndex, py::arg("filename"),
                   LOAD_INDEX_DOCSTRING)
+      .def_property_readonly("max_edges_per_node",
+                             &IndexType::getMaxEdgesPerNode)
       .def_property_readonly("num_threads", &IndexType::getNumThreads,
                              NUM_THREADS_DOCSTRING);
 }
