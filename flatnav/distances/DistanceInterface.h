@@ -3,7 +3,6 @@
 #include <cereal/access.hpp>
 #include <cstddef> // for size_t
 #include <fstream> // for ifstream, ofstream
-#include <functional>
 #include <iostream>
 
 namespace flatnav::distances {

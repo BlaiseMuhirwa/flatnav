@@ -4,7 +4,6 @@
 
 namespace flatnav::util {
 
-
 #if defined(USE_AVX512)
 static float computeL2_Avx512(const void *x, const void *y,
                               const size_t &dimension) {

@@ -60,6 +60,9 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   Index<dist_t, label_t> *_index;
   DataType _data_type;
 
+  typedef std::pair<py::array_t<float>, py::array_t<label_t>>
+      DistancesLabelsPair;
+
   // Internal add method that handles templated dispatch
   template <typename data_type>
   void addImpl(const py::array_t<data_type, py::array::c_style |
@@ -240,9 +243,6 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   }
 
 public:
-  typedef std::pair<py::array_t<float>, py::array_t<label_t>>
-      DistancesLabelsPair;
-
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
       : _dim(index->dataDimension()), _label_id(0), _verbose(false),
         _index(index.release()) {
@@ -328,12 +328,13 @@ public:
 
   static std::shared_ptr<PyIndex<dist_t, label_t>>
   loadIndex(const std::string &filename) {
-    auto index = Index<dist_t, label_t>::loadIndex(/* filename = */filename); 
+    auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename);
     return std::make_shared<PyIndex<dist_t, label_t>>(std::move(index));
   }
 
   std::shared_ptr<PyIndex<dist_t, label_t>> allocateNodes(
-      const py::array_t<float, py::array::c_style | py::array::forcecast> &data) {
+      const py::array_t<float, py::array::c_style | py::array::forcecast>
+          &data) {
     auto num_vectors = data.shape(0);
     auto data_dim = data.shape(1);
     if (data.ndim() != 2 || data_dim != _dim) {
@@ -432,19 +433,21 @@ void validateDistanceType(const std::string &distance_type) {
 }
 
 template <DataType data_type, typename... Args>
-py::object createIndex(const std::string &distance_type,
-                                         int dim, Args &&... args) {
+py::object createIndex(const std::string &distance_type, int dim,
+                       Args &&... args) {
   validateDistanceType(distance_type);
 
   if (distance_type == "l2") {
     auto distance = SquaredL2Distance<data_type>::create(dim);
-    return std::make_shared<PyIndex<SquaredL2Distance<data_type>, int>>(
+    auto index = std::make_shared<PyIndex<SquaredL2Distance<data_type>, int>>(
         std::move(distance), data_type, std::forward<Args>(args)...);
+    return py::cast(index);
   }
 
   auto distance = InnerProductDistance<data_type>::create(dim);
-  return std::make_shared<PyIndex<InnerProductDistance<data_type>, int>>(
+  auto index = std::make_shared<PyIndex<InnerProductDistance<data_type>, int>>(
       std::move(distance), data_type, std::forward<Args>(args)...);
+  return py::cast(index);
 }
 
 template <typename dist_t, typename label_t>
@@ -498,11 +501,10 @@ void bindSpecialization(py::module_ &index_submodule) {
       .def("set_num_threads", &IndexType::setNumThreads, py::arg("num_threads"),
            SET_NUM_THREADS_DOCSTRING)
       .def_static("load_index", &IndexType::loadIndex, py::arg("filename"),
-                  LOAD_INDEX_DOCSTRING);
+                  LOAD_INDEX_DOCSTRING)
       .def_property_readonly("num_threads", &IndexType::getNumThreads,
                              NUM_THREADS_DOCSTRING);
 }
-
 
 void defineIndexSubmodule(py::module_ &index_submodule) {
   bindSpecialization<SquaredL2Distance<DataType::float32>, int>(

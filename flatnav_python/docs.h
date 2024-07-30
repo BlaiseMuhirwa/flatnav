@@ -112,7 +112,7 @@ Returns:
     None
 )pbdoc";
 
-static const char *LOAD_DOCSTRING = R"pbdoc(
+static const char *LOAD_INDEX_DOCSTRING = R"pbdoc(
 Load a FlatNav index from a given file location.
 Args:
     filename (str): The file location to load the index from.
