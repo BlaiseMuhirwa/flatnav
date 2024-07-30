@@ -122,12 +122,16 @@ public:
 
   void
   add(const py::array_t<float, py::array::c_style | py::array::forcecast> &data,
-      int ef_construction, int num_initializations = 100,
-      py::object labels = py::none()) {
+      int ef_construction,
+      std::optional<float> checkpoint_every = std::nullopt,
+      std::optional<std::string> checkpoint_filepath = std::nullopt,
+      int num_initializations = 100, py::object labels = py::none()) {
     // py::array_t<float, py::array::c_style | py::array::forcecast> means that
     // the functions expects either a Numpy array of floats or a castable type
     // to that type. If the given type can't be casted, pybind11 will throw an
     // error.
+
+    bool enable_checkpointing = checkpoint_every.has_value() && checkpoint_filepath.has_value();
 
     auto num_vectors = data.shape(0);
     auto data_dim = data.shape(1);
@@ -155,6 +159,9 @@ public:
             /* data = */ (void *)data.data(0),
             /* labels = */ vec_labels,
             /* ef_construction = */ ef_construction,
+            /* enabled_checkpointing = */ enable_checkpointing,
+            /* checkpoint_every = */ checkpoint_every.value_or(0.1),
+            /* checkpoint_filepath = */ checkpoint_filepath.value_or(""),
             /* num_initializations = */ num_initializations);
       }
       return;
@@ -306,6 +313,8 @@ the underlying graph structure.
 Args:
     data (np.ndarray): The data to add to the index.
     ef_construction (int): The number of vertices to visit while inserting every vector in the graph.
+    checkpoint_every (float, optional): The fraction of the total number of vectors to visit before checkpointing. Defaults to 0.1.
+    checkpoint_filepath (str, optional): The file path to save the checkpoint.
     num_initializations (int, optional): The number of initializations to perform. Defaults to 100.
     labels (Optional[np.ndarray], optional): The labels for the data. Defaults to None.
 Returns:
@@ -450,6 +459,8 @@ void bindIndexMethods(
       .def_static("load", &IndexType::loadIndex, py::arg("filename"),
                   LOAD_DOCSTRING)
       .def("add", &IndexType::add, py::arg("data"), py::arg("ef_construction"),
+           py::arg("checkpoint_every") = py::none(),
+           py::arg("checkpoint_filepath") = py::none(),
            py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
            ADD_DOCSTRING)
       .def("allocate_nodes", &IndexType::allocateNodes, py::arg("data"),
@@ -520,7 +531,7 @@ void bindIndexMethods(
 
 template <typename... Args>
 py::object createIndex(const std::string &distance_type, int dim,
-                       Args &&...args) {
+                       Args &&... args) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
                  [](unsigned char c) { return std::tolower(c); });

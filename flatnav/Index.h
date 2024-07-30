@@ -23,8 +23,8 @@
 #include <utility>
 #include <vector>
 
-using flatnav::util::VisitedSetPool;
 using flatnav::util::VisitedSet;
+using flatnav::util::VisitedSetPool;
 
 namespace flatnav {
 
@@ -218,6 +218,17 @@ public:
     input_file.close();
   }
 
+  void checkpointIndex(const std::string &filepath) {
+    // First check if the file already exists and delete it
+    std::ifstream file(filepath);
+    if (file.good()) {
+      file.close();
+      std::remove(filepath.c_str());
+    }
+    // Save the index to the file
+    this->saveIndex(filepath);
+  }
+
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
     std::vector<std::vector<uint32_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
@@ -281,6 +292,8 @@ public:
    * index is reached.
    */
   void addBatch(void *data, std::vector<label_t> &labels, int ef_construction,
+                bool enable_checkpointing = false, float checkpoint_every = 0.1,
+                const std::string &checkpoint_filepath = "",
                 int num_initializations = 100) {
     if (num_initializations <= 0) {
       throw std::invalid_argument(
@@ -306,7 +319,12 @@ public:
           void *vector = (float *)data + (row_index * data_dimension);
           label_t label = labels[row_index];
           this->add(vector, label, ef_construction, num_initializations);
-        });
+        },
+        /* enable_checkpointing = */ enable_checkpointing,
+        /* checkpoint_every = */ checkpoint_every,
+        /* checkpoint_fn = */
+        [&](const std::string &filepath) { checkpointIndex(filepath); },
+        /* checkpoint_filepath = */ checkpoint_filepath);
   }
 
   /**
@@ -751,7 +769,7 @@ private:
         }
       }
       if (!is_inserted) {
-        // now, we may to replace one of the links. This will disconnect
+        // now, we may need to replace one of the links. This will disconnect
         // the old neighbor and create a directed edge, so we have to be
         // very careful. To ensure we respect the pruning heuristic, we
         // construct a candidate set including the old links AND our new
@@ -791,9 +809,9 @@ private:
 
       // loop increments:
       i++;
-      if (i >= _M) {
-        i = _M;
-      }
+      // if (i >= _M) {
+      //   i = _M;
+      // }
       neighbors.pop();
     }
   }
