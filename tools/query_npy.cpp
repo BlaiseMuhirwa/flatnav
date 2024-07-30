@@ -1,8 +1,8 @@
 #include <chrono>
 #include <cmath>
-#include <flatnav/index/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/index/Index.h>
 #include <flatnav/util/Datatype.h>
 #include <fstream>
 #include <iostream>
@@ -144,23 +144,25 @@ int main(int argc, char **argv) {
     //                       /* num_gtruth = */ n_gt, /* dim = */ dim,
     //                       /* reorder = */ reorder);
   } else if (space_ID == 0) {
-    run<SquaredL2Distance<DataType::float32>>(/* queries = */ queries,
-                           /* gtruth = */ gtruth,
-                           /* index_filename = */ indexfilename,
-                           /* ef_searches = */ ef_searches, /* K = */ k,
-                           /* num_queries = */ num_queries,
-                           /* num_gtruth = */ n_gt, /* dim = */ dim,
-                           /* reorder = */ reorder);
+    run<SquaredL2Distance<DataType::float32>>(
+        /* queries = */ queries,
+        /* gtruth = */ gtruth,
+        /* index_filename = */ indexfilename,
+        /* ef_searches = */ ef_searches, /* K = */ k,
+        /* num_queries = */ num_queries,
+        /* num_gtruth = */ n_gt, /* dim = */ dim,
+        /* reorder = */ reorder);
 
   } else if (space_ID == 1) {
-    run<InnerProductDistance>(/* queries = */ queries, /* gtruth = */
-                              gtruth,
-                              /* index_filename = */ indexfilename,
-                              /* ef_searches = */ ef_searches,
-                              /* K = */ k,
-                              /* num_queries = */ num_queries,
-                              /* num_gtruth = */ n_gt, /* dim = */ dim,
-                              /* reorder = */ reorder);
+    run<InnerProductDistance<DataType::float32>>(
+        /* queries = */ queries, /* gtruth = */
+        gtruth,
+        /* index_filename = */ indexfilename,
+        /* ef_searches = */ ef_searches,
+        /* K = */ k,
+        /* num_queries = */ num_queries,
+        /* num_gtruth = */ n_gt, /* dim = */ dim,
+        /* reorder = */ reorder);
 
   } else {
     throw std::invalid_argument("Invalid space ID. Valid IDs are 0 and 1.");

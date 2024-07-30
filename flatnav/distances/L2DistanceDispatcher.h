@@ -41,18 +41,45 @@ template <> struct SquaredL2Impl<float> {
                                const size_t &dimension) {
 #if defined(USE_AVX512)
     if (platformSupportsAvx512()) {
-      return util::computeL2_Avx512(x, y, dimension);
+      if (dimension % 16 == 0) {
+        return util::computeL2_Avx512(x, y, dimension);
+      }
+      if (dimension % 4 == 0) {
+        return util::computeL2_Sse4Aligned(x, y, dimension);
+      } else if (dimension > 16) {
+        return util::computeL2_SseWithResidual_16(x, y, dimension);
+      } else if (dimension > 4) {
+        return util::computeL2_SseWithResidual_4(x, y, dimension);
+      }
     }
 #endif
 
 #if defined(USE_AVX)
     if (platformSupportsAvx()) {
-      return util::computeL2_Avx2(x, y, dimension);
+      if (dimension % 16 == 0) {
+        return util::computeL2_Avx2(x, y, dimension);
+      }
+      if (dimension % 4 == 0) {
+        return util::computeL2_Sse4Aligned(x, y, dimension);
+      } else if (dimension > 16) {
+        return util::computeL2_SseWithResidual_16(x, y, dimension);
+      } else if (dimension > 4) {
+        return util::computeL2_SseWithResidual_4(x, y, dimension);
+      }
     }
 #endif
 
 #if defined(USE_SSE)
-    return util::computeL2_Sse(x, y, dimension);
+    if (dimension % 16 == 0) {
+      return util::computeL2_Sse(x, y, dimension);
+    }
+    if (dimension % 4 == 0) {
+      return util::computeL2_Sse4Aligned(x, y, dimension);
+    } else if (dimension > 16) {
+      return util::computeL2_SseWithResidual_16(x, y, dimension);
+    } else if (dimension > 4) {
+      return util::computeL2_SseWithResidual_4(x, y, dimension);
+    }
 #else
     return defaultSquaredL2<float>(x, y, dimension);
 #endif
@@ -62,11 +89,11 @@ template <> struct SquaredL2Impl<float> {
 template <> struct SquaredL2Impl<int8_t> {
   static float computeDistance(const int8_t *x, const int8_t *y,
                                const size_t &dimension) {
-#if defined(USE_AVX512BW) && defined(USE_AVX512VNNI)
-    if (platformSupportsAvx512()) {
-      return flatnav::util::computeL2_Avx512_int8(x, y, dimension);
-    }
-#endif
+// #if defined(USE_AVX512BW) && defined(USE_AVX512VNNI)
+//     if (platformSupportsAvx512()) {
+//       return flatnav::util::computeL2_Avx512_int8(x, y, dimension);
+//     }
+// #endif
 #if defined(USE_SSE)
     return flatnav::util::computeL2_Sse_int8(x, y, dimension);
 #endif
@@ -79,7 +106,9 @@ template <> struct SquaredL2Impl<uint8_t> {
                                const size_t &dimension) {
 #if defined(USE_AVX512)
     if (platformSupportsAvx512()) {
-      return util::computeL2_Avx512_Uint8(x, y, dimension);
+      if (dimension % 64 == 0) {
+        return util::computeL2_Avx512_Uint8(x, y, dimension);
+      }
     }
 #endif
 

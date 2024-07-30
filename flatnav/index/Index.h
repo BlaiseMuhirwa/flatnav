@@ -22,10 +22,9 @@
 #include <utility>
 #include <vector>
 
-using flatnav::util::VisitedSetPool;
-using flatnav::util::VisitedSet;
 using flatnav::distances::DistanceInterface;
-
+using flatnav::util::VisitedSet;
+using flatnav::util::VisitedSetPool;
 
 namespace flatnav {
 
@@ -445,7 +444,8 @@ public:
         /* initial_pool_size = */ 1,
         /* num_elements = */ index->_max_node_count);
     index->_distance = std::move(dist);
-    index->_num_threads = std::max((uint32_t)1, (uint32_t)std::thread::hardware_concurrency() / 2);
+    index->_num_threads = std::max(
+        (uint32_t)1, (uint32_t)std::thread::hardware_concurrency() / 2);
     index->_node_links_mutexes =
         std::vector<std::mutex>(index->_max_node_count);
 
@@ -508,10 +508,6 @@ public:
 
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
-
-  inline constexpr util::DataType dataType() const {
-    return _distance->dataType();
-  }
 
   inline uint64_t distanceComputations() const {
     return _distance_computations.load();
@@ -592,6 +588,11 @@ private:
     auto *visited_set = _visited_set_pool->pollAvailableSet();
     visited_set->clear();
 
+    // Prefetch the data for entry node before computing its distance.
+#ifdef USE_SSE
+    _mm_prefetch(getNodeData(entry_node), _MM_HINT_T0);
+#endif
+
     float dist =
         _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node),
                             /* asymmetric = */ true);
@@ -602,15 +603,28 @@ private:
     visited_set->insert(entry_node);
 
     while (!candidates.empty()) {
-      dist_node_t d_node = candidates.top();
+      auto [distance, node] = candidates.top();
 
-      if ((-d_node.first) > max_dist && neighbors.size() >= buffer_size) {
+      if (-distance > max_dist && neighbors.size() >= buffer_size) {
         break;
       }
       candidates.pop();
 
+      // Prefetching the next candidate node data and visited set marker
+      // before processing it. Note that this might not be useful if the current
+      // iteration finds a neighbor that is closer than the current max
+      // distance. In that case we would have prefetched data that is not used
+      // immediately, but I think the cost of prefetching is low enough that
+      // it's probably worth it.
+#ifdef USE_SSE
+      if (!candidates.empty()) {
+        _mm_prefetch(getNodeData(candidates.top().second), _MM_HINT_T0);
+        visited_set->prefetch(candidates.top().second);
+      }
+#endif
+
       processCandidateNode(
-          /* query = */ query, /* node = */ d_node.second,
+          /* query = */ query, /* node = */ node,
           /* max_dist = */ max_dist, /* buffer_size = */ buffer_size,
           /* visited_set = */ visited_set,
           /* neighbors = */ neighbors, /* candidates = */ candidates);

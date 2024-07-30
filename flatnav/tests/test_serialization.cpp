@@ -2,13 +2,13 @@
 #include <cassert>
 #include <cstdio> // for remove
 #include <flatnav/distances/DistanceInterface.h>
-#include <flatnav/index/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/index/Index.h>
 #include <random>
 
-using flatnav::distances::DistanceInterface;
 using flatnav::Index;
+using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
 

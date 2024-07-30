@@ -2,20 +2,13 @@
 
 #include <cereal/access.hpp>
 #include <cstddef> // for size_t
-#include <flatnav/util/Datatype.h>
 #include <fstream> // for ifstream, ofstream
 #include <functional>
 #include <iostream>
 
 namespace flatnav::distances {
 
-using util::DataType;
-typedef std::function<float(const void *, const void *, const size_t &)>
-    DistanceFunction;
-
-typedef std::unique_ptr<DistanceFunction> DistanceFunctionPtr;
-
-enum class METRIC_TYPE { EUCLIDEAN, INNER_PRODUCT };
+enum class MetricType { L2, IP };
 
 // We use the CRTP to implement static polymorphism on the distance. This is
 // done to allow for metrics and distance functions that support arbitrary
@@ -42,7 +35,6 @@ public:
 
   // Prints the parameters of the distance function.
   void getSummary() { static_cast<T *>(this)->getSummaryImpl(); }
-
 
   // This transforms the data located at src into a form that is writeable
   // to disk / storable in RAM. For distance functions that don't

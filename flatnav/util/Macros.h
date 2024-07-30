@@ -20,15 +20,11 @@
 
 #ifdef __AVX512BW__
 #define USE_AVX512BW
-#else
-#error "AVX512BW not supported by the compiler"
 #endif // __AVX512BW__
 
-// #ifdef __AVX512VNNI__
-// #define USE_AVX512VNNI
-// #else
-// #error "AVX512VNNI not supported by the compiler"
-// #endif // __AVX512VNNI__
+#ifdef __AVX512VNNI__
+#define USE_AVX512VNNI
+#endif // __AVX512VNNI__
 
 #define USE_AVX512
 #endif // __AVX512F__
@@ -94,73 +90,81 @@ uint64_t xgetbv(unsigned int index) {
 #define _XCR_XFEATURE_ENABLED_MASK 0
 
 // Cache for AVX and AVX512 support
-std::atomic<bool> avxSupportCache{false};
-std::atomic<bool> avx512SupportCache{false};
-std::atomic<bool> avxInitialized{false};
-std::atomic<bool> avx512Initialized{false};
+std::atomic<bool> avx_support_cache{false};
+std::atomic<bool> avx_512_support_cache{false};
+std::atomic<bool> avx_initialized{false};
+std::atomic<bool> avx_512_initialized{false};
 
+/**
+ * @brief Initializes the platform support for AVX and AVX512 instructions.
+ * This function checks if the CPU and operating system support AVX and AVX512
+ * instructions and caches the result for future use.
+ *
+ * @note This function should be called before using any AVX or AVX512
+ * instructions.
+ */
 void initializePlatformSupport() {
-  if (!avxInitialized.load(std::memory_order_acquire)) {
-    bool avxSupport = false;
+  if (!avx_initialized.load(std::memory_order_acquire)) {
+    bool avx_support = false;
     int cpu_info[4];
     cpuid(cpu_info, 0, 0);
     int n_ids = cpu_info[0];
 
     if (n_ids >= 1) {
       cpuid(cpu_info, 1, 0);
-      bool osUsesXSAVE_XRSTORE = (cpu_info[2] & (1 << 27)) != 0;
-      bool cpuAVXSuport = (cpu_info[2] & (1 << 28)) != 0;
-      if (osUsesXSAVE_XRSTORE && cpuAVXSuport) {
-        uint64_t xcrFeatureMask = xgetbv(0);
-        avxSupport = (xcrFeatureMask & 0x6) == 0x6;
+      bool os_uses_xsave_xrstore = (cpu_info[2] & (1 << 27)) != 0;
+      bool cpu_avx_support = (cpu_info[2] & (1 << 28)) != 0;
+      if (os_uses_xsave_xrstore && cpu_avx_support) {
+        uint64_t xcr_feature_mask = xgetbv(0);
+        avx_support = (xcr_feature_mask & 0x6) == 0x6;
       }
     }
 
-    avxSupportCache.store(avxSupport, std::memory_order_release);
-    avxInitialized.store(true, std::memory_order_release);
+    avx_support_cache.store(avx_support, std::memory_order_release);
+    avx_initialized.store(true, std::memory_order_release);
   }
 
-  if (!avx512Initialized.load(std::memory_order_acquire)) {
+  if (!avx_512_initialized.load(std::memory_order_acquire)) {
     bool avx512Support = false;
-    if (avxSupportCache.load(std::memory_order_acquire)) {
+    if (avx_support_cache.load(std::memory_order_acquire)) {
       int cpu_info[4];
       cpuid(cpu_info, 0, 0);
       int n_ids = cpu_info[0];
 
       if (n_ids >= 0x00000007) {
         cpuid(cpu_info, 0x00000007, 0);
-        bool HW_AVX512F = (cpu_info[1] & ((int)1 << 16)) != 0;
+        bool hw_avx512f = (cpu_info[1] & ((int)1 << 16)) != 0;
 
-        if (HW_AVX512F) {
+        if (hw_avx512f) {
           cpuid(cpu_info, 1, 0);
-          bool osUsesXSAVE_XRSTORE = (cpu_info[2] & (1 << 27)) != 0;
-          bool cpuAVXSuport = (cpu_info[2] & (1 << 28)) != 0;
+          bool os_uses_xsave_xrstore = (cpu_info[2] & (1 << 27)) != 0;
+          bool cpu_avx_support = (cpu_info[2] & (1 << 28)) != 0;
 
-          if (osUsesXSAVE_XRSTORE && cpuAVXSuport) {
-            uint64_t xcrFeatureMask = xgetbv(0);
-            avx512Support = (xcrFeatureMask & 0xe6) == 0xe6;
+          if (os_uses_xsave_xrstore && cpu_avx_support) {
+            uint64_t xcr_feature_mask = xgetbv(0);
+            avx512Support = (xcr_feature_mask & 0xe6) == 0xe6;
           }
         }
       }
     }
 
-    avx512SupportCache.store(avx512Support, std::memory_order_release);
-    avx512Initialized.store(true, std::memory_order_release);
+    avx_512_support_cache.store(avx512Support, std::memory_order_release);
+    avx_512_initialized.store(true, std::memory_order_release);
   }
 }
 
 bool platformSupportsAvx() {
-  if (!avxInitialized.load(std::memory_order_acquire)) {
+  if (!avx_initialized.load(std::memory_order_acquire)) {
     initializePlatformSupport();
   }
-  return avxSupportCache.load(std::memory_order_acquire);
+  return avx_support_cache.load(std::memory_order_acquire);
 }
 
 bool platformSupportsAvx512() {
-  if (!avx512Initialized.load(std::memory_order_acquire)) {
+  if (!avx_512_initialized.load(std::memory_order_acquire)) {
     initializePlatformSupport();
   }
-  return avx512SupportCache.load(std::memory_order_acquire);
+  return avx_512_support_cache.load(std::memory_order_acquire);
 }
 
 #endif

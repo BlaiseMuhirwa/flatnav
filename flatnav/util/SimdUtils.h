@@ -14,32 +14,6 @@
 
 namespace flatnav::util {
 
-template <size_t N> struct MaskRepr {};
-template <> struct MaskRepr<2> { using type = uint8_t; };
-template <> struct MaskRepr<4> { using type = uint8_t; };
-template <> struct MaskRepr<8> { using type = uint8_t; };
-template <> struct MaskRepr<16> { using type = uint16_t; };
-template <> struct MaskRepr<32> { using type = uint32_t; };
-template <> struct MaskRepr<64> { using type = uint64_t; };
-
-template <typename T> struct MaskIntrinsic {};
-template <> struct MaskIntrinsic<uint8_t> { using mask_type = __mmask8; };
-template <> struct MaskIntrinsic<uint16_t> { using mask_type = __mmask16; };
-template <> struct MaskIntrinsic<uint32_t> { using mask_type = __mmask32; };
-template <> struct MaskIntrinsic<uint64_t> { using mask_type = __mmask64; };
-
-// Given a length `N`, obtain an appropriate integer type used as a mask for `N`
-// lanes in an AVX vector operation.
-template <size_t N> using mask_repr_t = typename MaskRepr<N>::type;
-
-// Given an unsigned integer type, return the corresponding mask type
-template <typename T>
-using mask_intrinsic_t = typename MaskIntrinsic<T>::mask_type;
-
-// Given a length `N`, obtain an appropriate mask intrinsic type.
-template <size_t N>
-using mask_intrinsic_from_length = mask_intrinsic_t<mask_repr_t<N>>;
-
 // clang-format off
 /**
  * @file SimdUtils.h

@@ -1,13 +1,13 @@
 #include "cnpy.h"
 #include <cassert>
 #include <flatnav/distances/DistanceInterface.h>
-#include <flatnav/index/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/index/Index.h>
 #include <memory>
 
-using flatnav::distances::DistanceInterface;
 using flatnav::Index;
+using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
 using flatnav::util::DataType;
@@ -61,9 +61,9 @@ int main(int argc, char **argv) {
   int N = 60000;
   float *data = datafile.data<float>();
   auto l2_distance = SquaredL2Distance<DataType::float32>::create(dim);
-  serializeIndex<SquaredL2Distance<DataType::float32>>(data, std::move(l2_distance), N, M, dim,
-                                    ef_construction,
-                                    std::string("l2_flatnav.bin"));
+  serializeIndex<SquaredL2Distance<DataType::float32>>(
+      data, std::move(l2_distance), N, M, dim, ef_construction,
+      std::string("l2_flatnav.bin"));
 
   // auto inner_product_distance =
   //     std::make_unique<InnerProductDistance<float>>(dim);

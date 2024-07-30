@@ -30,7 +30,7 @@
 
 namespace flatnav::quantization {
 
-using flatnav::METRIC_TYPE;
+using flatnav::MetricType;
 using flatnav::quantization::CentroidsGenerator;
 
 template <typename n_bits_t> struct PQCodeManager {
@@ -84,7 +84,8 @@ template <typename n_bits_t> struct PQCodeManager {
  *
  */
 
-class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQuantizer> {
+class ProductQuantizer
+    : public flatnav::distances::DistanceInterface<ProductQuantizer> {
   friend class flatnav::distances::DistanceInterface<ProductQuantizer>;
 
   // Represents the block size used in ProductQuantizer::computePQCodes
@@ -105,7 +106,7 @@ public:
    * index is complete.
    */
   ProductQuantizer(uint32_t dim, uint32_t M, uint32_t nbits,
-                   METRIC_TYPE metric_type)
+                   MetricType metric_type)
       : _num_subquantizers(M), _num_bits(nbits), _is_trained(false),
         _metric_type(metric_type), _train_type(TrainType::DEFAULT) {
 
@@ -116,9 +117,9 @@ public:
     _code_size = (_num_bits * 8 + 7) / 8;
     _subvector_dim = dim / _num_subquantizers;
 
-    if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
+    if (_metric_type == MetricType::L2) {
       _distance = SquaredL2Distance::create<DataType::float32>(_subvector_dim);
-    } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
+    } else if (_metric_type == MetricType::IP) {
       _distance =
           InnerProductDistance::create<DataType::float32>(_subvector_dim);
     } else {
@@ -542,7 +543,7 @@ private:
   // Indicates if the PQ has been trained or not
   bool _is_trained;
 
-  METRIC_TYPE _metric_type;
+  MetricType _metric_type;
 
   // Initialization
   enum TrainType {
@@ -572,10 +573,10 @@ private:
 
     if constexpr (Archive::is_loading::value) {
       // loading PQ
-      if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
+      if (_metric_type == MetricType::L2) {
         _distance =
             SquaredL2Distance::create<DataType::float32>(_subvector_dim);
-      } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
+      } else if (_metric_type == MetricType::IP) {
         _distance =
             InnerProductDistance::create<DataType::float32>(_subvector_dim);
       } else {

@@ -37,7 +37,7 @@ ENVIRONMENT_INFO = {
 
 def compute_metrics(
     requested_metrics: List[str],
-    index: Union[flatnav.index.L2Index, flatnav.index.IPIndex, hnswlib.Index],
+    index: Union[hnswlib.Index, flatnav.index.IndexL2Float, flatnav.index.IndexIPFloat],
     queries: np.ndarray,
     ground_truth: np.ndarray,
     ef_search: int,
@@ -169,7 +169,7 @@ def train_index(
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
     num_build_threads: int = 1,
-) -> Union[flatnav.index.L2Index, flatnav.index.IPIndex, hnswlib.Index]:
+) -> Union[flatnav.index.IndexL2Float, flatnav.index.IndexIPFloat, hnswlib.Index]:
     """
     Creates and trains an index on the given dataset.
     :param train_dataset: The dataset to train the index on.
@@ -220,7 +220,7 @@ def train_index(
         if not os.path.exists(hnsw_base_layer_filename):
             raise ValueError(f"Failed to create {hnsw_base_layer_filename=}")
 
-        index = flatnav.index.index_factory(
+        index = flatnav.index.create(
             distance_type=distance_type,
             index_data_type=FLATNAV_DATA_TYPES[data_type],
             dim=dim,
@@ -239,7 +239,7 @@ def train_index(
         os.remove(hnsw_base_layer_filename)
 
     else:
-        index = flatnav.index.index_factory(
+        index = flatnav.index.create(
             distance_type=distance_type,
             index_data_type=FLATNAV_DATA_TYPES[data_type],
             dim=dim,
@@ -542,7 +542,7 @@ def plot_all_metrics(
 
         create_plot(
             experiment_runs=experiment_runs,
-            raw=True,
+            raw=False,
             x_scale="linear",
             y_scale="linear",
             x_axis_metric=x_metric,

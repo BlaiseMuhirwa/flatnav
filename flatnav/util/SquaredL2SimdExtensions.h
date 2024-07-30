@@ -4,10 +4,6 @@
 
 namespace flatnav::util {
 
-// Explicitly expresses that narrowing is either acceptable or known impossible.
-template <typename T, typename U> constexpr T narrow_cast(U &&u) noexcept {
-  return static_cast<T>(std::forward<U>(u));
-}
 
 #if defined(USE_AVX512)
 static float computeL2_Avx512(const void *x, const void *y,
@@ -32,6 +28,9 @@ static float computeL2_Avx512(const void *x, const void *y,
   return sum.reduce_add();
 }
 
+/**
+ * @todo Make this support dimensions that are not multiples of 64
+ */
 static float computeL2_Avx512_Uint8(const void *x, const void *y,
                                     const size_t &dimension) {
   const uint8_t *pointer_x = static_cast<const uint8_t *>(x);
@@ -80,82 +79,6 @@ static float computeL2_Avx512_Uint8(const void *x, const void *y,
 
   return static_cast<float>(total_sum);
 }
-
-#if defined(USE_AVX512BW) && defined(USE_AVX512VNNI)
-
-// template <size_t N> static inline __mmask32 create_mask(const size_t &length)
-// {
-//   __mmask32 mask = 0;
-//   for (size_t i = 0; i < N; ++i) {
-//     mask |= (i < length) ? (1UL << i) : 0;
-//   }
-//   return mask;
-// }
-
-constexpr __mmask32 create_mask(size_t remaining) {
-  // If remaining is 32 or more, we want to load everything, so the mask is all
-  // 1s. If remaining is less, shift a 1 up to the remaining bit, subtracting
-  // one to get a mask with that many 1s.
-  // return remaining >= 32 ? static_cast<__mmask32>(-1) : (1UL << remaining) -
-  // 1;
-  return (1UL << remaining) - 1;
-}
-
-template <size_t VecLength>
-constexpr mask_intrinsic_from_length<VecLength> create_mask(size_t dimension) {
-  using MaskType = mask_repr_t<VecLength>;
-  constexpr MaskType one{0x1};
-  MaskType shift = dimension % VecLength;
-  MaskType mask_raw =
-      shift == 0 ? std::numeric_limits<MaskType>::max() : (one << shift) - one;
-  return mask_raw;
-}
-
-template <size_t VecLength>
-constexpr mask_intrinsic_from_length<VecLength> no_mask() {
-  return std::numeric_limits<mask_repr_t<VecLength>>::max();
-}
-
-static constexpr size_t div_round_up(size_t x, size_t y) {
-  return (x / y) + static_cast<size_t>((x % y) != 0);
-}
-
-template <size_t Step> static constexpr bool islast(size_t N, size_t i) {
-  size_t last_iter = Step * (div_round_up(N, Step) - 1);
-  return i == last_iter;
-}
-
-static float compute(const int8_t *a, const int8_t *b, const size_t &length) {
-  auto sum = _mm512_setzero_epi32();
-  size_t j = 0;
-
-  auto mask = create_mask<32>(length);
-  auto all = no_mask<32>();
-
-  for (; j < length; j += 32) {
-    auto temp_a =
-        _mm256_maskz_loadu_epi8(islast<32>(length, j) ? mask : all, a + j);
-    auto va = _mm512_cvtepi8_epi16(temp_a);
-
-    auto temp_b =
-        _mm256_maskz_loadu_epi8(islast<32>(length, j) ? mask : all, b + j);
-    auto vb = _mm512_cvtepi8_epi16(temp_b);
-
-    auto diff = _mm512_sub_epi16(va, vb);
-    sum = _mm512_dpwssd_epi32(sum, diff, diff);
-  }
-  return narrow_cast<float>(_mm512_reduce_add_epi32(sum));
-}
-
-static float computeL2_Avx512_int8(const void *x, const void *y,
-                                   const size_t &dimension) {
-  int8_t *pointer_x = static_cast<int8_t *>(const_cast<void *>(x));
-  int8_t *pointer_y = static_cast<int8_t *>(const_cast<void *>(y));
-
-  return flatnav::util::compute(pointer_x, pointer_y, dimension);
-}
-
-#endif // USE_AVX512BW && USE_AVX512VNNI
 
 #endif // USE_AVX512
 

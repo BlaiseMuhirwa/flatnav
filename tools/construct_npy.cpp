@@ -30,8 +30,7 @@ using flatnav::util::DataType;
 template <typename dist_t>
 void buildIndex(float *data,
                 std::unique_ptr<DistanceInterface<dist_t>> distance, int N,
-                int M, int dim, int ef_construction,
-                int build_num_threads,
+                int M, int dim, int ef_construction, int build_num_threads,
                 const std::string &save_file) {
 
   auto index = new Index<dist_t, int>(
@@ -60,11 +59,9 @@ void buildIndex(float *data,
   delete index;
 }
 
-void run(float *data, flatnav::distances::METRIC_TYPE metric_type, int N, int M,
-         int dim, int ef_construction, 
-         int build_num_threads,
-         const std::string &save_file,
-         bool quantize = false) {
+void run(float *data, flatnav::distances::MetricType metric_type, int N, int M,
+         int dim, int ef_construction, int build_num_threads,
+         const std::string &save_file, bool quantize = false) {
 
   if (quantize) {
     // Parameters M and nbits should be adjusted accordingly.
@@ -84,16 +81,17 @@ void run(float *data, flatnav::distances::METRIC_TYPE metric_type, int N, int M,
     //                              ef_construction, save_file);
 
   } else {
-    if (metric_type == flatnav::distances::METRIC_TYPE::EUCLIDEAN) {
+    if (metric_type == flatnav::distances::MetricType::L2) {
       auto distance = SquaredL2Distance<DataType::float32>::create(dim);
       buildIndex<SquaredL2Distance<DataType::float32>>(
-          data, std::move(distance), N, M, dim, ef_construction, build_num_threads, save_file);
+          data, std::move(distance), N, M, dim, ef_construction,
+          build_num_threads, save_file);
 
-    } else if (metric_type == flatnav::distances::METRIC_TYPE::INNER_PRODUCT) {
-      // auto distance = InnerProductDistance::create<DataType::float32>(dim);
-      // distance->setDistanceFunction<DataType::float32>();
-      // buildIndex<InnerProductDistance>(data, std::move(distance), N, M, dim,
-      //                                  ef_construction, save_file);
+    } else if (metric_type == flatnav::distances::MetricType::IP) {
+      auto distance = InnerProductDistance<DataType::float32>::create(dim);
+      buildIndex<InnerProductDistance<DataType::float32>>(
+          data, std::move(distance), N, M, dim, ef_construction,
+          build_num_threads, save_file);
     }
   }
 }
@@ -134,14 +132,14 @@ int main(int argc, char **argv) {
   std::clog << "Loading " << dim << "-dimensional dataset with N = " << N
             << std::endl;
   float *data = datafile.data<float>();
-  flatnav::distances::METRIC_TYPE metric_type =
-      metric_id == 0 ? flatnav::distances::METRIC_TYPE::EUCLIDEAN
-                     : flatnav::distances::METRIC_TYPE::INNER_PRODUCT;
+  flatnav::distances::MetricType metric_type =
+      metric_id == 0 ? flatnav::distances::MetricType::L2
+                     : flatnav::distances::MetricType::IP;
 
   run(/* data = */ data,
       /* metric_type = */ metric_type,
       /* N = */ N, /* M = */ M, /* dim = */ dim,
-      /* ef_construction = */ ef_construction, 
+      /* ef_construction = */ ef_construction,
       /* build_num_threads = */ std::stoi(argv[6]),
       /* save_file = */ argv[7],
       /* quantize = */ quantize);

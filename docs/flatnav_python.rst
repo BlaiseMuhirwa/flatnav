@@ -3,10 +3,10 @@ FlatNav Index Module
 
 This module provides interfaces to create and manipulate FlatNav index structures.
 
-index_factory
+create
 -------------
 
-.. autofunction:: flatnav.index.index_factory
+.. autofunction:: flatnav.index.create
 
 Index Classes
 -------------

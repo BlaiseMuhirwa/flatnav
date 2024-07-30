@@ -38,3 +38,9 @@ C++ API Documentation
     :members:
     :protected-members:
     :undoc-members:
+
+.. doxygenclass:: flatnav::util::DataType
+    :project: FlatNav
+    :members:
+    :protected-members:
+    :undoc-members:

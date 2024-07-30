@@ -6,13 +6,13 @@ import requests
 import os
 import time
 import flatnav
-from flatnav.index import L2Index, IPIndex, index_factory
+from flatnav.index import L2Index, IPIndex, create
 
 
 def create_index(
     distance_type: str, dim: int, dataset_size: int, max_edges_per_node: int
 ) -> Union[L2Index, IPIndex]:
-    index = index_factory(
+    index = create(
         distance_type=distance_type,
         dim=dim,
         dataset_size=dataset_size,

@@ -72,6 +72,8 @@ endif()
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/L2DistanceDispatcher.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/IPDistanceDispatcher.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/SquaredL2SimdExtensions.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/InnerProductSimdExtensions.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/VisitedSetPool.h

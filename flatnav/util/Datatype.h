@@ -6,27 +6,27 @@ namespace flatnav::util {
 
 /**
  * @brief Enum class for data types
- * Currently, only float32 is supported for index building.
+ * We currently support indexes of type float32, uint8 and int8.
  */
 enum class DataType {
-  uint8,
-  uint16,
-  uint32,
-  uint64,
-  int8,
-  int16,
-  int32,
-  int64,
-  float16,
-  float32,
-  float64,
-  undefined
+  uint8,    /** Unsigned 8-bit integer */
+  uint16,   /** Unsigned 16-bit integer */
+  uint32,   /** Unsigned 32-bit integer */
+  uint64,   /** Unsigned 64-bit integer */
+  int8,     /** Signed 8-bit integer */
+  int16,    /** Signed 16-bit integer */
+  int32,    /** Signed 32-bit integer */
+  int64,    /** Signed 64-bit integer */
+  float16,  /** 16-bit floating-point number */
+  float32,  /** 32-bit floating-point number */
+  float64,  /** 64-bit floating-point number */
+  undefined /** Undefined data type */
 };
 
 /**
  * @brief Get a string representation of the data type
  */
-inline constexpr const char* name(DataType data_type) {
+inline constexpr const char *name(DataType data_type) {
   switch (data_type) {
   case DataType::uint8:
     return "uint8";
@@ -130,6 +130,51 @@ template <> struct type_for_data_type<DataType::uint8> {
   using type = uint8_t;
 };
 
+/**
+ * @brief Template metaprogramming to allow compile-time distance dispatching
+ * for each data type
+ * This is useful for iterating over each data type in a compile-time loop.
+ * One place where this is used is in python bindings to generate the Index
+ * class for each one of the supported data types. Here is a simple example of
+ * how to use this:
+ * @code
+ * struct Callable {
+ *   template <DataType data_type> void operator()() {
+ *     std::cout << "Data type: " << name(data_type) << std::endl;
+ *   }
+ * };
+ * for_each_data_type<Callable>::apply(Callable());
+ * // If you have multiple data types, you can pass them as template arguments
+ * like this: for_each_data_type<Callable, DataType::uint8,
+ * DataType::float32>::apply(Callable());
+ * @endcode
+ * @tparam F A callable object
+ * @tparam data_types The data types to iterate over
+ */
+template <typename F, DataType... data_types> struct for_each_data_type;
 
+/**
+ * @brief Template specialization for for_each_data_type when there are data
+ * types to iterate over
+ * @tparam F A callable object
+ * @tparam data_type The current data type
+ * @tparam rest The remaining data types
+ */
+template <typename F, DataType data_type, DataType... rest>
+struct for_each_data_type<F, data_type, rest...> {
+  static void apply(F &&f) {
+    f.template operator()<data_type>();
+    for_each_data_type<F, rest...>::apply(std::forward<F>(f));
+  }
+};
+
+/**
+ * @brief Template specialization for for_each_data_type when there are no data
+ * types to iterate over
+ * @tparam F A callable object
+ */
+template <typename F> struct for_each_data_type<F> {
+  static void apply(F &&) {}
+};
 
 } // namespace flatnav::util
