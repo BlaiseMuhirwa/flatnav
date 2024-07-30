@@ -13,6 +13,10 @@
 #define USE_SSE3
 #endif // __SSE3__
 
+#ifdef __SSE4_1__
+#define USE_SSE4_1
+#endif // __SSE4_1__
+
 #ifdef __AVX__
 #define USE_AVX
 

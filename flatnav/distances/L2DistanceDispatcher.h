@@ -94,7 +94,9 @@ template <> struct SquaredL2Impl<int8_t> {
 //       return flatnav::util::computeL2_Avx512_int8(x, y, dimension);
 //     }
 // #endif
-#if defined(USE_SSE)
+#if defined(USE_SSE_4_1)
+    // This requires some advanced SSE4.1 instructions, such as _mm_cvtepi8_epi16
+    // Reference: https://doc.rust-lang.org/beta/core/arch/x86_64/fn._mm_cvtepi8_epi16.html
     return flatnav::util::computeL2_Sse_int8(x, y, dimension);
 #endif
     return defaultSquaredL2<int8_t>(x, y, dimension);

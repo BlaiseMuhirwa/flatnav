@@ -162,6 +162,9 @@ static float computeL2_Sse(const void *x, const void *y,
   return sum.reduce_add();
 }
 
+
+#if defined(USE_SSE4_1)
+
 // This function computes the L2 distance between two int8 vectors using SSE2
 // instructions.
 static float computeL2_Sse_int8(const void *x, const void *y,
@@ -199,6 +202,8 @@ static float computeL2_Sse_int8(const void *x, const void *y,
   return static_cast<float>(buffer[0] + buffer[1] + buffer[2] + buffer[3] +
                             partial_sum);
 }
+
+#endif // USE_SSE4_1
 
 static float computeL2_Sse4Aligned(const void *x, const void *y,
                                    const size_t &dimension) {
