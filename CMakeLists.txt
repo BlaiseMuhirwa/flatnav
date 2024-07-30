@@ -85,7 +85,7 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/util/SimdUtils.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/flatnav/index/Index.h
-    # ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
+    ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
     ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
 

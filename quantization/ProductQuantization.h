@@ -30,8 +30,11 @@
 
 namespace flatnav::quantization {
 
-using flatnav::MetricType;
+using flatnav::distances::InnerProductDistance;
+using flatnav::distances::MetricType;
+using flatnav::distances::SquaredL2Distance;
 using flatnav::quantization::CentroidsGenerator;
+using flatnav::util::DataType;
 
 template <typename n_bits_t> struct PQCodeManager {
   // This is an array that represents a quantization code for
@@ -118,10 +121,9 @@ public:
     _subvector_dim = dim / _num_subquantizers;
 
     if (_metric_type == MetricType::L2) {
-      _distance = SquaredL2Distance::create<DataType::float32>(_subvector_dim);
+      _distance = SquaredL2Distance<>(_subvector_dim);
     } else if (_metric_type == MetricType::IP) {
-      _distance =
-          InnerProductDistance::create<DataType::float32>(_subvector_dim);
+      _distance = InnerProductDistance<>(_subvector_dim);
     } else {
       throw std::invalid_argument("Invalid metric type");
     }
@@ -460,12 +462,14 @@ private:
     if (_distance.index() == 0) {
       return [local_distance = _distance](const float *a,
                                           const float *b) -> float {
-        return std::get<SquaredL2Distance>(local_distance).distanceImpl(a, b);
+        return std::get<SquaredL2Distance<DataType::float32>>(local_distance)
+            .distanceImpl(a, b);
       };
     }
     return [local_distance = _distance](const float *a,
                                         const float *b) -> float {
-      return std::get<InnerProductDistance>(local_distance).distanceImpl(a, b);
+      return std::get<InnerProductDistance<DataType::float32>>(local_distance)
+          .distanceImpl(a, b);
     };
   }
 
@@ -559,7 +563,9 @@ private:
 
   TrainType _train_type;
 
-  std::variant<SquaredL2Distance, InnerProductDistance> _distance;
+  std::variant<SquaredL2Distance<DataType::float32>,
+               InnerProductDistance<DataType::float32>>
+      _distance;
 
   std::function<float(const float *, const float *)> _dist_func;
 
@@ -574,11 +580,9 @@ private:
     if constexpr (Archive::is_loading::value) {
       // loading PQ
       if (_metric_type == MetricType::L2) {
-        _distance =
-            SquaredL2Distance::create<DataType::float32>(_subvector_dim);
+        _distance = SquaredL2Distance<>(_subvector_dim);
       } else if (_metric_type == MetricType::IP) {
-        _distance =
-            InnerProductDistance::create<DataType::float32>(_subvector_dim);
+        _distance = InnerProductDistance<>(_subvector_dim);
       } else {
         throw std::invalid_argument("Invalid metric type");
       }

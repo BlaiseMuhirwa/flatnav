@@ -12,7 +12,7 @@
 #include <memory>
 #include <numeric>
 #include <optional>
-// #include <quantization/ProductQuantization.h>
+#include <quantization/ProductQuantization.h>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -24,7 +24,7 @@ using flatnav::Index;
 using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
-// using flatnav::quantization::ProductQuantizer;
+using flatnav::quantization::ProductQuantizer;
 using flatnav::util::DataType;
 
 template <typename dist_t>
@@ -65,30 +65,30 @@ void run(float *data, flatnav::distances::MetricType metric_type, int N, int M,
 
   if (quantize) {
     // Parameters M and nbits should be adjusted accordingly.
-    // auto quantizer = std::make_unique<ProductQuantizer>(
-    //     /* dim = */ dim, /* M = */ 8, /* nbits = */ 8,
-    //     /* metric_type = */ metric_type);
+    auto quantizer = std::make_unique<ProductQuantizer>(
+        /* dim = */ dim, /* M = */ 8, /* nbits = */ 8,
+        /* metric_type = */ metric_type);
 
-    // auto start = std::chrono::high_resolution_clock::now();
-    // quantizer->train(/* vectors = */ data, /* num_vectors = */ N);
-    // auto stop = std::chrono::high_resolution_clock::now();
-    // auto duration =
-    //     std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    // std::clog << "Quantization time: " << (float)duration.count()
-    //           << " milliseconds" << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
+    quantizer->train(/* vectors = */ data, /* num_vectors = */ N);
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    std::clog << "Quantization time: " << (float)duration.count()
+              << " milliseconds" << std::endl;
 
-    // buildIndex<ProductQuantizer>(data, std::move(quantizer), N, M, dim,
-    //                              ef_construction, save_file);
+    buildIndex<ProductQuantizer>(data, std::move(quantizer), N, M, dim,
+                                 ef_construction, build_num_threads, save_file);
 
   } else {
     if (metric_type == flatnav::distances::MetricType::L2) {
-      auto distance = SquaredL2Distance<DataType::float32>::create(dim);
+      auto distance = SquaredL2Distance<>::create(dim);
       buildIndex<SquaredL2Distance<DataType::float32>>(
           data, std::move(distance), N, M, dim, ef_construction,
           build_num_threads, save_file);
 
     } else if (metric_type == flatnav::distances::MetricType::IP) {
-      auto distance = InnerProductDistance<DataType::float32>::create(dim);
+      auto distance = InnerProductDistance<>::create(dim);
       buildIndex<InnerProductDistance<DataType::float32>>(
           data, std::move(distance), N, M, dim, ef_construction,
           build_num_threads, save_file);

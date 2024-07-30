@@ -20,7 +20,7 @@ namespace flatnav::distances {
 using util::DataType;
 using util::type_for_data_type;
 
-template <DataType data_type>
+template <DataType data_type = DataType::float32>
 class InnerProductDistance
     : public DistanceInterface<InnerProductDistance<data_type>> {
 

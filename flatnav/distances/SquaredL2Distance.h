@@ -58,7 +58,7 @@ using util::type_for_data_type;
  * different data types and hardware capabilities must be handled efficiently.
  */
 
-template <DataType data_type>
+template <DataType data_type = DataType::float32>
 class SquaredL2Distance
     : public DistanceInterface<SquaredL2Distance<data_type>> {
 
