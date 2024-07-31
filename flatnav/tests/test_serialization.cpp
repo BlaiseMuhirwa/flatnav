@@ -78,13 +78,13 @@ void runTest(float *data, std::unique_ptr<DistanceInterface<dist_t>> &&distance,
 
 TEST(FlatnavSerializationTest, TestL2IndexSerialization) {
   auto vectors = generateRandomVectors(INDEXED_VECTORS, VEC_DIM);
-  auto distance = std::make_unique<SquaredL2Distance>(VEC_DIM);
+  auto distance = std::make_unique<SquaredL2Distance<>>(VEC_DIM);
   std::string save_file = "l2_index.bin";
 
   uint32_t ef_construction = 100;
   uint32_t M = 16;
 
-  runTest<SquaredL2Distance, int>(
+  runTest<SquaredL2Distance<flatnav::util::DataType::float32>, int>(
       /* data = */ vectors.data(), /* distance */ std::move(distance),
       /* N = */ INDEXED_VECTORS, /* M = */ M, /* dim = */ VEC_DIM,
       /* ef_construction = */ ef_construction,
@@ -95,13 +95,13 @@ TEST(FlatnavSerializationTest, TestL2IndexSerialization) {
 
 TEST(FlatnavSerializationTest, TestInnerProductIndexSerialization) {
   auto vectors = generateRandomVectors(INDEXED_VECTORS, VEC_DIM);
-  auto distance = std::make_unique<InnerProductDistance>(VEC_DIM);
+  auto distance = std::make_unique<InnerProductDistance<>>(VEC_DIM);
   std::string save_file = "ip_index.bin";
 
   uint32_t ef_construction = 100;
   uint32_t M = 16;
 
-  runTest<InnerProductDistance, int>(
+  runTest<InnerProductDistance<flatnav::util::DataType::float32>, int>(
       /* data = */ vectors.data(), /* distance = */ std::move(distance),
       /* N = */ INDEXED_VECTORS, /* M = */ M, /* dim = */ VEC_DIM,
       /* ef_construction */ ef_construction, /* save_file = */ save_file);
