@@ -21,42 +21,6 @@ namespace flatnav::distances {
 using util::DataType;
 using util::type_for_data_type;
 
-/**
- * @brief The SquaredL2Distance class is designed to balance compile-time and
- * runtime dispatching for efficient distance computation.
- *
- * This class template takes a util::DataType parameter, which allows it to
- * leverage compile-time dispatch for selecting the appropriate distance
- * computation strategy based on the data type. The compile-time dispatch is
- * achieved using template specialization and the TypeForDataType struct, which
- * maps util::DataType values to corresponding C++ types.
- *
- * The actual distance computation is performed by the distance::DistanceL2
- * class, which relies on the L2Impl struct and its specializations. The
- * appropriate L2Impl specialization is selected at compile-time based on the
- * data type provided.
- *
- * For SIMD operations, which require runtime checks to determine hardware
- * support (e.g., AVX, AVX512), the distance::L2Impl specializations include
- * runtime checks to select the appropriate SIMD implementation. These runtime
- * checks ensure that the most efficient SIMD instructions available on the
- * platform are used.
- *
- * The key points of this design are:
- * 1. Compile-time dispatch is used to select the appropriate distance
- * computation strategy based on the data type, reducing runtime overhead and
- * improving performance.
- * 2. Runtime checks are used to determine the availability of SIMD
- * instructions, ensuring that the best possible SIMD implementation is used
- * based on the hardware capabilities.
- * 3. The distanceImpl method in SquaredL2Distance uses the TypeForDataType
- * struct to determine the C++ type corresponding to the util::DataType at
- * compile-time, ensuring the correct L2Impl specialization is used.
- *
- * This design provides a balance between compile-time efficiency and runtime
- * flexibility, making it well-suited for performance-critical paths where
- * different data types and hardware capabilities must be handled efficiently.
- */
 
 template <DataType data_type = DataType::float32>
 class SquaredL2Distance
