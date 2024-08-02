@@ -1,15 +1,16 @@
 #include "cnpy.h"
 #include <cassert>
-#include <flatnav/DistanceInterface.h>
-#include <flatnav/Index.h>
+#include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/index/Index.h>
 #include <memory>
 
-using flatnav::DistanceInterface;
 using flatnav::Index;
-using flatnav::InnerProductDistance;
-using flatnav::SquaredL2Distance;
+using flatnav::distances::DistanceInterface;
+using flatnav::distances::InnerProductDistance;
+using flatnav::distances::SquaredL2Distance;
+using flatnav::util::DataType;
 
 template <typename dist_t>
 void serializeIndex(float *data,
@@ -25,7 +26,7 @@ void serializeIndex(float *data,
   std::vector<int> labels(N);
   std::iota(labels.begin(), labels.end(), 0);
 
-  index->addBatch(data, labels, ef_construction);
+  index->template addBatch<float>(data, labels, ef_construction);
 
   std::cout << "Saving index to " << save_file << "\n" << std::flush;
   index->saveIndex(/* filename = */ save_file);
@@ -59,13 +60,14 @@ int main(int argc, char **argv) {
   int dim = 784;
   int N = 60000;
   float *data = datafile.data<float>();
-  auto l2_distance = std::make_unique<SquaredL2Distance>(dim);
-  serializeIndex<SquaredL2Distance>(data, std::move(l2_distance), N, M, dim,
-                                    ef_construction,
-                                    std::string("l2_flatnav.bin"));
+  auto l2_distance = SquaredL2Distance<DataType::float32>::create(dim);
+  serializeIndex<SquaredL2Distance<DataType::float32>>(
+      data, std::move(l2_distance), N, M, dim, ef_construction,
+      std::string("l2_flatnav.bin"));
 
-  auto inner_product_distance = std::make_unique<InnerProductDistance>(dim);
-  serializeIndex<InnerProductDistance>(data, std::move(inner_product_distance),
-                                       N, M, dim, ef_construction,
-                                       std::string("ip_flatnav.bin"));
+  // auto inner_product_distance =
+  //     std::make_unique<InnerProductDistance<float>>(dim);
+  // serializeIndex<InnerProductDistance<float>>(
+  //     data, std::move(inner_product_distance), N, M, dim, ef_construction,
+  //     std::string("ip_flatnav.bin"));
 }

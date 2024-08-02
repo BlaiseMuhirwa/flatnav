@@ -5,9 +5,9 @@
 #include <fstream> // for ifstream, ofstream
 #include <iostream>
 
-namespace flatnav {
+namespace flatnav::distances {
 
-enum class METRIC_TYPE { EUCLIDEAN, INNER_PRODUCT };
+enum class MetricType { L2, IP };
 
 // We use the CRTP to implement static polymorphism on the distance. This is
 // done to allow for metrics and distance functions that support arbitrary
@@ -50,4 +50,4 @@ public:
   }
 };
 
-} // namespace flatnav
+} // namespace flatnav::distances

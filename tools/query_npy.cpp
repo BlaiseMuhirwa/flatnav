@@ -1,8 +1,9 @@
 #include <chrono>
 #include <cmath>
-#include <flatnav/Index.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/index/Index.h>
+#include <flatnav/util/Datatype.h>
 #include <fstream>
 #include <iostream>
 #include <quantization/ProductQuantization.h>
@@ -16,9 +17,10 @@
 #include <string>
 
 using flatnav::Index;
-using flatnav::InnerProductDistance;
-using flatnav::SquaredL2Distance;
+using flatnav::distances::InnerProductDistance;
+using flatnav::distances::SquaredL2Distance;
 using flatnav::quantization::ProductQuantizer;
+using flatnav::util::DataType;
 
 template <typename dist_t>
 void run(float *queries, int *gtruth, const std::string &index_filename,
@@ -142,21 +144,25 @@ int main(int argc, char **argv) {
                           /* num_gtruth = */ n_gt, /* dim = */ dim,
                           /* reorder = */ reorder);
   } else if (space_ID == 0) {
-    run<SquaredL2Distance>(/* queries = */ queries, /* gtruth = */ gtruth,
-                           /* index_filename = */ indexfilename,
-                           /* ef_searches = */ ef_searches, /* K = */ k,
-                           /* num_queries = */ num_queries,
-                           /* num_gtruth = */ n_gt, /* dim = */ dim,
-                           /* reorder = */ reorder);
+    run<SquaredL2Distance<DataType::float32>>(
+        /* queries = */ queries,
+        /* gtruth = */ gtruth,
+        /* index_filename = */ indexfilename,
+        /* ef_searches = */ ef_searches, /* K = */ k,
+        /* num_queries = */ num_queries,
+        /* num_gtruth = */ n_gt, /* dim = */ dim,
+        /* reorder = */ reorder);
 
   } else if (space_ID == 1) {
-    run<InnerProductDistance>(/* queries = */ queries, /* gtruth = */
-                              gtruth,
-                              /* index_filename = */ indexfilename,
-                              /* ef_searches = */ ef_searches, /* K = */ k,
-                              /* num_queries = */ num_queries,
-                              /* num_gtruth = */ n_gt, /* dim = */ dim,
-                              /* reorder = */ reorder);
+    run<InnerProductDistance<DataType::float32>>(
+        /* queries = */ queries, /* gtruth = */
+        gtruth,
+        /* index_filename = */ indexfilename,
+        /* ef_searches = */ ef_searches,
+        /* K = */ k,
+        /* num_queries = */ num_queries,
+        /* num_gtruth = */ n_gt, /* dim = */ dim,
+        /* reorder = */ reorder);
 
   } else {
     throw std::invalid_argument("Invalid space ID. Valid IDs are 0 and 1.");

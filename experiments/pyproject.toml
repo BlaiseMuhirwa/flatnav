@@ -8,7 +8,7 @@ license = "Apache 2.0"
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
 black = "^23.11.0"
-numpy = "^1.26.1"
+numpy = "^1.26.1, <2.0"
 matplotlib = "^3.8.2"
 psutil = "^5.9.8"
 pydantic = "^2.6.4"

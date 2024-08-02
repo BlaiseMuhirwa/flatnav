@@ -5,7 +5,6 @@ include(GoogleTest)
 # Add test executables here 
 set(FLAT_NAV_LIB_TESTS test_distances test_serialization)
 
-
 foreach(TEST IN LISTS FLAT_NAV_LIB_TESTS)
   add_executable(${TEST} ${TEST}.cpp)
   target_link_libraries(${TEST} gtest gtest_main FLAT_NAV_LIB)

@@ -72,16 +72,19 @@ endif()
 set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/L2DistanceDispatcher.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/IPDistanceDispatcher.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/SquaredL2SimdExtensions.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/InnerProductSimdExtensions.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/VisitedSetPool.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/ParallelConstructs.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/Multithreading.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/SimdBaseTypes.h
-    ${PROJECT_SOURCE_DIR}/flatnav/DistanceInterface.h
-    ${PROJECT_SOURCE_DIR}/flatnav/Index.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/Datatype.h
+    ${PROJECT_SOURCE_DIR}/flatnav/util/SimdUtils.h
+    ${PROJECT_SOURCE_DIR}/flatnav/distances/DistanceInterface.h
+    ${PROJECT_SOURCE_DIR}/flatnav/index/Index.h
     ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
     ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/quantization/Utils.h)

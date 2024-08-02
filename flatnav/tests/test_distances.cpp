@@ -1,7 +1,8 @@
 
 #include "gtest/gtest.h"
+#include <chrono>
 #include <flatnav/util/Macros.h>
-#include <flatnav/util/SimdBaseTypes.h>
+#include <flatnav/util/SimdUtils.h>
 #include <random>
 
 #include <flatnav/distances/InnerProductDistance.h>
@@ -36,8 +37,36 @@ protected:
 TEST_F(DistanceTest, TestAvx512L2Distance) {
 #if defined(USE_AVX512)
   float result = flatnav::util::computeL2_Avx512(x, y, dimensions);
-  float expected = flatnav::DefaultSquaredL2::compute(x, y, dimensions);
+  float expected =
+      flatnav::distances::defaultSquaredL2<float>(x, y, dimensions);
   ASSERT_NEAR(result, expected, epsilon);
+
+#endif
+}
+
+// Test case for AVX512-based L2 distance computer for uint8_t data type
+TEST_F(DistanceTest, TestAvx512L2DistanceUint8) {
+#if defined(USE_AVX512)
+  auto total_num_vectors = 1000;
+  auto total_size = dimensions * total_num_vectors;
+  uint8_t *x_matrix = (uint8_t *)malloc(total_size);
+  uint8_t *y_matrix = (uint8_t *)malloc(total_size);
+  for (size_t i = 0; i < total_size; i++) {
+    x_matrix[i] = (uint8_t)rand() % 256;
+    y_matrix[i] = (uint8_t)rand() % 256;
+  }
+
+  for (size_t i = 0; i < total_num_vectors; i++) {
+    uint8_t *x = x_matrix + i * dimensions;
+    uint8_t *y = y_matrix + i * dimensions;
+    float result = flatnav::util::computeL2_Avx512_Uint8(x, y, dimensions);
+    float expected =
+        flatnav::distances::defaultSquaredL2<uint8_t>(x, y, dimensions);
+    ASSERT_NEAR(result, expected, epsilon);
+  }
+
+  free(x_matrix);
+  free(y_matrix);
 
 #endif
 }
@@ -47,7 +76,8 @@ TEST_F(DistanceTest, TestAvxL2Distance) {
 #if defined(USE_AVX)
 
   float result = flatnav::util::computeL2_Avx2(x, y, dimensions);
-  float expected = flatnav::DefaultSquaredL2::compute(x, y, dimensions);
+  float expected =
+      flatnav::distances::defaultSquaredL2<float>(x, y, dimensions);
 
   ASSERT_NEAR(result, expected, epsilon);
 
@@ -76,24 +106,25 @@ TEST(TestSingleIntrinsic, TestReduceAddSse) {
 TEST_F(DistanceTest, TestSseL2Distance) {
 #if defined(USE_SSE)
   float result = flatnav::util::computeL2_Sse(x, y, dimensions);
-  float expected = flatnav::DefaultSquaredL2::compute(x, y, dimensions);
+  float expected =
+      flatnav::distances::defaultSquaredL2<float>(x, y, dimensions);
   ASSERT_NEAR(result, expected, epsilon);
 
   // try with dimensions not divisible by 16
   // this will just take the first 100 elements in the arrays
   result = flatnav::util::computeL2_Sse4Aligned(x, y, 100);
-  expected = flatnav::DefaultSquaredL2::compute(x, y, 100);
+  expected = flatnav::distances::defaultSquaredL2<float>(x, y, 100);
 
   ASSERT_NEAR(result, expected, epsilon);
 
   // try with dimensions not divisible by 4
   result = flatnav::util::computeL2_SseWithResidual_16(x, y, 37);
-  expected = flatnav::DefaultSquaredL2::compute(x, y, 37);
+  expected = flatnav::distances::defaultSquaredL2<float>(x, y, 37);
   ASSERT_NEAR(result, expected, epsilon);
 
   // try with dimensions not divisible by 4 and less than 16
   result = flatnav::util::computeL2_SseWithResidual_4(x, y, 7);
-  expected = flatnav::DefaultSquaredL2::compute(x, y, 7);
+  expected = flatnav::distances::defaultSquaredL2<float>(x, y, 7);
   ASSERT_NEAR(result, expected, epsilon);
 
 #endif
@@ -103,7 +134,7 @@ TEST_F(DistanceTest, TestSseL2Distance) {
 TEST_F(DistanceTest, TestAvx512InnerProductDistance) {
 #if defined(USE_AVX512)
   float result = flatnav::util::computeIP_Avx512(x, y, dimensions);
-  float expected = flatnav::DefaultInnerProduct::compute(x, y, dimensions);
+  float expected = flatnav::distances::defaultInnerProduct(x, y, dimensions);
   ASSERT_NEAR(result, expected, epsilon);
 
 #endif
@@ -113,7 +144,7 @@ TEST_F(DistanceTest, TestAvx512InnerProductDistance) {
 TEST_F(DistanceTest, TestAvxInnerProductDistance) {
 #if defined(USE_AVX)
   float result = flatnav::util::computeIP_Avx(x, y, dimensions);
-  float expected = flatnav::DefaultInnerProduct::compute(x, y, dimensions);
+  float expected = flatnav::distances::defaultInnerProduct(x, y, dimensions);
   ASSERT_NEAR(result, expected, epsilon);
 
 #endif
@@ -123,29 +154,29 @@ TEST_F(DistanceTest, TestAvxInnerProductDistance) {
 TEST_F(DistanceTest, TestSseInnerProductDistance) {
 #if defined(USE_SSE)
   float result = flatnav::util::computeIP_Sse(x, y, dimensions);
-  float expected = flatnav::DefaultInnerProduct::compute(x, y, dimensions);
+  float expected = flatnav::distances::defaultInnerProduct(x, y, dimensions);
   ASSERT_NEAR(result, expected, epsilon);
 
   // try with dimensions not divisible by 16
   // this will just take the first 100 elements in the arrays
   result = flatnav::util::computeIP_Sse_4aligned(x, y, 100);
-  expected = flatnav::DefaultInnerProduct::compute(x, y, 100);
+  expected = flatnav::distances::defaultInnerProduct(x, y, 100);
   ASSERT_NEAR(result, expected, epsilon);
 
 #if defined(USE_AVX)
   result = flatnav::util::computeIP_Avx_4aligned(x, y, 100);
-  expected = flatnav::DefaultInnerProduct::compute(x, y, 100);
+  expected = flatnav::distances::defaultInnerProduct(x, y, 100);
   ASSERT_NEAR(result, expected, epsilon);
 #endif
 
   // try with dimensions not divisible by 4
   result = flatnav::util::computeIP_SseWithResidual_16(x, y, 37);
-  expected = flatnav::DefaultInnerProduct::compute(x, y, 37);
+  expected = flatnav::distances::defaultInnerProduct(x, y, 37);
   ASSERT_NEAR(result, expected, epsilon);
 
   // try with dimensions not divisible by 4 and less than 16
   result = flatnav::util::computeIP_SseWithResidual_4(x, y, 7);
-  expected = flatnav::DefaultInnerProduct::compute(x, y, 7);
+  expected = flatnav::distances::defaultInnerProduct(x, y, 7);
   ASSERT_NEAR(result, expected, epsilon);
 
 #endif

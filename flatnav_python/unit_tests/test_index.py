@@ -1,5 +1,5 @@
 import flatnav
-from flatnav.index import L2Index, IPIndex
+from flatnav.index import IndexL2Float, IndexIPFloat
 from typing import Union, Optional
 import numpy as np
 import time
@@ -121,7 +121,7 @@ def test_flatnav_index_with_reordering():
 
 
 def run_test(
-    index: Union[L2Index, IPIndex],
+    index: Union[IndexL2Float, IndexIPFloat],
     ef_construction: int,
     ef_search: int,
     training_set: np.ndarray,
