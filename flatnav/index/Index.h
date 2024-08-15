@@ -1,6 +1,5 @@
 #pragma once
 
-#include "util/VisitedSetPool.h"
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -9,9 +8,9 @@
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
 #include <cstring>
-#include <flatnav/DistanceInterface.h>
+#include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/util/Macros.h>
-#include <flatnav/util/ParallelConstructs.h>
+#include <flatnav/util/Multithreading.h>
 #include <flatnav/util/Reordering.h>
 #include <flatnav/util/VisitedSetPool.h>
 #include <fstream>
@@ -27,8 +26,9 @@
 #include <utility>
 #include <vector>
 
-using flatnav::util::VisitedSetPool;
+using flatnav::distances::DistanceInterface;
 using flatnav::util::VisitedSet;
+using flatnav::util::VisitedSetPool;
 
 namespace flatnav {
 
@@ -435,6 +435,7 @@ public:
    * @exception std::runtime_error Thrown if the maximum number of nodes in the
    * index is reached.
    */
+  template <typename data_type>
   void addBatch(void *data, std::vector<label_t> &labels, int ef_construction,
                 int num_initializations = 100) {
     if (num_initializations <= 0) {
@@ -447,7 +448,7 @@ public:
     // Don't spawn any threads if we are only using one.
     if (_num_threads == 1) {
       for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
-        void *vector = (float *)data + (row_id * data_dimension);
+        void *vector = (data_type *)data + (row_id * data_dimension);
         label_t label = labels[row_id];
         this->add(vector, label, ef_construction, num_initializations);
       }
@@ -458,7 +459,7 @@ public:
         /* start_index = */ 0, /* end_index = */ total_num_nodes,
         /* num_threads = */ _num_threads, /* function = */
         [&](uint32_t row_index) {
-          void *vector = (float *)data + (row_index * data_dimension);
+          void *vector = (data_type *)data + (row_index * data_dimension);
           label_t label = labels[row_index];
           this->add(vector, label, ef_construction, num_initializations);
         });
@@ -603,7 +604,8 @@ public:
         /* initial_pool_size = */ 1,
         /* num_elements = */ index->_max_node_count);
     index->_distance = std::move(dist);
-    index->_num_threads = std::thread::hardware_concurrency();
+    index->_num_threads = std::max(
+        (uint32_t)1, (uint32_t)std::thread::hardware_concurrency() / 2);
     index->_node_links_mutexes =
         std::vector<std::mutex>(index->_max_node_count);
 
@@ -758,6 +760,11 @@ private:
     auto *visited_set = _visited_set_pool->pollAvailableSet();
     visited_set->clear();
 
+    // Prefetch the data for entry node before computing its distance.
+#ifdef USE_SSE
+    _mm_prefetch(getNodeData(entry_node), _MM_HINT_T0);
+#endif
+
     float dist =
         _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node),
                             /* asymmetric = */ true);
@@ -775,10 +782,23 @@ private:
     while (!candidates.empty()) {
       auto [distance, node] = candidates.top();
 
-      if ( -distance > max_dist && neighbors.size() >= buffer_size) {
+      if (-distance > max_dist && neighbors.size() >= buffer_size) {
         break;
       }
       candidates.pop();
+
+      // Prefetching the next candidate node data and visited set marker
+      // before processing it. Note that this might not be useful if the current
+      // iteration finds a neighbor that is closer than the current max
+      // distance. In that case we would have prefetched data that is not used
+      // immediately, but I think the cost of prefetching is low enough that
+      // it's probably worth it.
+#ifdef USE_SSE
+      if (!candidates.empty()) {
+        _mm_prefetch(getNodeData(candidates.top().second), _MM_HINT_T0);
+        visited_set->prefetch(candidates.top().second);
+      }
+#endif
 
       processCandidateNode<is_search_stage>(
           /* query = */ query, /* node = */ node,

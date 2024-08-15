@@ -1,6 +1,6 @@
 #pragma once
 
-#include <flatnav/util/SimdBaseTypes.h>
+#include <flatnav/util/SimdUtils.h>
 
 namespace flatnav::util {
 

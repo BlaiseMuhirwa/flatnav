@@ -9,9 +9,17 @@ import logging
 import platform, socket, psutil
 import argparse
 import flatnav
+from flatnav.data_type import DataType 
 from data_loader import get_data_loader
 from plotting.plot import create_plot, create_linestyles
 from plotting.metrics import metric_manager
+
+
+FLATNAV_DATA_TYPES = {
+    "float32": DataType.float32,
+    "uint8": DataType.uint8,
+    "int8": DataType.int8,
+}
 
 
 ENVIRONMENT_INFO = {
@@ -29,7 +37,7 @@ ENVIRONMENT_INFO = {
 
 def compute_metrics(
     requested_metrics: List[str],
-    index: Union[flatnav.index.L2Index, flatnav.index.IPIndex, hnswlib.Index],
+    index: Union[hnswlib.Index, flatnav.index.IndexL2Float, flatnav.index.IndexIPFloat],
     queries: np.ndarray,
     ground_truth: np.ndarray,
     ef_search: int,
@@ -50,7 +58,7 @@ def compute_metrics(
     :return: Dictionary of metrics.
 
     """
-    is_flatnav_index = type(index) in (flatnav.index.L2Index, flatnav.index.IPIndex)
+    is_flatnav_index = not type(index) == hnswlib.Index
     latencies = []
     top_k_indices = []
     distance_computations = []
@@ -157,10 +165,11 @@ def train_index(
     max_edges_per_node: int,
     ef_construction: int,
     index_type: str = "flatnav",
+    data_type: str = "float32",
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
     num_build_threads: int = 1,
-) -> Union[flatnav.index.L2Index, flatnav.index.IPIndex, hnswlib.Index]:
+) -> Union[flatnav.index.IndexL2Float, flatnav.index.IndexIPFloat, hnswlib.Index]:
     """
     Creates and trains an index on the given dataset.
     :param train_dataset: The dataset to train the index on.
@@ -211,8 +220,9 @@ def train_index(
         if not os.path.exists(hnsw_base_layer_filename):
             raise ValueError(f"Failed to create {hnsw_base_layer_filename=}")
 
-        index = flatnav.index.index_factory(
+        index = flatnav.index.create(
             distance_type=distance_type,
+            index_data_type=FLATNAV_DATA_TYPES[data_type],
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
@@ -230,13 +240,14 @@ def train_index(
         os.remove(hnsw_base_layer_filename)
 
     else:
-        index = flatnav.index.index_factory(
+        index = flatnav.index.create(
             distance_type=distance_type,
+            index_data_type=FLATNAV_DATA_TYPES[data_type],
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
-            verbose=False,
-            collect_stats=True,
+            verbose=True,
+            collect_stats=False,
         )
         index.set_num_threads(num_build_threads)
 
@@ -285,6 +296,7 @@ def main(
     dataset_name: str,
     requested_metrics: List[str],
     index_type: str = "flatnav",
+    data_type: str = "float32",
     use_hnsw_base_layer: bool = False,
     hnsw_base_layer_filename: Optional[str] = None,
     reordering_strategies: List[str] | None = None,
@@ -300,8 +312,10 @@ def main(
         This part is here to ensure that two indices are not in memory at the same time.
         With large datasets, we might get an OOM error.
         """
+        
         index = train_index(
             index_type=index_type,
+            data_type=data_type,
             train_dataset=train_dataset,
             max_edges_per_node=node_links,
             ef_construction=ef_cons,
@@ -314,10 +328,7 @@ def main(
         )
 
         if reordering_strategies is not None:
-            if type(index) not in (
-                flatnav.index.L2Index,
-                flatnav.index.IPIndex,
-            ):
+            if index_type != "flatnav":
                 raise ValueError("Reordering only applies to the FlatNav index.")
             index.reorder(strategies=reordering_strategies)
 
@@ -382,7 +393,7 @@ def main(
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
 
-    experiment_key = f"{dataset_name}_{index_type}"
+    experiment_key = f"{dataset_name}_{index_type}_{data_type}"
 
     for node_links in num_node_links:
         metrics = {}
@@ -404,6 +415,12 @@ def parse_arguments() -> argparse.Namespace:
         "--index-type",
         default="flatnav",
         help="Type of index to benchmark. Options include `flatnav` and `hnsw`.",
+    )
+    
+    parser.add_argument(
+        "--data-type",
+        default="float32",
+        help="Data type of the index. Options include `float32`, `uint8` and `int8`.",
     )
 
     parser.add_argument(
@@ -594,7 +611,7 @@ def plot_all_metrics(
 
         create_plot(
             experiment_runs=experiment_runs,
-            raw=True,
+            raw=False,
             x_scale="linear",
             y_scale="linear",
             x_axis_metric=x_metric,
@@ -623,7 +640,7 @@ def run_experiment():
             raise ValueError("HNSW does not support num_initializations.")
 
     metrics_file_path = os.path.join(ROOT_DIR, "metrics", args.metrics_file)
-
+    
     main(
         train_dataset=train_data,
         queries=queries,
@@ -634,6 +651,7 @@ def run_experiment():
         distance_type=args.metric.lower(),
         dataset_name=args.dataset_name,
         index_type=args.index_type.lower(),
+        data_type=args.data_type,
         use_hnsw_base_layer=args.use_hnsw_base_layer,
         hnsw_base_layer_filename=args.hnsw_base_layer_filename,
         reordering_strategies=args.reordering_strategies,

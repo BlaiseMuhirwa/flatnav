@@ -12,9 +12,11 @@
 
 #include <flatnav/util/Macros.h>
 
+namespace flatnav::util {
+
 // clang-format off
 /**
- * @file SimdBaseTypes.h
+ * @file SimdUtils.h
  * @brief This file contains the definition of base types that serve as wrappers for low-level SIMD intrinsics.
  * 
  * The namespace `flatnav::util` contains the following base types:
@@ -28,7 +30,6 @@
  * These base types are designed to work with different SIMD instruction sets, such as SSE, AVX, and AVX512.
  * They encapsulate the low-level SIMD intrinsics and provide a higher-level interface for SIMD programming.
  */
-namespace flatnav::util {
 
 #if defined(USE_SSE)
 struct simd128bit {
@@ -259,13 +260,61 @@ struct simd512bit {
     _mm512_store_ps((float *)pointer, _float);
   }
 
-  inline void clear() { _int = _mm512_setzero_si512(); }
+  void clear() { _int = _mm512_setzero_si512(); }
 
-  inline void loadu(const void *pointer) {
+  void loadu(const void *pointer) {
     _float = _mm512_loadu_ps((const float *)pointer);
   }
 
-  inline float reduce_add() const { return _mm512_reduce_add_ps(_float); }
+  float reduce_add() const { return _mm512_reduce_add_ps(_float); }
+};
+
+struct simd64int8 : public simd512bit {
+
+  // Default constructor to zero-initialize the vector
+  simd64int8() : simd512bit(_mm512_setzero_si512()) {}
+
+  // Construct from __m512i
+  explicit simd64int8(__m512i x) : simd512bit(x) {}
+  explicit simd64int8(const void *x) : simd512bit(x) {}
+
+  // Load from memory location (unaligned)
+  explicit simd64int8(const int8_t *x)
+      : simd512bit(_mm512_loadu_si512((__m512i *)x)) {}
+
+  // Set all elements to a specific value
+  explicit simd64int8(int8_t x) : simd512bit(_mm512_set1_epi8(x)) {}
+
+  inline constexpr __m512i get() const { return _int; }
+
+  // Basic arithmetic operations using AVX512BW intrinsics
+  simd64int8 operator+(const simd64int8 &other) const {
+    __m512i result = _mm512_add_epi8(_int, other._int);
+    return simd64int8(result);
+  }
+
+  simd64int8 operator-(const simd64int8 &other) const {
+    __m512i result = _mm512_sub_epi8(_int, other._int);
+    return simd64int8(result);
+  }
+
+  // in-place addition
+  simd64int8 &operator+=(const simd64int8 &other) {
+    _int = _mm512_add_epi8(_int, other._int);
+    return *this;
+  }
+
+  // Multiply by another vector, producing 32-bit integers, and store the low 16
+  // bits of the intermediate result
+
+  // storing and loading
+  void storeu(int8_t *pointer) const {
+    _mm512_storeu_si512((__m512i *)pointer, _int);
+  }
+
+  void loadu(const int8_t *pointer) {
+    _int = _mm512_loadu_si512((__m512i *)pointer);
+  }
 };
 
 struct simd16float32 : public simd512bit {

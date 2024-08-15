@@ -6,20 +6,20 @@ import requests
 import os
 import time
 import flatnav
-from flatnav.index import L2Index, IPIndex, index_factory
+from flatnav.index import IndexL2Float, IndexIPFloat, create
 
 
 def create_index(
     distance_type: str, dim: int, dataset_size: int, max_edges_per_node: int
-) -> Union[L2Index, IPIndex]:
-    index = index_factory(
+) -> Union[IndexL2Float, IndexIPFloat]:
+    index = create(
         distance_type=distance_type,
         dim=dim,
         dataset_size=dataset_size,
         max_edges_per_node=max_edges_per_node,
         verbose=True,
     )
-    if not (isinstance(index, L2Index) or isinstance(index, IPIndex)):
+    if not (isinstance(index, IndexL2Float) or isinstance(index, IndexIPFloat)):
         raise RuntimeError("Invalid index.")
 
     return index

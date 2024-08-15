@@ -1,5 +1,8 @@
 #pragma once
 
+#include <atomic>
+#include <memory>
+
 #ifndef NO_SIMD_VECTORIZATION
 
 // _M_AMD64, _M_X64: Code is being compiled for AMD64 or x64 processor.
@@ -10,12 +13,25 @@
 #define USE_SSE3
 #endif // __SSE3__
 
+#ifdef __SSE4_1__
+#define USE_SSE4_1
+#endif // __SSE4_1__
+
 #ifdef __AVX__
 #define USE_AVX
 
 #ifdef __AVX512F__
+
+#ifdef __AVX512BW__
+#define USE_AVX512BW
+#endif // __AVX512BW__
+
+#ifdef __AVX512VNNI__
+#define USE_AVX512VNNI
+#endif // __AVX512VNNI__
+
 #define USE_AVX512
-#endif
+#endif // __AVX512F__
 
 #endif // __AVX__
 #endif
@@ -77,62 +93,82 @@ uint64_t xgetbv(unsigned int index) {
 
 #define _XCR_XFEATURE_ENABLED_MASK 0
 
+// Cache for AVX and AVX512 support
+std::atomic<bool> avx_support_cache{false};
+std::atomic<bool> avx_512_support_cache{false};
+std::atomic<bool> avx_initialized{false};
+std::atomic<bool> avx_512_initialized{false};
+
+/**
+ * @brief Initializes the platform support for AVX and AVX512 instructions.
+ * This function checks if the CPU and operating system support AVX and AVX512
+ * instructions and caches the result for future use.
+ *
+ * @note This function should be called before using any AVX or AVX512
+ * instructions.
+ */
+void initializePlatformSupport() {
+  if (!avx_initialized.load(std::memory_order_acquire)) {
+    bool avx_support = false;
+    int cpu_info[4];
+    cpuid(cpu_info, 0, 0);
+    int n_ids = cpu_info[0];
+
+    if (n_ids >= 1) {
+      cpuid(cpu_info, 1, 0);
+      bool os_uses_xsave_xrstore = (cpu_info[2] & (1 << 27)) != 0;
+      bool cpu_avx_support = (cpu_info[2] & (1 << 28)) != 0;
+      if (os_uses_xsave_xrstore && cpu_avx_support) {
+        uint64_t xcr_feature_mask = xgetbv(0);
+        avx_support = (xcr_feature_mask & 0x6) == 0x6;
+      }
+    }
+
+    avx_support_cache.store(avx_support, std::memory_order_release);
+    avx_initialized.store(true, std::memory_order_release);
+  }
+
+  if (!avx_512_initialized.load(std::memory_order_acquire)) {
+    bool avx512Support = false;
+    if (avx_support_cache.load(std::memory_order_acquire)) {
+      int cpu_info[4];
+      cpuid(cpu_info, 0, 0);
+      int n_ids = cpu_info[0];
+
+      if (n_ids >= 0x00000007) {
+        cpuid(cpu_info, 0x00000007, 0);
+        bool hw_avx512f = (cpu_info[1] & ((int)1 << 16)) != 0;
+
+        if (hw_avx512f) {
+          cpuid(cpu_info, 1, 0);
+          bool os_uses_xsave_xrstore = (cpu_info[2] & (1 << 27)) != 0;
+          bool cpu_avx_support = (cpu_info[2] & (1 << 28)) != 0;
+
+          if (os_uses_xsave_xrstore && cpu_avx_support) {
+            uint64_t xcr_feature_mask = xgetbv(0);
+            avx512Support = (xcr_feature_mask & 0xe6) == 0xe6;
+          }
+        }
+      }
+    }
+
+    avx_512_support_cache.store(avx512Support, std::memory_order_release);
+    avx_512_initialized.store(true, std::memory_order_release);
+  }
+}
+
 bool platformSupportsAvx() {
-  int cpu_info[4];
-
-  // CPU support
-  cpuid(cpu_info, 0, 0);
-  int n_ids = cpu_info[0];
-
-  bool HW_AVX = false;
-  if (n_ids >= 0x00000001) {
-    cpuid(cpu_info, 0x00000001, 0);
-    HW_AVX = (cpu_info[2] & ((int)1 << 28)) != 0;
+  if (!avx_initialized.load(std::memory_order_acquire)) {
+    initializePlatformSupport();
   }
-
-  // OS support
-  cpuid(cpu_info, 1, 0);
-
-  bool osUsesXSAVE_XRSTORE = (cpu_info[2] & (1 << 27)) != 0;
-  bool cpuAVXSuport = (cpu_info[2] & (1 << 28)) != 0;
-
-  bool avxSupported = false;
-  if (osUsesXSAVE_XRSTORE && cpuAVXSuport) {
-    uint64_t xcrFeatureMask = xgetbv(_XCR_XFEATURE_ENABLED_MASK);
-    avxSupported = (xcrFeatureMask & 0x6) == 0x6;
-  }
-  return HW_AVX && avxSupported;
+  return avx_support_cache.load(std::memory_order_acquire);
 }
 
 bool platformSupportsAvx512() {
-  if (!platformSupportsAvx()) {
-    return false;
+  if (!avx_512_initialized.load(std::memory_order_acquire)) {
+    initializePlatformSupport();
   }
-
-  int cpu_info[4];
-
-  // CPU support
-  cpuid(cpu_info, 0, 0);
-  int n_ids = cpu_info[0];
-
-  bool HW_AVX512F = false;
-  if (n_ids >= 0x00000007) { //  AVX512 Foundation
-    cpuid(cpu_info, 0x00000007, 0);
-    HW_AVX512F = (cpu_info[1] & ((int)1 << 16)) != 0;
-  }
-
-  // OS support
-  cpuid(cpu_info, 1, 0);
-
-  bool osUsesXSAVE_XRSTORE = (cpu_info[2] & (1 << 27)) != 0;
-  bool cpuAVXSuport = (cpu_info[2] & (1 << 28)) != 0;
-
-  bool avx512Supported = false;
-  if (osUsesXSAVE_XRSTORE && cpuAVXSuport) {
-    uint64_t xcrFeatureMask = xgetbv(_XCR_XFEATURE_ENABLED_MASK);
-    avx512Supported = (xcrFeatureMask & 0xe6) == 0xe6;
-  }
-  return HW_AVX512F && avx512Supported;
+  return avx_512_support_cache.load(std::memory_order_acquire);
 }
 
 #endif

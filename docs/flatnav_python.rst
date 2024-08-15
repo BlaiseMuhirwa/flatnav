@@ -3,28 +3,44 @@ FlatNav Index Module
 
 This module provides interfaces to create and manipulate FlatNav index structures.
 
-index_factory
+create
 -------------
 
-.. autofunction:: flatnav.index.index_factory
+.. autofunction:: flatnav.index.create
 
 Index Classes
 -------------
 
 Classes for managing FlatNav indices.
 
-L2Index
+IndexL2Float
 -------
 
-.. autoclass:: flatnav.index.L2Index
+.. autoclass:: flatnav.index.IndexL2Float
     :members:
     :undoc-members:
     :show-inheritance:
 
-IPIndex
+IndexL2Uint8
 -------
 
-.. autoclass:: flatnav.index.IPIndex
+.. autoclass:: flatnav.index.IndexL2Uint8
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+IndexIPFloat
+-------
+
+.. autoclass:: flatnav.index.IndexIPFloat
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+IndexIPUint8
+-------
+
+.. autoclass:: flatnav.index.IndexIPUint8
     :members:
     :undoc-members:
     :show-inheritance:

@@ -10,9 +10,10 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <flatnav/DistanceInterface.h>
+#include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/util/Datatype.h>
 #include <memory>
 
 #ifdef _OPENMP
@@ -29,8 +30,11 @@
 
 namespace flatnav::quantization {
 
-using flatnav::METRIC_TYPE;
+using flatnav::distances::InnerProductDistance;
+using flatnav::distances::MetricType;
+using flatnav::distances::SquaredL2Distance;
 using flatnav::quantization::CentroidsGenerator;
+using flatnav::util::DataType;
 
 template <typename n_bits_t> struct PQCodeManager {
   // This is an array that represents a quantization code for
@@ -83,8 +87,9 @@ template <typename n_bits_t> struct PQCodeManager {
  *
  */
 
-class ProductQuantizer : public flatnav::DistanceInterface<ProductQuantizer> {
-  friend class flatnav::DistanceInterface<ProductQuantizer>;
+class ProductQuantizer
+    : public flatnav::distances::DistanceInterface<ProductQuantizer> {
+  friend class flatnav::distances::DistanceInterface<ProductQuantizer>;
 
   // Represents the block size used in ProductQuantizer::computePQCodes
   static const uint64_t BLOCK_SIZE = 256 * 1024;
@@ -104,7 +109,7 @@ public:
    * index is complete.
    */
   ProductQuantizer(uint32_t dim, uint32_t M, uint32_t nbits,
-                   METRIC_TYPE metric_type)
+                   MetricType metric_type)
       : _num_subquantizers(M), _num_bits(nbits), _is_trained(false),
         _metric_type(metric_type), _train_type(TrainType::DEFAULT) {
 
@@ -115,10 +120,10 @@ public:
     _code_size = (_num_bits * 8 + 7) / 8;
     _subvector_dim = dim / _num_subquantizers;
 
-    if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
-      _distance = SquaredL2Distance(_subvector_dim);
-    } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
-      _distance = InnerProductDistance(_subvector_dim);
+    if (_metric_type == MetricType::L2) {
+      _distance = SquaredL2Distance<>(_subvector_dim);
+    } else if (_metric_type == MetricType::IP) {
+      _distance = InnerProductDistance<>(_subvector_dim);
     } else {
       throw std::invalid_argument("Invalid metric type");
     }
@@ -457,12 +462,14 @@ private:
     if (_distance.index() == 0) {
       return [local_distance = _distance](const float *a,
                                           const float *b) -> float {
-        return std::get<SquaredL2Distance>(local_distance).distanceImpl(a, b);
+        return std::get<SquaredL2Distance<DataType::float32>>(local_distance)
+            .distanceImpl(a, b);
       };
     }
     return [local_distance = _distance](const float *a,
                                         const float *b) -> float {
-      return std::get<InnerProductDistance>(local_distance).distanceImpl(a, b);
+      return std::get<InnerProductDistance<DataType::float32>>(local_distance)
+          .distanceImpl(a, b);
     };
   }
 
@@ -540,7 +547,7 @@ private:
   // Indicates if the PQ has been trained or not
   bool _is_trained;
 
-  METRIC_TYPE _metric_type;
+  MetricType _metric_type;
 
   // Initialization
   enum TrainType {
@@ -556,7 +563,9 @@ private:
 
   TrainType _train_type;
 
-  std::variant<SquaredL2Distance, InnerProductDistance> _distance;
+  std::variant<SquaredL2Distance<DataType::float32>,
+               InnerProductDistance<DataType::float32>>
+      _distance;
 
   std::function<float(const float *, const float *)> _dist_func;
 
@@ -570,10 +579,10 @@ private:
 
     if constexpr (Archive::is_loading::value) {
       // loading PQ
-      if (_metric_type == METRIC_TYPE::EUCLIDEAN) {
-        _distance = SquaredL2Distance(_subvector_dim);
-      } else if (_metric_type == METRIC_TYPE::INNER_PRODUCT) {
-        _distance = InnerProductDistance(_subvector_dim);
+      if (_metric_type == MetricType::L2) {
+        _distance = SquaredL2Distance<>(_subvector_dim);
+      } else if (_metric_type == MetricType::IP) {
+        _distance = InnerProductDistance<>(_subvector_dim);
       } else {
         throw std::invalid_argument("Invalid metric type");
       }
