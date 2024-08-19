@@ -363,7 +363,7 @@ def main(
         dataset_size=dataset_size,
         max_edges_per_node=max_edges_per_node,
         verbose=True,
-        collect_stats=True,
+        collect_stats=False,
         use_random_initialization=True,
         random_seed=42,
     )

@@ -289,6 +289,10 @@ public:
 
   ~PyIndex() { delete _index; }
 
+  inline const std::unordered_map<uint32_t, uint32_t> getNodeAccessCounts() {
+    return _index->getNodeAccessCounts();
+  }
+
   uint64_t getQueryDistanceComputations() const {
     auto distance_computations = _index->distanceComputations();
     _index->resetStats();
@@ -496,6 +500,7 @@ void bindSpecialization(py::module_ &index_submodule) {
            &IndexType::getQueryDistanceComputations,
            GET_QUERY_DISTANCE_COMPUTATIONS_DOCSTRING)
       .def("save", &IndexType::save, py::arg("filename"), SAVE_DOCSTRING)
+      .def("get_node_access_counts", &IndexType::getNodeAccessCounts,"")
       .def("build_graph_links", &IndexType::buildGraphLinks,
            py::arg("mtx_filename"), BUILD_GRAPH_LINKS_DOCSTRING)
       .def("get_graph_outdegree_table", &IndexType::getGraphOutdegreeTable,

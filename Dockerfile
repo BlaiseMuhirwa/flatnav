@@ -113,7 +113,9 @@ RUN if [ "$INCLUDE_HNSWLIB" = true ] ; then \
 ENV FLATNAV_WHEEL=${FLATNAV_PATH}/flatnav_python/dist/*.whl
 
 WORKDIR ${FLATNAV_PATH}/experiments
-RUN poetry add ${FLATNAV_WHEEL} 
+RUN rm poetry.lock
+RUN echo ${FLATNAV_WHEEL}
+RUN poetry add ${FLATNAV_WHEEL} -v
 
 RUN if [ "$INCLUDE_HNSWLIB" = true ] ; then \
         export HNSWLIB_WHEEL=${FLATNAV_PATH}/hnswlib-original/python_bindings/dist/*.whl; \

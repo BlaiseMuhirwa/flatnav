@@ -90,7 +90,7 @@ mkdir -p $(pwd)/edge-lengths
 # Clean up existing docker images matching "flatnav" if any 
 # docker rmi -f $(docker images --filter=reference="flatnav" -q) &> /dev/null || true
 
-docker build --build-arg INCLUDE_HNSWLIB=$INCLUDE_HNSWLIB \
+docker build --no-cache --build-arg INCLUDE_HNSWLIB=$INCLUDE_HNSWLIB \
              --tag flatnav:$TAG_NAME -f Dockerfile .
 
 # Check if the first argument is set. If it is, then run docker container with the 
