@@ -346,7 +346,7 @@ def main(
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
 
-    experiment_key = f"{dataset_name}_{index_type}_{data_type}"
+    experiment_key = f"{dataset_name}_{index_type}"
 
     for node_links in num_node_links:
         metrics = {}
