@@ -6,6 +6,7 @@ import numpy as np
 import os
 from typing import List, Tuple
 import pandas as pd 
+import random
 
 
 # This should be a persistent volume mount.
@@ -13,14 +14,14 @@ DISTRIBUTIONS_SAVE_PATH = "/root/node-access-distributions"
 METRICS_DIR = "/root/metrics"
 
 SYNTHETIC_DATASETS = [
-    "normal-1-angular",
-    "normal-1-euclidean",
-    "normal-2-angular",
-    "normal-2-euclidean",
-    "normal-4-angular",
-    "normal-4-euclidean",
-    "normal-8-angular",
-    "normal-8-euclidean",
+    # "normal-1-angular",
+    # "normal-1-euclidean",
+    # "normal-2-angular",
+    # "normal-2-euclidean",
+    # "normal-4-angular",
+    # "normal-4-euclidean",
+    # "normal-8-angular",
+    # "normal-8-euclidean",
     "normal-16-angular",
     "normal-16-euclidean",
     "normal-32-angular",
@@ -38,7 +39,7 @@ SYNTHETIC_DATASETS = [
 ]
 
 ANN_DATASETS = [
-    "sift-128-euclidean",
+    # "sift-128-euclidean",
     "glove-100-angular",
     "nytimes-256-angular",
     "gist-960-euclidean",
@@ -130,6 +131,8 @@ class HubNodesConnectivityTester:
             for node, count in self.node_access_counts.items()
             if count >= threshold
         ]
+
+        print(f"Num nodes above {percentile}th percentile: {len(selected_nodes)}")
         # If the selected number of nodes is higher than the sample size, randomly select
         # self.sample_size without replacement.
         if len(selected_nodes) > self.sample_size:
@@ -220,15 +223,30 @@ class HubNodesConnectivityTester:
         hub_nodes = self._select_hub_nodes(percentile=percentile)
         logging.info(f"Num hub nodes = {len(hub_nodes)}, dataset = {self.dataset_name}")
 
-        hub_hub_connections: List[int] = self._calculate_hub_hub_connections(
-            hub_nodes=hub_nodes
-        )
+        # Distribution of the number of hub nodes each hub node is connected to. 
+        # hub_hub_connections: List[int] = self._calculate_hub_hub_connections(
+        #     hub_nodes=hub_nodes
+        # )
+
+        # random.shuffle(hub_hub_connections)
+        # half_size = len(hub_hub_connections) // 2
+        # random_hub_connections = hub_hub_connections[:half_size]
+        # hub_hub_connections = hub_hub_connections[half_size:]
+
         random_hub_connections: List[int] = self._calculate_random_hub_connections(
             hub_nodes=hub_nodes
         )
+
+        random.shuffle(random_hub_connections)
+        half_size = len(random_hub_connections) // 2
+        hub_hub_connections = random_hub_connections[:half_size]
+        random_hub_connections = random_hub_connections[half_size:]
+
+
         if len(hub_hub_connections) != len(random_hub_connections):
             raise ValueError(
                 "Hub-hub connections and random-hub connections must have the same length."
+                f"Hub-hub connections: {len(hub_hub_connections)}, random-hub connections: {len(random_hub_connections)}"
             )
 
         # Perform the statistical tests
@@ -258,24 +276,24 @@ class HubNodesConnectivityTester:
 
 
         return {
-            "mann-whitney-u-statistic": u_statistic,
+            # "mann-whitney-u-statistic": u_statistic,
             "mann-whitney-p-value": mann_whitney_p_value,
-            "two-sample-t-statistic": t_statistic,
+            # "two-sample-t-statistic": t_statistic,
             "two-sample-t-test-p-value": ttest_p_value,
-            "num-hub-nodes": len(hub_nodes),
+            # "num-hub-nodes": len(hub_nodes),
             "effect_size": effect_size,
-            "hub_stats": {
-                "mean": hub_stats[0],
-                "std": hub_stats[1],
-                "median": hub_stats[2],
-                "iqr": hub_stats[3],
-            },
-            "random_stats": {
-                "mean": random_stats[0],
-                "std": random_stats[1],
-                "median": random_stats[2],
-                "iqr": random_stats[3],
-            },
+            # "hub_stats": {
+            #     "mean": hub_stats[0],
+            #     "std": hub_stats[1],
+            #     "median": hub_stats[2],
+            #     "iqr": hub_stats[3],
+            # },
+            # "random_stats": {
+            #     "mean": random_stats[0],
+            #     "std": random_stats[1],
+            #     "median": random_stats[2],
+            #     "iqr": random_stats[3],
+            # },
         }
 
 
@@ -298,9 +316,10 @@ def run_hypothesis_tests() -> None:
             outdegree_table_path=outdegree_table_path,
             node_access_counts_path=node_access_counts_path,
             dataset_name=dataset_name,
-            include_hub_nodes_in_sample=True,
+            include_hub_nodes_in_sample=False,
+            sample_size=2000,
         )
-        test_results = tester.run_hypothesis_tests(percentile=90)
+        test_results = tester.run_hypothesis_tests(percentile=99)
 
         # Append the test results to a JSON file containing all the results.
         all_test_results[dataset_name] = test_results
@@ -311,16 +330,14 @@ def run_hypothesis_tests() -> None:
     with open(save_filename, "r") as f:
         json_data = json.load(f)
 
-    # Flatten the JSON data for CSV conversion
-    flat_data = []
-    for dataset, metrics in json_data.items():
-        flat_record = {"dataset_name": dataset}
-        flat_record.update(metrics)
-        flat_data.append(flat_record)
-
-    df = pd.DataFrame(flat_data)
-    df.to_csv(csv_filename, index=False)
-
 
 if __name__ == "__main__":
     run_hypothesis_tests()
+
+"""
+1. Try two samples that come from the same distribution.   
+    - Both random samples
+    - Both hub samples
+2. 
+
+"""

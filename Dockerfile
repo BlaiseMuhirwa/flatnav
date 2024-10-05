@@ -113,6 +113,10 @@ RUN if [ "$INCLUDE_HNSWLIB" = true ] ; then \
 ENV FLATNAV_WHEEL=${FLATNAV_PATH}/flatnav_python/dist/*.whl
 
 WORKDIR ${FLATNAV_PATH}/experiments
+
+# Add this directory to pyton path
+ENV PYTHONPATH=${FLATNAV_PATH}:${PYTHONPATH}
+
 RUN rm poetry.lock
 RUN echo ${FLATNAV_WHEEL}
 RUN poetry add ${FLATNAV_WHEEL} -v

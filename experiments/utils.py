@@ -131,22 +131,20 @@ def compute_k_occurence_distrubution(top_k_indices: np.ndarray) -> np.ndarray:
 
 
 def compute_skewness(
-    index: Union[flatnav.index.L2Index, hnswlib.Index],
+    index: Union["flatnav.index.Index", hnswlib.Index],
     dataset: np.ndarray,
     ef_search: int,
     k: int,
 ) -> float:
-    is_flatnav_index = type(index) in [flatnav.index.L2Index, flatnav.index.IPIndex]
+    is_flatnav_index = not (type(index) == hnswlib.Index)
     if is_flatnav_index:
         _, top_k_indices = index.search(
             queries=dataset,
             ef_search=ef_search,
             K=k,
         )
-    elif type(index) == hnswlib.Index:
-        top_k_indices, _ = index.knn_query(dataset, k=k)
     else:
-        raise ValueError("Invalid index")
+        top_k_indices, _ = index.knn_query(dataset, k=k)
 
     k_occurence_distribution = compute_k_occurence_distrubution(
         top_k_indices=top_k_indices

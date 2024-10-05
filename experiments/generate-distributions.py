@@ -125,7 +125,7 @@ def plot_histogram(node_access_counts: dict, dataset_name: str) -> None:
 
 def get_node_access_counts_distribution(
     dataset_name: str,
-    index: Union[flatnav.index.L2Index, flatnav.index.IPIndex],
+    index: "flanav.index.Index",
     queries: np.ndarray,
     ground_truth: np.ndarray,
     ef_search: int,
@@ -272,7 +272,7 @@ def get_edge_length_distribution_for_hubs(index, dataset_name: str):
 
 
 def get_edge_lengths_distribution(
-    index: Union[flatnav.index.L2Index, flatnav.index.IPIndex], dataset_name: str
+    index: "flatnav.index.Index", dataset_name: str
 ):
     # This is a dictionary mapping unique edge hashes to their lengths.
     # The lengths are floating point numbers.
@@ -357,15 +357,15 @@ def main(
     hnsw_index.save_base_layer_graph(filename=mtx_filename)
 
     # Build FlatNav index and configure it to perform search by using random initialization
-    flatnav_index = flatnav.index.index_factory(
+    flatnav_index = flatnav.index.create(
         distance_type=distance_type,
         dim=dim,
         dataset_size=dataset_size,
         max_edges_per_node=max_edges_per_node,
         verbose=True,
         collect_stats=False,
-        use_random_initialization=True,
-        random_seed=42,
+        # use_random_initialization=True,
+        # random_seed=42,
     )
 
     flatnav_index.allocate_nodes(train_dataset).build_graph_links(mtx_filename)

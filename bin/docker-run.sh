@@ -90,7 +90,7 @@ mkdir -p $(pwd)/edge-lengths
 # Clean up existing docker images matching "flatnav" if any 
 # docker rmi -f $(docker images --filter=reference="flatnav" -q) &> /dev/null || true
 
-docker build --no-cache --build-arg INCLUDE_HNSWLIB=$INCLUDE_HNSWLIB \
+docker build --build-arg INCLUDE_HNSWLIB=$INCLUDE_HNSWLIB \
              --tag flatnav:$TAG_NAME -f Dockerfile .
 
 # Check if the first argument is set. If it is, then run docker container with the 
@@ -110,7 +110,7 @@ fi
 # NOTE: Mounting the ~/.aws directory so that the container can access the aws credentials
 # to upload the indexes to s3. This is not the most secure thing to do, but it's the easiest.
 docker run \
-        --name benchmark-runner-distributions \
+        --name benchmark-runner-2 \
         -it \
         -e MAKE_TARGET=$1 \
         --env-file bin/.env-vars \

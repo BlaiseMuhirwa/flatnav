@@ -228,7 +228,7 @@ def train_index(
             max_edges_per_node=max_edges_per_node,
             verbose=False,
             collect_stats=True,
-            random_seed=42
+            # random_seed=42
         )
 
         # Here we will first allocate memory for the index and then build edge connectivity
@@ -576,15 +576,8 @@ def plot_all_metrics(
     with open(metrics_file_path, "r") as file:
         all_metrics = json.load(file)
 
-<<<<<<< HEAD:experiments/run_benchmark.py
-    # Filter keys based on the dataset_name. This is because we want a plot for each dataset.
-    all_metrics = {
-        key: value for key, value in all_metrics.items() if dataset_name in key
-    }
-=======
     # Only consider data for the current benchmark dataset.
     all_metrics = {key: value for key, value in all_metrics.items() if dataset_name in key}
->>>>>>> 6f2f33006b2b5f673fcd9d8a2c07b7a8e20eabcb:experiments/run-benchmark.py
 
     linestyles = create_linestyles(unique_algorithms=all_metrics.keys())
     metrics_dir = os.path.dirname(metrics_file_path)

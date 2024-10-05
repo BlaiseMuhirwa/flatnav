@@ -136,6 +136,8 @@ Args:
     max_edges_per_node (int): The maximum number of edges per node in the graph.
     verbose (bool, optional): Enables verbose output. Defaults to False.
     collect_stats (bool, optional): Collects performance statistics. Defaults to False.
+    use_random_initialization (bool, optional): Use random initialization. Defaults to False.
+    random_seed (Optional[int], optional): The random seed to use. Defaults to None.
 
 Returns:
     Union[IndexL2Float, IndexIPFloat]: The constructed index.

@@ -32,16 +32,6 @@ using flatnav::util::VisitedSetPool;
 
 namespace flatnav {
 
-// Define a custom hash function for std::pair<uint32_t, uint32_t>
-struct pair_hash {
-  template <class T1, class T2>
-  std::size_t operator()(const std::pair<T1, T2> &pair) const {
-    auto hash1 = std::hash<T1>{}(pair.first);
-    auto hash2 = std::hash<T2>{}(pair.second);
-    // Combine the two hash values. (This is just one possible way to do it.)
-    return hash1 ^ hash2;
-  }
-};
 
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
@@ -83,6 +73,39 @@ template <typename dist_t, typename label_t> class Index {
   // Trying to use them in multi-threaded setting will result in wird behavior.
   mutable std::atomic<uint64_t> _distance_computations = 0;
   mutable std::atomic<uint64_t> _metric_hops = 0;
+
+  // Keep track of the sequence of nodes visited during search.
+  // Each internal list consists of a sequence of boolean flags indicating
+  // whether a visited node is a hub node or not.
+  std::vector<std::vector<bool>> _visited_nodes_sequence;
+
+  bool* _hub_nodes; // A boolean array to keep track of hub nodes.
+  // If a node is a hub, then _hub_nodes[node] = true, else false.
+
+  // Tracking metrics for node access patterns. This unordered map is used to
+  // record how many times each node is visited during search. The key is the
+  // node id and the value is the number of times the node is visited.
+  std::unordered_map<uint32_t, uint32_t> _node_access_counts;
+  // std::mutex _node_access_counts_guard;
+
+  // Tracking metrics for the edge length distribution. This unordered map is
+  // used to record the length of each edge in the graph. The key is the hash of
+  // the sum of the two node IDs and the value is the length of the edge
+  // connecting them.
+  std::unordered_map<size_t, float> _edge_length_distribution;
+
+  // Track the number of times each edge is visited during search. This
+  // unordered map is used to record how many times each edge is visited during
+  // search.
+  // std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t, pair_hash>
+  //     _edge_access_counts;
+  // std::mutex _edge_access_counts_guard;
+
+  // Randomization parameters
+  bool _use_random_initialization = false;
+  std::mt19937 _generator;
+  std::uniform_int_distribution<> _distribution;
+
 
   Index(const Index &) = delete;
   Index &operator=(const Index &) = delete;
@@ -131,29 +154,6 @@ template <typename dist_t, typename label_t> class Index {
     return *this;
   }
 
-  // Tracking metrics for node access patterns. This unordered map is used to
-  // record how many times each node is visited during search. The key is the
-  // node id and the value is the number of times the node is visited.
-  std::unordered_map<uint32_t, uint32_t> _node_access_counts;
-  // std::mutex _node_access_counts_guard;
-
-  // Tracking metrics for the edge length distribution. This unordered map is
-  // used to record the length of each edge in the graph. The key is the hash of
-  // the sum of the two node IDs and the value is the length of the edge
-  // connecting them.
-  std::unordered_map<size_t, float> _edge_length_distribution;
-
-  // Track the number of times each edge is visited during search. This
-  // unordered map is used to record how many times each edge is visited during
-  // search.
-  // std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t, pair_hash>
-  //     _edge_access_counts;
-  // std::mutex _edge_access_counts_guard;
-
-  // Randomization parameters
-  bool _use_random_initialization = false;
-  std::mt19937 _generator;
-  std::uniform_int_distribution<> _distribution;
 
   template <typename Archive> void serialize(Archive &archive) {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
@@ -204,6 +204,7 @@ public:
         _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
     size_t index_memory_size = _node_size_bytes * _max_node_count;
     _index_memory = new char[index_memory_size];
+    _hub_nodes = new bool[_max_node_count];
   }
 
   void initNodeAccessCounts() {
@@ -216,6 +217,7 @@ public:
   ~Index() {
     delete[] _index_memory;
     delete _visited_set_pool;
+    delete _hub_nodes;
   }
 
   /**
@@ -261,6 +263,16 @@ public:
   }
 
   void resetNodeAccessDistribution() { _node_access_counts.clear(); }
+
+  void setHubNodeFlags(const std::vector<uint32_t>& hub_nodes) {
+      for (const auto& hub_node: hub_nodes) {
+        _hub_nodes[hub_node] = true;  
+      }
+  }
+
+  std::vector<std::vector<bool>> getVisitedNodesSequence() {
+    return _visited_nodes_sequence;
+  }
 
   void buildGraphLinks(const std::string &mtx_filename) {
     std::ifstream input_file(mtx_filename);
@@ -757,6 +769,10 @@ private:
     PriorityQueue neighbors;
     PriorityQueue candidates;
 
+    // Keep track of the nodes visited during the search.
+    // Add True if the node is a hub node, else False.
+    std::vector<bool> query_visited_nodes_flags;
+
     auto *visited_set = _visited_set_pool->pollAvailableSet();
     visited_set->clear();
 
@@ -772,6 +788,7 @@ private:
     float max_dist = dist;
     candidates.emplace(-dist, entry_node);
     neighbors.emplace(dist, entry_node);
+    query_visited_nodes_flags.push_back(_hub_nodes[entry_node]);  
     visited_set->insert(entry_node);
 
     // Increment the counter in the visited map for the entry point node
@@ -804,8 +821,11 @@ private:
           /* query = */ query, /* node = */ node,
           /* max_dist = */ max_dist, /* buffer_size = */ buffer_size,
           /* visited_set = */ visited_set,
-          /* neighbors = */ neighbors, /* candidates = */ candidates);
+          /* neighbors = */ neighbors, /* candidates = */ candidates,
+          /* query_visited_nodes = */ query_visited_nodes_flags);
+      
     }
+    _visited_nodes_sequence.push_back(std::move(query_visited_nodes_flags));
 
     _visited_set_pool->pushVisitedSet(
         /* visited_set = */ visited_set);
@@ -817,12 +837,13 @@ private:
   void processCandidateNode(const void *query, node_id_t &node, float &max_dist,
                             const int buffer_size, VisitedSet *visited_set,
                             PriorityQueue &neighbors,
-                            PriorityQueue &candidates) {
+                            PriorityQueue &candidates, std::vector<bool>& query_visited_nodes_flags) {
     // Lock all operations on this specific node
     std::unique_lock<std::mutex> lock(_node_links_mutexes[node]);
     float dist = 0.f;
 
     node_id_t *neighbor_node_links = getNodeLinks(node);
+    query_visited_nodes_flags.push_back(_hub_nodes[node]);  
     for (uint32_t i = 0; i < _M; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
 
@@ -872,6 +893,7 @@ private:
       if (neighbors.size() < buffer_size || dist < max_dist) {
         candidates.emplace(-dist, neighbor_node_id);
         neighbors.emplace(dist, neighbor_node_id);
+        // query_visited_nodes_flags.push_back(_hub_nodes[neighbor_node_id]);
 #ifdef USE_SSE
         _mm_prefetch(getNodeData(candidates.top().second), _MM_HINT_T0);
 #endif

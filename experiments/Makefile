@@ -437,22 +437,6 @@ sift-bench-hnsw:
 		--num-build-threads 16 \
 		--num-search-threads 1
 
-
-glove25-bench-flatnav:
-	poetry run python run-benchmark.py \
-		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
-		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
-		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
-		--dataset-name glove-25-angular \
-		--index-type flatnav \
-		--use-hnsw-base-layer \
-		--hnsw-base-layer-filename sift.mtx \
-		--num-node-links 32 \
-		--ef-construction 30 40 50 100 200 300 \
-		--ef-search 100 200 300 500 1000 3000 \
-		--num-build-threads 16 \
-		--num-search-threads 1 
-
 hubness-test:
 	poetry run python hubness.py \
 		--datasets normal-1-angular normal-2-angular normal-4-angular normal-8-angular normal-16-angular normal-32-angular normal-64-angular normal-128-angular normal-256-angular normal-1024-angular normal-1536-angular normal-1-euclidean normal-2-euclidean normal-4-euclidean normal-8-euclidean normal-16-euclidean normal-32-euclidean normal-64-euclidean normal-128-euclidean normal-256-euclidean normal-1024-euclidean normal-1536-euclidean \
@@ -479,19 +463,6 @@ generate-datasets:
 # 		--k 100 \
 # 		--save-file hubness-scores-full.json
 
-
-sift-bench-hnsw: 
-	poetry run python run_benchmark.py \
-		--dataset-name sift \
-		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
-		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
-		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
-		--index-type hnsw \
-		--num-node-links 32 \
-		--ef-construction 30 40 50 100 200 300 \
-		--ef-search 100 200 300 500 1000 3000 \
-		--num-build-threads 16 \
-		--num-search-threads 1
 
 glove50-bench-flatnav:
 	poetry run python run-benchmark.py \
@@ -642,22 +613,24 @@ generate-hubness-scores:
 # l2 angular angular l2 angular l2 angular l2
 generate-distributions:
 	poetry run python generate-distributions.py \
-		--datasets spacev-10m-euclidean yandex-tti-10m-angular yandex-deep-10m-euclidean nytimes-256-angular glove-100-angular gist-960-euclidean normal-16-angular normal-16-euclidean normal-32-angular normal-32-euclidean normal-64-angular normal-64-euclidean normal-128-angular normal-128-euclidean normal-256-angular normal-256-euclidean normal-1024-angular normal-1024-euclidean normal-1536-angular normal-1536-euclidean \
+		--datasets normal-128-euclidean normal-256-angular normal-256-euclidean normal-1024-angular normal-1024-euclidean normal-1536-angular normal-1536-euclidean \
 		--k 100 \
 		--ef-construction 100 \
 		--ef-search 200 \
 		--num-node-links 32
 
-bcentrality:
-	poetry run python betweenness_centrality.py \
-		--datasets spacev-10m-euclidean yandex-tti-10m-angular sift-128-euclidean glove-100-angular normal-256-angular normal-256-euclidean normal-1024-angular normal-1024-euclidean \
-		--k 100 \
-		--ef-construction 100 \
-		--num-node-links 32
-
 # Run statistical tests for hub nodes connectivity. 
 run-hypothesis-test:
 	poetry run python statistical_test.py
+
+speed-test:
+	poetry run python hubness_speed_test.py --hubness-percentile-threshold 99
+
+plot-speed-test-results:
+	poetry run python plot_speed_test_results.py
+
+plot-results:
+	poetry run python plot_stats_test_results.py
 
 setup: install-flatnav install-hnswlib
 
@@ -689,6 +662,9 @@ install-hnswlib:
 
 s3-push:
 	poetry run python push-snapshot-to-s3.py
+
+format:
+	poetry run black . 
 
 cleanup:
 	rm -rf hnswlib-original 

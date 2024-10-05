@@ -256,13 +256,17 @@ public:
 
   PyIndex(std::unique_ptr<DistanceInterface<dist_t>> &&distance,
           DataType data_type, int dataset_size, int max_edges_per_node,
-          bool verbose = false, bool collect_stats = false)
+          bool verbose = false, bool collect_stats = false, 
+          bool use_random_initialization = false,
+          std::optional<size_t> random_seed = std::nullopt)
       : _dim(distance->dimension()), _label_id(0), _verbose(verbose),
         _index(new Index<dist_t, label_t>(
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
             /* max_edges_per_node = */ max_edges_per_node,
-            /* collect_stats = */ collect_stats)) {
+            /* collect_stats = */ collect_stats, 
+            /* use_random_initialization = */ use_random_initialization,
+            /* random_seed = */ random_seed)) {
 
     _data_type = data_type;
 
@@ -301,6 +305,14 @@ public:
 
   void buildGraphLinks(const std::string &mtx_filename) {
     _index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
+  }
+
+  void setHubNodes(const std::vector<uint32_t> &hub_nodes) {
+    _index->setHubNodeFlags(hub_nodes);
+  }
+
+  std::vector<std::vector<bool>> getVisitedNodesSequence() {
+    return _index->getVisitedNodesSequence();
   }
 
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
@@ -509,6 +521,8 @@ void bindSpecialization(py::module_ &index_submodule) {
            REORDER_DOCSTRING)
       .def("set_num_threads", &IndexType::setNumThreads, py::arg("num_threads"),
            SET_NUM_THREADS_DOCSTRING)
+      .def("set_hub_nodes", &IndexType::setHubNodes, py::arg("hub_nodes"))
+      .def("get_visited_nodes_sequence", &IndexType::getVisitedNodesSequence)
       .def_static("load_index", &IndexType::loadIndex, py::arg("filename"),
                   LOAD_INDEX_DOCSTRING)
       .def_property_readonly("max_edges_per_node",
@@ -533,20 +547,23 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       "create",
       [](const std::string &distance_type, int dim, int dataset_size,
          int max_edges_per_node, DataType index_data_type, bool verbose = false,
-         bool collect_stats = false) {
+         bool collect_stats = false, bool use_random_initialization = false,
+         std::optional<size_t> random_seed = std::nullopt) {
         switch (index_data_type) {
         case DataType::float32:
           return createIndex<DataType::float32>(
               distance_type, dim, dataset_size, max_edges_per_node, verbose,
-              collect_stats);
+              collect_stats, use_random_initialization, random_seed);
         case DataType::int8:
           return createIndex<DataType::int8>(distance_type, dim, dataset_size,
                                              max_edges_per_node, verbose,
-                                             collect_stats);
+                                             collect_stats, use_random_initialization,
+                                             random_seed);
         case DataType::uint8:
           return createIndex<DataType::uint8>(distance_type, dim, dataset_size,
                                               max_edges_per_node, verbose,
-                                              collect_stats);
+                                              collect_stats, use_random_initialization,
+                                              random_seed);
         default:
           throw std::runtime_error("Unsupported data type");
         }
@@ -555,6 +572,8 @@ void defineIndexSubmodule(py::module_ &index_submodule) {
       py::arg("max_edges_per_node"),
       py::arg("index_data_type") = DataType::float32,
       py::arg("verbose") = false, py::arg("collect_stats") = false,
+      py::arg("use_random_initialization") = false,
+      py::arg("random_seed") = std::nullopt,
       CONSTRUCTOR_DOCSTRING);
 }
 
