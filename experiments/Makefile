@@ -613,7 +613,6 @@ generate-hubness-scores:
 # l2 angular angular l2 angular l2 angular l2
 generate-distributions:
 	poetry run python generate-distributions.py \
-		--datasets normal-128-euclidean normal-256-angular normal-256-euclidean normal-1024-angular normal-1024-euclidean normal-1536-angular normal-1536-euclidean \
 		--k 100 \
 		--ef-construction 100 \
 		--ef-search 200 \

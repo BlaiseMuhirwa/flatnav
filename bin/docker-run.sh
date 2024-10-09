@@ -110,7 +110,7 @@ fi
 # NOTE: Mounting the ~/.aws directory so that the container can access the aws credentials
 # to upload the indexes to s3. This is not the most secure thing to do, but it's the easiest.
 docker run \
-        --name benchmark-runner-2 \
+        --name benchmark-runner-3 \
         -it \
         -e MAKE_TARGET=$1 \
         --env-file bin/.env-vars \
