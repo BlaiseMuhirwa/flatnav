@@ -2,12 +2,13 @@
 # This is a relatively large image, so we might want to use a smaller base image, such as
 # alpine in the future if image size becomes an issue.
 ARG BASE_IMAGE=ubuntu:22.04
+# ARG BASE_IMAGE=python:3.10-slim-bullseye
 
 FROM ${BASE_IMAGE} as base
 
 
 ARG POETRY_VERSION=1.8.2
-ARG PYTHON_VERSION=3.11.6
+ARG PYTHON_VERSION=3.10.0
 ARG POETRY_HOME="/opt/poetry"
 ARG ROOT_DIR="/root"
 ARG FLATNAV_PATH="${ROOT_DIR}/flatnavlib"
@@ -110,8 +111,11 @@ RUN git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git \
 ENV FLATNAV_WHEEL=${FLATNAV_PATH}/flatnav_python/dist/*.whl
 ENV HNSWLIB_WHEEL=${FLATNAV_PATH}/hnswlib-original/python_bindings/dist/*.whl
 
+
+
 # Add flatnav and hnswlib to the experiment runner 
 WORKDIR ${FLATNAV_PATH}/experiments
+ENV PYTHON_PATH=${FLATNAV_PATH}:${PYTHONPATH}
 RUN poetry add ${FLATNAV_WHEEL} \
     && poetry add ${HNSWLIB_WHEEL} \
     && poetry install --no-root

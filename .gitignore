@@ -10,6 +10,8 @@ build
 
 # Virtual environments 
 .env 
+metrics
+node-access-distributions
 
 # Python wheel related folders/files
 flatnav_python/flatnav.egg-info/

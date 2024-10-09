@@ -6,13 +6,14 @@ authors = ["BlaiseMuhirwa <blaisemuhirwa3@gmail.com>"]
 license = "Apache 2.0"
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
+python = ">3.9,<3.11"
 black = "^23.11.0"
 numpy = "^1.26.1, <2.0"
 matplotlib = "^3.8.2"
 psutil = "^5.9.8"
 pydantic = "^2.6.4"
 boto3 = "^1.34.98"
+nmslib = "2.1.1"
 
 [build-system]
 requires = ["poetry-core"]

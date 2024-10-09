@@ -682,6 +682,26 @@ nytimes-bench-hnsw:
 # End ANN Benchmarks
 ################################
 
+################################
+# Begin HNSW-SW-Graph Reproducibility Experiments
+################################
+
+
+hnsw-sw-graph-reproducibility:
+	poetry run python hnsw_swgraph_experiments.py \
+		--dataset-size 10000000 \
+		--n-queries 10000 \
+		--ef-construction 100 \
+		--ef-search 100 \
+		--n-build-threads 48 \
+		--n-search-threads 1
+
+################################
+# End HNSW-SW-Graph Reproducibility Experiments
+################################
+
+
+
 setup: install-flatnav install-hnswlib
 
 # Install all dependencies including flatnav
