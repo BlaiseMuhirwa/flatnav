@@ -318,12 +318,6 @@ def run_main(args: argparse.Namespace) -> None:
             pickle.dump(outdegree_table, f)
 
 
-    # # Now plot the distributions
-    # bw_adjust_values = [0.7]
-    # for bw_adjust_value in bw_adjust_values:
-    #     plot_kde_distributions(distributions, DISTRIBUTIONS_SAVE_PATH, bw_adjust_value)
-
-
 if __name__ == "__main__":
     args = parse_args()
     run_main(args=args)

@@ -117,7 +117,6 @@ WORKDIR ${FLATNAV_PATH}/experiments
 # Add this directory to pyton path
 ENV PYTHONPATH=${FLATNAV_PATH}:${PYTHONPATH}
 
-RUN rm poetry.lock
 RUN echo ${FLATNAV_WHEEL}
 RUN poetry add ${FLATNAV_WHEEL} -v
 

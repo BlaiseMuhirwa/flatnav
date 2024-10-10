@@ -49,12 +49,12 @@ space-v1b-bench-flatnav:
 # Begin 100-Million Scale Benchmarks
 # ################################
 bigann-100m-hnsw: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name bigann-100m \
                 --dataset /root/data/bigann-100m-euclidean/bigann_train_100m.npy \
                 --queries /root/data/bigann-100m-euclidean/bigann_queries.npy \
                 --gtruth /root/data/bigann-100m-euclidean/bigann_ground_truth_100m.npy \
-                --index-type flatnav \
+                --index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 \
                 --ef-search 100 200 300 500 1000 3000 \
@@ -617,6 +617,9 @@ generate-distributions:
 		--ef-construction 100 \
 		--ef-search 200 \
 		--num-node-links 32
+
+kde-plots:
+	poetry run python kde_plots.py
 
 # Run statistical tests for hub nodes connectivity. 
 run-hypothesis-test:
