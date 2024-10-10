@@ -12,7 +12,9 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 ROOT_DATA_PATH = "/root/data/"
-REPRODUCIBILITY_EXPERIMENTS_PATH = os.path.join(ROOT_DATA_PATH, "reproducibility_experiments")
+REPRODUCIBILITY_EXPERIMENTS_PATH = os.path.join(
+    ROOT_DATA_PATH, "reproducibility_experiments"
+)
 os.makedirs(REPRODUCIBILITY_EXPERIMENTS_PATH, exist_ok=True)
 
 
@@ -27,7 +29,7 @@ def parse_args():
     parser.add_argument(
         "--n-queries", type=int, default=10000, help="Number of queries to run."
     )
-    parser.add_argument("--M", type=int, default=32, help="Maximum number of edges.")
+    parser.add_argument("--M", type=int, default=6, help="Maximum number of edges.")
     parser.add_argument(
         "--ef-construction",
         type=int,
@@ -47,9 +49,43 @@ def parse_args():
 
 
 def generate_hypercube_dataset(size: int, d: int, save_path: str):
-    data = np.random.uniform(0, 1, (size, d))
-    np.save(save_path, data)
+    # Check if the dataset already exists
+    if os.path.exists(save_path):
+        data = np.load(save_path)
+    else:
+        # Generate random data in the range [0, 1]
+        data = np.random.uniform(0, 1, (size, d))
+        np.save(save_path, data)
 
+    # Select 1000 random query points from the data
+    queries = data[np.random.choice(data.shape[0], 1000, replace=False)]
+    np.save(save_path.replace(".npy", "_queries.npy"), queries)
+
+    # Compute ground truth for the queries using optimized L2 distance calculation
+    logger.info("Computing ground truth")
+    
+    # Step 1: Compute the squared norms of data and queries
+    data_squared = np.sum(data ** 2, axis=1)
+    queries_squared = np.sum(queries ** 2, axis=1)
+
+    # Step 2: Compute the distance matrix using the squared Euclidean distance formula
+    inner_product = np.dot(data, queries.T)
+    distance_matrix = data_squared[:, None] + queries_squared[None, :] - 2 * inner_product
+
+    # Step 3: Ensure no negative values in distance matrix before applying sqrt
+    distances = np.sqrt(np.maximum(0, distance_matrix))
+
+    # Get the top 10 nearest neighbors for each query
+    k = 10
+    top_k_indices = np.argpartition(distances, k, axis=0)[:k]  # Indices of the top 10 neighbors (unsorted)
+
+    # Sort the top 10 indices by actual distance
+    top_k_sorted = np.argsort(distances[top_k_indices, np.arange(distances.shape[1])], axis=0)
+    top_k_sorted_indices = top_k_indices[top_k_sorted, np.arange(distances.shape[1])]
+
+    # Save the ground truth nearest neighbors
+    np.save(save_path.replace(".npy", "_ground_truth.npy"), top_k_sorted_indices)
+    logger.info("Ground truth computed and saved")
 
 def train_hnsw_index(
     train_data: np.ndarray, M: int, ef_construction: int, num_build_threads: int
@@ -102,49 +138,89 @@ def train_swgraph_index(
     logger.info("Training SWGraph index")
     start = time.monotonic()
     index.addDataPointBatch(train_data)
-    index.createIndex(
-        {"efConstruction": ef_construction, "indexThreadQty": num_build_threads}
-    )
+    index_time_params = {'M': M, 'indexThreadQty': num_build_threads, 'efConstruction': ef_construction}
+    index.createIndex(index_time_params)
+    
     end = time.monotonic()
 
     logger.info(f"Training SWGraph index took {end - start:.4f} seconds")
+
+
+def query_swgraph_index(
+    index, queries: np.ndarray, ground_truth: int, ef_search: int, k: int
+):
+    logger.info("Querying SWGraph index")
+    start = time.monotonic()
+    query_time_params = {"efSearch": ef_search}
+    index.setQueryTimeParams(query_time_params)
+    results = index.knnQueryBatch(queries, k=k, num_threads=1)
+    end = time.monotonic()
+    logger.info(f"Querying SWGraph index took {end - start:.4f} seconds")
 
 
 def main():
     args = parse_args()
     dimensions = [4, 8]
     for d in dimensions:
-        full_path = os.path.join(REPRODUCIBILITY_EXPERIMENTS_PATH, f"iid_uniform_{d}.npy")
+        full_path = os.path.join(
+            REPRODUCIBILITY_EXPERIMENTS_PATH, f"iid_uniform_{d}.npy"
+        )
         if not os.path.exists(full_path):
-            generate_hypercube_dataset(args.dataset_size, d, full_path)
+            raise ValueError(f"Dataset {full_path} does not exist")
 
         data = np.load(full_path)
         global_thread_count = args.n_build_threads
         per_index_thread_count = global_thread_count // 3
 
-        # Use multiprocessing to train a HNSW, FlatNav and SWGraph index
-        hnsw_process = multiprocessing.Process(
-            target=train_hnsw_index,
-            args=(data, args.M, args.ef_construction, per_index_thread_count),
+        hnsw_index = train_hnsw_index(
+            train_data=data,
+            M=args.M,
+            ef_construction=args.ef_construction,
+            num_build_threads=per_index_thread_count,
         )
-        flatnav_process = multiprocessing.Process(
-            target=train_flatnav_index,
-            args=(data, args.M, args.ef_construction, per_index_thread_count),
+        flatnav_index = train_flatnav_index(
+            train_data=data,
+            M=args.M,
+            ef_construction=args.ef_construction,
+            num_build_threads=per_index_thread_count,
+        )
+        swgraph_index = train_swgraph_index(
+            train_data=data,
+            M=args.M,
+            ef_construction=args.ef_construction,
+            num_build_threads=per_index_thread_count,
         )
 
-        swgraph_process = multiprocessing.Process(
-            target=train_swgraph_index,
-            args=(data, args.M, args.ef_construction, per_index_thread_count),
+        # Select a sample of 10k queries randomly from teh dataset
+        queries = data[np.random.choice(data.shape[0], args.n_queries, replace=False)]
+        ground_truth = np.load(full_path.replace(".npy", "_ground_truth.npy"))
+        ef_search_values = [100, 200, 300, 500, 1000, 2000, 5000, 10000, 20000]
+        for ef_search in ef_search_values:
+            # Compute recall, distance computations and latency
+            hnsw_metrics = compute_metrics(
+                requested_metrics=["recall", "distance_computations", "latency_p50"],
+                index=hnsw_index,
+                queries=queries,
+                ef_search=ef_search,
+                k=10,
+            )
+            flatnav_metrics = compute_metrics(
+                requested_metrics=["recall", "distance_computations", "latency_p50"],
+                index=flatnav_index,
+                queries=queries,
+                ef_search=ef_search,
+                k=10,
+            )
+
+
+if __name__ == "__main__":
+    logger.info("Starting experiments")
+    args = parse_args()
+    dimensions = [4, 8]
+    for dim in dimensions:
+        print(f"Processing dimension {dim}")
+        logger.info(f"Processing dimension {dim}")
+        full_path = os.path.join(
+            REPRODUCIBILITY_EXPERIMENTS_PATH, f"iid_uniform_{dim}.npy"
         )
-
-        hnsw_process.start()
-        flatnav_process.start()
-        swgraph_process.start()
-
-        hnsw_process.join()
-        flatnav_process.join()
-        swgraph_process.join()
-
-
-if __name__=="__main__":
-    main()
+        generate_hypercube_dataset(args.dataset_size, dim, full_path)
