@@ -62,8 +62,6 @@ def plot_kde_distributions(distributions: dict, typename: str, save_path: str, b
             "angular", "cosine"
         )
 
-        print(f"Log counts: {log_counts}")
-
         # Plot the KDE for log-transformed data with less smoothness
         sns.kdeplot(
             log_counts,
@@ -92,32 +90,28 @@ def plot_kde_distributions(distributions: dict, typename: str, save_path: str, b
 
 
 def main():
-    distributions = {}
-    datasets = SYNTHETIC_DATASETS + ANN_DATASETS
+    synthetic_angular = {}
+    synthetic_euclidean = {}
+    ann_angular = {}
+    ann_euclidean = {}
 
-    for dataset in datasets:
+    for dataset in ANN_DATASETS:
         print(f"Loading {dataset}...")
         path = os.path.join(DISTRIBUTIONS_SAVE_PATH, f"{dataset}_node_access_counts.json")
         with open(path, "r") as f:
-            distributions[dataset] = json.load(f)
+            if "angular" in dataset:
+                ann_angular[dataset] = json.load(f)
+            else:
+                ann_euclidean[dataset] = json.load(f)
 
-        # Length of dataset 
-        length = len(distributions[dataset])
-        print(f"Type of {dataset}: {type(distributions[dataset])}")
-        print(f"Length of {dataset}: {length}")
-        
-        # Print teh first 100 values 
-        # print(f"First 100 values of {dataset}: {list(distributions[dataset].values())[:100]}")
-
-        # exit(0)
-        
-
-    # Create four separate sets from the distributions dictionary based on first whether 
-    # the dataset is synthetic or ANN, and then whether it is angular or euclidean
-    synthetic_angular = {k: v for k, v in distributions.items() if "angular" in k and "synthetic" in k}
-    synthetic_euclidean = {k: v for k, v in distributions.items() if "euclidean" in k and "synthetic" in k}
-    ann_angular = {k: v for k, v in distributions.items() if "angular" in k and "ann" in k}
-    ann_euclidean = {k: v for k, v in distributions.items() if "euclidean" in k and "ann" in k}
+    for dataset in SYNTHETIC_DATASETS:
+        print(f"Loading {dataset}...")
+        path = os.path.join(DISTRIBUTIONS_SAVE_PATH, f"{dataset}_node_access_counts.json")
+        with open(path, "r") as f:
+            if "angular" in dataset:
+                synthetic_angular[dataset] = json.load(f)
+            else:
+                synthetic_euclidean[dataset] = json.load(f)
 
     # Plot the KDE distributions for each set
     plot_kde_distributions(synthetic_angular, "synthetic_angular", PLOTS_SAVE_PATH)
