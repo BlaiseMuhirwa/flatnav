@@ -36,8 +36,46 @@ ANN_DATASETS = [
     "spacev-10m-euclidean",
 ]
 
+def silverman_bandwidth(data: np.ndarray) -> float:
+    """
+    Compute the bandwidth using Silverman's Rule of Thumb.
 
-def plot_kde_distributions(distributions: dict, typename: str, save_path: str, bw_adjust_value=0.7):
+    :param data: Input array of data points
+    :return: Computed bandwidth (h)
+    """
+    n = len(data)
+    if n == 0:
+        return 1.0  # Return a default value if no data is provided to avoid division by zero
+
+    std_dev = np.std(data)
+    iqr = np.subtract(*np.percentile(data, [75, 25]))
+    
+    # Silverman's rule of thumb
+    bandwidth = 0.9 * min(std_dev, iqr / 1.35) * n ** (-1 / 5)
+    
+    return bandwidth
+
+def scott_bandwidth(data: np.ndarray) -> float:
+    """
+    Compute the bandwidth using Scott's Rule of Thumb.
+
+    :param data: Input array of data points
+    :return: Computed bandwidth (h)
+    """
+    n = len(data)
+    if n == 0:
+        return 1.0  # Return a default value if no data is provided to avoid division by zero
+
+    std_dev = np.std(data)
+    
+    # Scott's rule of thumb
+    bandwidth = std_dev * n ** (-1 / 5)
+
+    return 10 * bandwidth
+
+
+
+def plot_kde_distributions(distributions: dict, typename: str, save_path: str, bandwidth: int = 1.5):
     plt.figure(figsize=(10, 6), dpi=300)
     ax = plt.gca()  # Get the current Axes instance
 
@@ -56,17 +94,22 @@ def plot_kde_distributions(distributions: dict, typename: str, save_path: str, b
         node_access_count_values = list(map(int, node_access_count_values))
         # Apply log-transform to the counts, adding 1 to avoid log(0)
         log_counts = np.log1p(node_access_count_values)
+
+        # Compute Silverman bandwidth for the current dataset
+        # bandwidth = scott_bandwidth(log_counts)
+        bandwidth = bandwidth
+
         raw_skewness = skewness_values[dataset_name]
         # Replace "euclidean" with "l2" and "angular" with "cosine"
-        dataset_name = dataset_name.replace("euclidean", "l2").replace(
-            "angular", "cosine"
-        )
+        dataset_name = dataset_name.replace("euclidean", "l2").replace("angular", "cosine")
 
-        # Plot the KDE for log-transformed data with less smoothness
+        print(f"Bandwidth for {dataset_name}: {bandwidth}")
+
+        # Plot the KDE for log-transformed data with a dataset-specific bandwidth
         sns.kdeplot(
             log_counts,
             label=f"{dataset_name} ($\\tilde{{\\mu}}_3$ = {raw_skewness:.4f})",
-            bw_adjust=bw_adjust_value,
+            bw_adjust=bandwidth  # Use computed bandwidth
         )
 
     # Set up the legend on the right of the plot
@@ -77,48 +120,42 @@ def plot_kde_distributions(distributions: dict, typename: str, save_path: str, b
     plt.grid(True)  # Add gridlines
     plt.xlabel("Log of Node access counts")
     plt.ylabel("PDF")
-    plt.title("KDE of Node Access Counts")
+    plt.title(f"KDE of Node Access Counts - {typename}")
 
     # Adjust the plot area to fit the legend and increase the resolution
     plt.subplots_adjust(right=0.75)
     plt.tight_layout()
 
-    filename = os.path.join(save_path, f"distributions_{typename}_{bw_adjust_value}.png")
+    filename = os.path.join(save_path, f"distributions_{typename}.png")
     plt.savefig(filename)
-
-    print(f"Saved plot to {filename}")
 
 
 def main():
-    synthetic_angular = {}
-    synthetic_euclidean = {}
-    ann_angular = {}
-    ann_euclidean = {}
+    angular_datasets, euclidean_datasets = {}, {}
 
     for dataset in ANN_DATASETS:
         print(f"Loading {dataset}...")
         path = os.path.join(DISTRIBUTIONS_SAVE_PATH, f"{dataset}_node_access_counts.json")
         with open(path, "r") as f:
             if "angular" in dataset:
-                ann_angular[dataset] = json.load(f)
+                # angular_datasets[dataset] = json.load(f)
+                pass 
             else:
-                ann_euclidean[dataset] = json.load(f)
+                euclidean_datasets[dataset] = json.load(f)
 
     for dataset in SYNTHETIC_DATASETS:
         print(f"Loading {dataset}...")
         path = os.path.join(DISTRIBUTIONS_SAVE_PATH, f"{dataset}_node_access_counts.json")
         with open(path, "r") as f:
             if "angular" in dataset:
-                synthetic_angular[dataset] = json.load(f)
+                # angular_datasets[dataset] = json.load(f)
+                pass 
             else:
-                synthetic_euclidean[dataset] = json.load(f)
+                euclidean_datasets[dataset] = json.load(f)
 
-    # Plot the KDE distributions for each set
-    plot_kde_distributions(synthetic_angular, "synthetic_angular", PLOTS_SAVE_PATH)
-    plot_kde_distributions(synthetic_euclidean, "synthetic_l2", PLOTS_SAVE_PATH)
-    plot_kde_distributions(ann_angular, "ann_angular", PLOTS_SAVE_PATH)
-    plot_kde_distributions(ann_euclidean, "ann_l2", PLOTS_SAVE_PATH)
-
+    # Plot the KDE distributions for each set with individual bandwidth values
+    # plot_kde_distributions(angular_datasets, "angular", PLOTS_SAVE_PATH, bandwidth=0.9)
+    plot_kde_distributions(euclidean_datasets, "l2", PLOTS_SAVE_PATH, bandwidth=0.3)
 
 if __name__ == "__main__":
     main()
