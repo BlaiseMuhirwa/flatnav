@@ -143,8 +143,8 @@ bigann-100m-hnsw:
                 --dataset /root/data/bigann-100m-euclidean/bigann_train_100m.npy \
                 --queries /root/data/bigann-100m-euclidean/bigann_queries.npy \
                 --gtruth /root/data/bigann-100m-euclidean/bigann_ground_truth_100m.npy \
-                --index-type flatnav \
                 --num-node-links 32 \
+				--index-type hnsw \
                 --ef-construction 50 100 200 \
                 --ef-search 100 200 300 500 1000 3000 \
                 --metric l2 \
@@ -177,10 +177,10 @@ yandex-deep-100m-hnsw:
                 --gtruth /root/data/yandex-deep-100m/yandex_ground_truth_100m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
-                --ef-construction 50 100 200 \
+                --ef-construction 100 200 \
                 --ef-search 100 200 300 500 1000 3000 \
                 --metric l2 \
-                --num-build-threads 32 \
+                --num-build-threads 8 \
                 --num-search-threads 1
 
 
@@ -194,10 +194,10 @@ yandex-deep-100m-flatnav:
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename yandex-deep-100m.mtx \
                 --num-node-links 32 \
-                --ef-construction 50 100 200 \
+                --ef-construction 100 200 \
                 --ef-search 100 200 300 500 1000 3000 \
         	--metric l2 \
-        	--num-build-threads 32 \
+        	--num-build-threads 8 \
         	--num-search-threads 1
 
 
