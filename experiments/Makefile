@@ -159,8 +159,6 @@ bigann-100m-flatnav:
                 --queries /root/data/bigann-100m-euclidean/bigann_queries.npy \
                 --gtruth /root/data/bigann-100m-euclidean/bigann_ground_truth_100m.npy \
                 --index-type flatnav \
-                --use-hnsw-base-layer \
-                --hnsw-base-layer-filename bigann-100m.mtx \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 \
                 --ef-search 100 200 300 500 1000 3000 \
@@ -186,16 +184,14 @@ yandex-deep-100m-hnsw:
 
 yandex-deep-100m-flatnav:
 	poetry run python run-benchmark.py \
-                --dataset-name yandex-deep-100m \
-                --dataset /root/data/yandex-deep-100m/yandex_train_100m.npy \
-                --queries /root/data/yandex-deep-100m/yandex_queries.npy \
-                --gtruth /root/data/yandex-deep-100m/yandex_ground_truth_100m.npy \
-            	--index-type flatnav \
-                --use-hnsw-base-layer \
-                --hnsw-base-layer-filename yandex-deep-100m.mtx \
-                --num-node-links 32 \
-                --ef-construction 100 200 \
-                --ef-search 100 200 300 500 1000 3000 \
+            --dataset-name yandex-deep-100m \
+            --dataset /root/data/yandex-deep-100m/yandex_train_100m.npy \
+            --queries /root/data/yandex-deep-100m/yandex_queries.npy \
+            --gtruth /root/data/yandex-deep-100m/yandex_ground_truth_100m.npy \
+            --index-type flatnav \
+            --num-node-links 32 \
+            --ef-construction 100 200 \
+            --ef-search 100 200 300 500 1000 3000 \
         	--metric l2 \
         	--num-build-threads 8 \
         	--num-search-threads 1
