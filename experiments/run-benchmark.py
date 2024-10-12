@@ -303,9 +303,6 @@ def main(
             hnsw_base_layer_filename=hnsw_base_layer_filename,
             num_build_threads=num_build_threads,
         )
-
-        # Terminate early 
-        exit(0)
         
         if reordering_strategies is not None:
             if index_type != "flatnav":
