@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 import os
@@ -138,7 +139,7 @@ def train_swgraph_index(
     logger.info("Training SWGraph index")
     start = time.monotonic()
     index.addDataPointBatch(train_data)
-    index_time_params = {'M': M, 'indexThreadQty': num_build_threads, 'efConstruction': ef_construction}
+    index_time_params = {'indexThreadQty': num_build_threads, 'efConstruction': ef_construction}
     index.createIndex(index_time_params)
     
     end = time.monotonic()
@@ -172,18 +173,7 @@ def main():
         global_thread_count = args.n_build_threads
         per_index_thread_count = global_thread_count // 3
 
-        hnsw_index = train_hnsw_index(
-            train_data=data,
-            M=args.M,
-            ef_construction=args.ef_construction,
-            num_build_threads=per_index_thread_count,
-        )
-        flatnav_index = train_flatnav_index(
-            train_data=data,
-            M=args.M,
-            ef_construction=args.ef_construction,
-            num_build_threads=per_index_thread_count,
-        )
+        print(f"Building swgraph index for {d} dimensions")
         swgraph_index = train_swgraph_index(
             train_data=data,
             M=args.M,
@@ -191,36 +181,73 @@ def main():
             num_build_threads=per_index_thread_count,
         )
 
+        print(f"Building hnsw and flatnav index for {d} dimensions")
+        hnsw_index = train_hnsw_index(
+            train_data=data,
+            M=args.M,
+            ef_construction=args.ef_construction,
+            num_build_threads=per_index_thread_count,
+        )
+
+        print(f"Building flatnav index for {d} dimensions")
+        flatnav_index = train_flatnav_index(
+            train_data=data,
+            M=args.M,
+            ef_construction=args.ef_construction,
+            num_build_threads=per_index_thread_count,
+        )
+
+
         # Select a sample of 10k queries randomly from teh dataset
         queries = data[np.random.choice(data.shape[0], args.n_queries, replace=False)]
         ground_truth = np.load(full_path.replace(".npy", "_ground_truth.npy"))
+
         ef_search_values = [100, 200, 300, 500, 1000, 2000, 5000, 10000, 20000]
+
+        metrics_dict = {}
+
         for ef_search in ef_search_values:
+            logger.info("Searching with ef_search=%d", ef_search)
+            print("Searching with ef_search=%d", ef_search)
             # Compute recall, distance computations and latency
-            hnsw_metrics = compute_metrics(
+            hnsw_metrics: dict[str, float] = compute_metrics(
                 requested_metrics=["recall", "distance_computations", "latency_p50"],
                 index=hnsw_index,
                 queries=queries,
                 ef_search=ef_search,
+                ground_truth=ground_truth,
                 k=10,
             )
-            flatnav_metrics = compute_metrics(
+            flatnav_metrics: dict[str, float] = compute_metrics(
                 requested_metrics=["recall", "distance_computations", "latency_p50"],
                 index=flatnav_index,
                 queries=queries,
                 ef_search=ef_search,
+                ground_truth=ground_truth,
                 k=10,
             )
+
+            # Add metrics to the dictionary 
+            if "flatnav" not in metrics_dict:
+                metrics_dict["flatnav"] = {}
+            if "hnsw" not in metrics_dict:
+                metrics_dict["hnsw"] = {}
+            if "swgraph" not in metrics_dict:
+                metrics_dict["swgraph"] = {}
+
+            metrics_dict["flatnav"].update(flatnav_metrics)
+            metrics_dict["hnsw"].update(hnsw_metrics)
+
+        # Serialize the metrics dictionary to disk as JSON 
+        metrics_path = os.path.join(
+            REPRODUCIBILITY_EXPERIMENTS_PATH, f"metrics_{d}.json"
+        )
+        with open(metrics_path, "w") as f:
+            json.dump(metrics_dict, f)
+
+
 
 
 if __name__ == "__main__":
     logger.info("Starting experiments")
-    args = parse_args()
-    dimensions = [4, 8]
-    for dim in dimensions:
-        print(f"Processing dimension {dim}")
-        logger.info(f"Processing dimension {dim}")
-        full_path = os.path.join(
-            REPRODUCIBILITY_EXPERIMENTS_PATH, f"iid_uniform_{dim}.npy"
-        )
-        generate_hypercube_dataset(args.dataset_size, dim, full_path)
+    main()

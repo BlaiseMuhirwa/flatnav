@@ -693,7 +693,7 @@ hnsw-sw-graph-reproducibility:
 		--n-queries 10000 \
 		--ef-construction 100 \
 		--ef-search 100 \
-		--n-build-threads 48 \
+		--n-build-threads 24 \
 		--n-search-threads 1
 
 ################################
