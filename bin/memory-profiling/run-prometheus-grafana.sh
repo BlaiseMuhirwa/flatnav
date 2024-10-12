@@ -30,6 +30,7 @@ docker run \
     -d \
     -p 9090:9090 \
     -v ${PROMETHEUS_CONFIG_FILE}:/etc/prometheus/prometheus.yml \
+    --name=prometheus \
     prom/prometheus
 
 # Start Grafana
