@@ -18,6 +18,8 @@
         <script src="_static/documentation_options.js?v=d45e8c67"></script>
         <script src="_static/doctools.js?v=888ff710"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -47,11 +49,13 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">FlatNav</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#near-neighbor-graph-reordering">Near Neighbor Graph Reordering</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#support-for-simd-extensions">Support for SIMD Extensions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#getting-started-in-python">Getting Started in Python</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#getting-started-in-c">Getting Started in C++</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#near-neighbor-graph-reordering">Near Neighbor Graph Reordering</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#datasets-from-ann-benchmarks">Datasets from ANN-Benchmarks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#using-custom-datasets">Using Custom Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#experimental-api-and-future-extensions">Experimental API and Future Extensions</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="flatnav_python.html">FlatNav Index Module</a></li>
@@ -88,33 +92,22 @@
 Thanks to various graph re-ordering implementation techniques from <a class="reference external" href="https://arxiv.org/pdf/2104.03221.pdf">Coleman et al.</a>, optimization using SIMD intrinsics, and the design that leverages a single-layered
 in-memory index, FlatNav provides billion-scale vector search with high recall, SoTA query latency and
 significant memory savings.</p>
-<section id="near-neighbor-graph-reordering">
-<h2>Near Neighbor Graph Reordering<a class="headerlink" href="#near-neighbor-graph-reordering" title="Link to this heading"></a></h2>
-<p>We provide various ways to re-order nodes in the graph to improve query latency. To reproduce our experiments, there are three tools that can be run:</p>
-<ul class="simple">
-<li><p><strong>construct</strong> - creates a near neighbor index from a data file</p></li>
-<li><p><strong>reorder</strong> - applies graph reordering to permute the node ordering of the index</p></li>
-<li><p><strong>query</strong> - queries the index and computes recall and other performance metrics</p></li>
-</ul>
-<p>The tools are largely self-documenting and will provide help if run without any command line arguments. Note that the reordering tools can generally run without needing access to the dataset, queries or distance metrics (unless profile-guided reordering is used).</p>
-<p>For python examples that involve re-ordering, you can run <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/experiments/run-benchmark.py">run-benchmark.py</a> with <code class="docutils literal notranslate"><span class="pre">--reodering-strategies</span> <span class="pre">gorder</span> <span class="pre">rcm</span></code>. See example runs in the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/experiments/Makefile">Makefile</a>.</p>
-</section>
 <section id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
-<p>FlatNav is implemented in C++ with a complete Python extension with <a class="reference external" href="https://uscilab.github.io/cereal/">cereal</a> as the only external dependency. The C++ library can be built from source using CMake.</p>
-<p>FlatNav is supported on x86-64 machines on linux and MacOS (we can extend this to windows if there is sufficient interest). To build from source
-you will need</p>
+<p>FlatNav is implemented in C++ with a complete Python extension with <a class="reference external" href="https://uscilab.github.io/cereal/">cereal</a> as the only external dependency. This is a header-only library, so there is nothing to build. You can just include the necessary headers in your existing code.</p>
+<p>FlatNav is supported on x86-64 machines on linux and MacOS (we can extend this to windows if there is sufficient interest). To get the C++ library working and run examples under the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools">tools</a> directory, you will need</p>
 <ul class="simple">
 <li><p>C++17 compiler with OpenMP support (version &gt;= 2.0)</p></li>
 <li><p>CMake (version &gt;= 3.14)</p></li>
 </ul>
-<p>We provide some helpful scripts for installing the above in the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav-experimental/tree/main/bin">bin</a> directory.</p>
-<p>To build the library with CMake, run</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/BlaiseMuhirwa/flatnav-experimental.git<span class="w"> </span>--recurse-submodules
-$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>flatnav-experimental
-$<span class="w"> </span>./bin/build.sh<span class="w"> </span>-h
+<p>We provide some helpful scripts for installing the above in the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/tree/main/bin">bin</a> directory.</p>
+<p>To generate the library with CMake and compile examples, run</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/BlaiseMuhirwa/flatnav.git<span class="w"> </span>--recurse-submodules
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>flatnav
+$<span class="w"> </span>./bin/build.sh<span class="w"> </span>-e
 </pre></div>
 </div>
+<p>You can get all options available with the <code class="docutils literal notranslate"><span class="pre">build.sh</span></code> script by passing it the <code class="docutils literal notranslate"><span class="pre">-h</span></code> argument.</p>
 <p>This will display all available build options:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>Usage<span class="w"> </span>./build.sh<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
 
@@ -131,7 +124,7 @@ Example<span class="w"> </span>Usage:
 <span class="w">  </span>./build.sh<span class="w"> </span>-t<span class="w"> </span>-e<span class="w"> </span>-v
 </pre></div>
 </div>
-<p>To build the Python bindings, follow instructions <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/flatnav_python/README.md">here</a>. There are also examples for how to use the library to build an index and run queries on top of it <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav-experimental/blob/main/flatnav_python/unit_tests/test_index.py">here</a>.</p>
+<p>To build the Python bindings, follow instructions <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/flatnav_python/README.md">here</a>. There are also examples for how to use the library to build an index and run queries on top of it <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/flatnav_python/unit_tests/test_index.py">here</a>.</p>
 </section>
 <section id="support-for-simd-extensions">
 <h2>Support for SIMD Extensions<a class="headerlink" href="#support-for-simd-extensions" title="Link to this heading"></a></h2>
@@ -141,7 +134,7 @@ Example<span class="w"> </span>Usage:
 <tr class="row-odd"><th class="head"><p>Operation</p></th>
 <th class="head"><p>x86_64</p></th>
 <th class="head"><p>arm64v8</p></th>
-<th class="head"><p>Apple silicone</p></th>
+<th class="head"><p>Apple silicon</p></th>
 </tr>
 </thead>
 <tbody>
@@ -155,33 +148,210 @@ Example<span class="w"> </span>Usage:
 <td><p>No SIMD support</p></td>
 <td><p>No SIMD support</p></td>
 </tr>
+<tr class="row-even"><td><p>UINT8 L2 distance</p></td>
+<td><p>AVX512</p></td>
+<td><p>No SIMD support</p></td>
+<td><p>No SIMD support</p></td>
+</tr>
+<tr class="row-odd"><td><p>INT8 L2 distance</p></td>
+<td><p>SSE</p></td>
+<td><p>No SIMD support</p></td>
+<td><p>No SIMD support</p></td>
+</tr>
 </tbody>
 </table>
 </section>
+<section id="getting-started-in-python">
+<h2>Getting Started in Python<a class="headerlink" href="#getting-started-in-python" title="Link to this heading"></a></h2>
+<p>Once you’ve built the python bindings and you have a dataset you want to index as a numpy array, you can construct the index as shown below. This will allocate memory and create a directed graph with vectors as nodes.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">flatnav</span>
+<span class="kn">from</span> <span class="nn">flatnav.data_type</span> <span class="kn">import</span> <span class="n">DataType</span>
+
+<span class="c1"># Get your numpy-formatted dataset.</span>
+<span class="n">dataset_size</span> <span class="o">=</span> <span class="mi">1_000_000</span>
+<span class="n">dataset_dimension</span> <span class="o">=</span> <span class="mi">128</span>
+<span class="n">dataset_to_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">dataset_size</span><span class="p">,</span> <span class="n">dataset_dimension</span><span class="p">)</span>
+
+<span class="c1"># Define index construction parameters.</span>
+<span class="n">distance_type</span> <span class="o">=</span> <span class="s2">&quot;l2&quot;</span>
+<span class="n">max_edges_per_node</span> <span class="o">=</span> <span class="mi">32</span>
+<span class="n">ef_construction</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="n">num_build_threads</span> <span class="o">=</span> <span class="mi">16</span>
+
+<span class="c1"># Create index configuration and pre-allocate memory</span>
+<span class="n">index</span> <span class="o">=</span> <span class="n">flatnav</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">distance_type</span><span class="o">=</span><span class="n">distance_type</span><span class="p">,</span>
+    <span class="n">index_data_type</span><span class="o">=</span><span class="n">DataType</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+    <span class="n">dim</span><span class="o">=</span><span class="n">dim</span><span class="p">,</span>
+    <span class="n">dataset_size</span><span class="o">=</span><span class="n">dataset_size</span><span class="p">,</span>
+    <span class="n">max_edges_per_node</span><span class="o">=</span><span class="n">max_edges_per_node</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">collect_stats</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">index</span><span class="o">.</span><span class="n">set_num_threads</span><span class="p">(</span><span class="n">num_build_threads</span><span class="p">)</span>
+
+<span class="c1"># Now index the dataset</span>
+<span class="n">index</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">dataset_to_index</span><span class="p">,</span> <span class="n">ef_construction</span><span class="o">=</span><span class="n">ef_construction</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Note that we specified <code class="docutils literal notranslate"><span class="pre">DataType.float32</span></code> to indicate that we want to build an index with vectors represented with <code class="docutils literal notranslate"><span class="pre">float</span></code> type. If you want to use a different precision, such as <code class="docutils literal notranslate"><span class="pre">uint8_t</span></code> or <code class="docutils literal notranslate"><span class="pre">int8_t</span></code> (which are the only other ones currently supported), you can use <code class="docutils literal notranslate"><span class="pre">DataType.uint8</span></code> or <code class="docutils literal notranslate"><span class="pre">DataType.int8</span></code>.
+The distance type can either be <code class="docutils literal notranslate"><span class="pre">l2</span></code> or <code class="docutils literal notranslate"><span class="pre">angular</span></code>. The <code class="docutils literal notranslate"><span class="pre">collect_stats</span></code> flag will record the number of distance evaluations.</p>
+<p>To query the index we just created by generating IID vectors from the standard normal distribution, we do it as follows</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span>
+<span class="c1"># Set query-time parameters</span>
+<span class="n">k</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="n">ef_search</span> <span class="o">=</span> <span class="mi">100</span>
+
+<span class="c1"># Run k-NN query with a single thread.</span>
+<span class="n">index</span><span class="o">.</span><span class="n">set_num_threads</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="n">queries</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="n">dataset_to_index</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="k">for</span> <span class="n">query</span> <span class="ow">in</span> <span class="n">queries</span><span class="p">:</span>
+  <span class="n">distances</span><span class="p">,</span> <span class="n">indices</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">search_single</span><span class="p">(</span>
+    <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+    <span class="n">ef_search</span><span class="o">=</span><span class="n">ef_search</span><span class="p">,</span>
+    <span class="n">K</span><span class="o">=</span><span class="n">k</span><span class="p">,</span>
+  <span class="p">)</span>
+
+</pre></div>
+</div>
+<p>You can parallelize the search by setting the number of threads to a desired number and using a different API that also returns the exact same results as <code class="docutils literal notranslate"><span class="pre">search_single</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">index</span><span class="o">.</span><span class="n">set_num_threads</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">distances</span><span class="p">,</span> <span class="n">indices</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">queries</span><span class="o">=</span><span class="n">queries</span><span class="p">,</span> <span class="n">ef_search</span><span class="o">=</span><span class="n">ef_search</span><span class="p">,</span> <span class="n">K</span><span class="o">=</span><span class="n">k</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="getting-started-in-c">
+<h2>Getting Started in C++<a class="headerlink" href="#getting-started-in-c" title="Link to this heading"></a></h2>
+<p>As mentioned earlier, there is nothing to build since this is header-only. We will translate the above Python code in C++ to illustrate how to use the C++ API.</p>
+<div class="highlight-c++ notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cstdint&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;flatnav/index/Index.h&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;flatnav/distances/SquaredL2Distance.h&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;flatnav/distances/DistanceInterface.h&gt;</span>
+
+<span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">dist_t</span><span class="o">&gt;</span>
+<span class="kt">void</span><span class="w"> </span><span class="n">run_knn_search</span><span class="p">(</span><span class="n">Index</span><span class="o">&lt;</span><span class="n">dist_t</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">&gt;&gt;*</span><span class="w"> </span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="kt">float</span><span class="w"> </span><span class="o">*</span><span class="n">queries</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">*</span><span class="w"> </span><span class="n">gtruth</span><span class="p">,</span>
+<span class="w">        </span><span class="kt">int</span><span class="w"> </span><span class="n">ef_search</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">K</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">num_queries</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">num_gtruth</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">dim</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+
+<span class="w">  </span><span class="kt">float</span><span class="w"> </span><span class="n">mean_recall</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">num_queries</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">float</span><span class="w"> </span><span class="o">*</span><span class="n">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">queries</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">dim</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="o">*</span><span class="n">g</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">gtruth</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">num_gtruth</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">pair</span><span class="o">&lt;</span><span class="kt">float</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span>
+<span class="w">        </span><span class="n">index</span><span class="o">-&gt;</span><span class="n">search</span><span class="p">(</span><span class="n">q</span><span class="p">,</span><span class="w"> </span><span class="n">K</span><span class="p">,</span><span class="w"> </span><span class="n">ef_search</span><span class="p">);</span>
+
+<span class="w">    </span><span class="kt">float</span><span class="w"> </span><span class="n">recall</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">K</span><span class="p">;</span><span class="w"> </span><span class="n">j</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">K</span><span class="p">;</span><span class="w"> </span><span class="n">l</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="n">j</span><span class="p">].</span><span class="n">second</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">g</span><span class="p">[</span><span class="n">l</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="n">recall</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recall</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">recall</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recall</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">K</span><span class="p">;</span>
+<span class="w">    </span><span class="n">mean_recall</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mean_recall</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">recall</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+
+
+<span class="kt">int</span><span class="w"> </span><span class="n">main</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">argc</span><span class="p">,</span><span class="w"> </span><span class="kt">char</span><span class="o">**</span><span class="w"> </span><span class="n">argv</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">dataset_size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1000000</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">dataset_dimension</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">128</span><span class="p">;</span>
+
+<span class="w">  </span><span class="c1">// We skip the random data generation, but you can do that with std::mt19937, std::random_device</span>
+<span class="w">  </span><span class="c1">// and std::normal_distribution</span>
+<span class="w">  </span><span class="c1">// std::vector&lt;float&gt; dataset_to_index;</span>
+
+<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">max_edges_per_node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">32</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">ef_construction</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
+
+<span class="w">  </span><span class="c1">// Create an index with l2 distance</span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">distance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SquaredL2Distance</span><span class="o">&lt;&gt;::</span><span class="n">create</span><span class="p">(</span><span class="n">dataset_dimension</span><span class="p">);</span>
+<span class="w">  </span><span class="k">auto</span><span class="o">*</span><span class="w"> </span><span class="n">index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Index</span><span class="o">&lt;</span><span class="n">SquaredL2Distance</span><span class="o">&lt;</span><span class="n">DataType</span><span class="o">::</span><span class="n">float32</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">      </span><span class="cm">/* dist = */</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">distance</span><span class="p">),</span><span class="w"> </span><span class="cm">/* dataset_size = */</span><span class="w"> </span><span class="n">dataset_size</span><span class="p">,</span>
+<span class="w">      </span><span class="cm">/* max_edges_per_node = */</span><span class="w"> </span><span class="n">max_edges_per_node</span><span class="p">);</span>
+
+<span class="w">  </span><span class="n">index</span><span class="o">-&gt;</span><span class="n">setNumThreads</span><span class="p">(</span><span class="n">build_num_threads</span><span class="p">);</span>
+
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">labels</span><span class="p">(</span><span class="n">dataset_size</span><span class="p">);</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">iota</span><span class="p">(</span><span class="n">labels</span><span class="p">.</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">labels</span><span class="p">.</span><span class="n">end</span><span class="p">(),</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+<span class="w">  </span><span class="n">index</span><span class="o">-&gt;</span><span class="k">template</span><span class="w"> </span><span class="n">addBatch</span><span class="o">&lt;</span><span class="kt">float</span><span class="o">&gt;</span><span class="p">(</span><span class="cm">/* data = */</span><span class="w"> </span><span class="p">(</span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">dataset_to_index</span><span class="p">,</span>
+<span class="w">                                  </span><span class="cm">/* labels = */</span><span class="w"> </span><span class="n">labels</span><span class="p">,</span>
+<span class="w">                                  </span><span class="cm">/* ef_construction */</span><span class="w"> </span><span class="n">ef_construction</span><span class="p">);</span>
+
+<span class="w">  </span><span class="c1">// Now query the index and compute the recall</span>
+<span class="w">  </span><span class="c1">// We assume you have a ground truth (int*) array and a queries (float*) array</span>
+<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">ef_search</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">num_queries</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1000</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">num_gtruth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1000</span><span class="p">;</span>
+
+<span class="w">  </span><span class="c1">// Query the index and compute the recall.</span>
+<span class="w">  </span><span class="n">run_knn_search</span><span class="p">(</span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">queries</span><span class="p">,</span><span class="w"> </span><span class="n">gtruth</span><span class="p">,</span><span class="w"> </span><span class="n">ef_search</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">num_queries</span><span class="p">,</span><span class="w"> </span><span class="n">num_gtruth</span><span class="p">,</span><span class="w"> </span><span class="n">dataset_dimension</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="near-neighbor-graph-reordering">
+<h2>Near Neighbor Graph Reordering<a class="headerlink" href="#near-neighbor-graph-reordering" title="Link to this heading"></a></h2>
+<p>For a deeper analysis on graph re-ordering, refer to the original paper linked above.</p>
+<p>At a high level, graph re-ordering constructs a labeling function <span class="math notranslate nohighlight">\(P: V \to \{1, 2, ..., n \}\)</span> that maps connected nodes to labels that are close to each other such that node <span class="math notranslate nohighlight">\(v\)</span> is assigned to memory location <span class="math notranslate nohighlight">\(P(v)\)</span>. The goal of this construction is to improve cache efficiency.</p>
+<p>Two graph re-ordering strategies are available in FlatNav, namely</p>
+<ul class="simple">
+<li><p>GOrder</p></li>
+<li><p>Reverse Cuthill Mckee (RCM)</p></li>
+</ul>
+<p>GOrder constructs <span class="math notranslate nohighlight">\(P\)</span> by maximizing the number of shared edges among node blocks of size <span class="math notranslate nohighlight">\(w\)</span>. This improves cache efficiency because a block containing many overlapping nodes is likely to avoid cache  misses since each node’s neighbors are stored no further than <span class="math notranslate nohighlight">\(w\)</span> memory locations away. Formally, <span class="math notranslate nohighlight">\(P_{GO}\)</span> is expressed as</p>
+<p align="center">
+  <img src="./docs/assets/gorder.png" alt="GOrder Equation">
+</p>
+<p>where <span class="math notranslate nohighlight">\(S_s(u,v)\)</span> indicates whether the two nodes have a direct link and <span class="math notranslate nohighlight">\(S_n(u,v)\)</span> indicates how many neighbors they share in common.</p>
+<p>RCM, on the other hand, minimizes the bandwidth of the adjacency matrix, which is sparse and symmetric where bandwidth is the maximum distance of a non-zero element to the main diagonal. Formally, <span class="math notranslate nohighlight">\(P_{RCM}\)</span> is given by</p>
+<p align="center">
+  <img src="./docs/assets/rcm.png" alt="GOrder Equation">
+</p>
+<p>which effectively minimizes the maximum label assignment difference between any two connected nodes.</p>
+<p>To run graph re-ordering,</p>
+<ul class="simple">
+<li><p>Construct a near neighbor index from a given data file. See the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools/construct_npy.cpp">construct_npy.cpp</a> for a C++ example that builds an index
+from a <code class="docutils literal notranslate"><span class="pre">.npy</span></code> file and serializes it to disk.</p></li>
+<li><p>Re-order the nodes in the graph by applying one of the available graph-reordering methods among Reverse Cuthill Mckee (RCM) or Gorder (graph-order). A C++ example that defaults to the <code class="docutils literal notranslate"><span class="pre">gorder</span></code> method can be found in the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools/query_npy.cpp">query_npy.cpp</a>.</p></li>
+<li><p>Query a re-ordered index. This will also compute the recall and the average query latency.</p></li>
+</ul>
+<p>To re-order the index after constructing it in Python can be done in one line of code</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="o">...</span>
+<span class="c1"># You can also chain &quot;gorder&quot; and &quot;rcm&quot; by using [&quot;gorder&quot;, &quot;rcm&quot;]</span>
+<span class="n">index</span><span class="o">.</span><span class="n">reorder</span><span class="p">(</span><span class="n">strategies</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;gorder&quot;</span><span class="p">])</span>
+</pre></div>
+</div>
+</section>
 <section id="datasets-from-ann-benchmarks">
 <h2>Datasets from ANN-Benchmarks<a class="headerlink" href="#datasets-from-ann-benchmarks" title="Link to this heading"></a></h2>
-<p>ANN-Benchmarks provides HDF5 files for a standard benchmark of near-neighbor datasets, queries and ground-truth results. To run on these datasets, we provide a set of tools to process numpy (NPY) files: construct_npy, reorder_npy and query_npy.</p>
+<p>ANN-Benchmarks provide HDF5 files for a standard benchmark of near-neighbor datasets, queries and ground-truth results. To index any of these datasets you can use the <code class="docutils literal notranslate"><span class="pre">construct_npy.cpp</span></code> and <code class="docutils literal notranslate"><span class="pre">query_npy.cpp</span></code> files linked above.</p>
 <p>To generate the <a class="reference external" href="https://github.com/erikbern/ann-benchmarks?tab=readme-ov-file#data-sets">ANNS benchmark datasets</a>, run the following script</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./bin/download_anns_datasets.sh<span class="w"> </span>&lt;dataset-name&gt;<span class="w"> </span><span class="o">[</span>--normalize<span class="o">]</span>
 </pre></div>
 </div>
-<p>For datasets that use the angular/cosine similarity, you will need to use <code class="docutils literal notranslate"><span class="pre">--normalize</span></code> option so that the dataset is normalized.
-Available dataset names include:</p>
-<ul class="simple">
-<li><p>mnist-784-euclidean</p></li>
-<li><p>sift-128-euclidean</p></li>
-<li><p>glove-25-angular</p></li>
-<li><p>glove-50-angular</p></li>
-<li><p>glove-100-angular</p></li>
-<li><p>glove-200-angular</p></li>
-<li><p>deep-image-96-angular</p></li>
-<li><p>gist-960-euclidean</p></li>
-<li><p>nytimes-256-angular</p></li>
-</ul>
+<p>For datasets that use the angular/cosine similarity, you will need to use <code class="docutils literal notranslate"><span class="pre">--normalize</span></code> option so that the distances are computed correctly.</p>
+<p>Available dataset names include:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>_<span class="w"> </span>mnist-784-euclidean
+_<span class="w"> </span>sift-128-euclidean
+_<span class="w"> </span>glove-25-angular
+_<span class="w"> </span>glove-50-angular
+_<span class="w"> </span>glove-100-angular
+_<span class="w"> </span>glove-200-angular
+_<span class="w"> </span>deep-image-96-angular
+_<span class="w"> </span>gist-960-euclidean
+_<span class="w"> </span>nytimes-256-angular
+</pre></div>
+</div>
 </section>
-<section id="using-custom-datasets">
-<h2>Using Custom Datasets<a class="headerlink" href="#using-custom-datasets" title="Link to this heading"></a></h2>
-<p>The most straightforward way to include a new dataset for this evaluation is to put it into either the ANN-Benchmarks (NPY) format or to put it into the Big ANN-Benchmarks format. The NPY format requires a float32 2-D Numpy array for the train and test sets and an integer array for the ground truth. The Big ANN-Benchmarks format uses the following binary representation. For the train and test data, there is a 4-byte little-endian unsigned integer number of points followed by a 4-byte little-endian unsigned integer number of dimensions. This is followed by a flat list of <code class="docutils literal notranslate"><span class="pre">num_points</span> <span class="pre">*</span> <span class="pre">num_dimensions</span></code> values, where each value is a 32-bit float or an 8-bit integer (depending on the dataset type). The ground truth files consist of a 32-bit integer number of queries, followed by a 32-bit integer number of ground truth results for each query. This is followed by a flat list of ground truth results.</p>
+<section id="experimental-api-and-future-extensions">
+<h2>Experimental API and Future Extensions<a class="headerlink" href="#experimental-api-and-future-extensions" title="Link to this heading"></a></h2>
+<p>You can find the current work under development under the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/development-features">development-features</a> directory.
+While some of these features may be usable, they are not guarranteed to be stable. Stable features will be expected to be part of the PyPI releases.
+The most notable on-going extension that’s under development is product quantization.</p>
 </section>
 </section>
 
