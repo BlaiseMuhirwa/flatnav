@@ -50,7 +50,7 @@ To build the Python bindings, follow instructions [here](https://github.com/Blai
 
 We currently support SIMD extensions for certain platforms as detailed below. 
 
-| Operation | x86_64 | arm64v8 | Apple silicone |
+| Operation | x86_64 | arm64v8 | Apple silicon |
 |-----------|--------|---------|-----------------|
 | FP32 Inner product |SSE, AVX, AVX512 | No SIMD support | No SIMD support |
 | FP32 L2 distance |SSE, AVX, AVX512| No SIMD support | No SIMD support |
@@ -66,7 +66,6 @@ Once you've built the python bindings and you have a dataset you want to index a
 import numpy as np
 import flatnav
 from flatnav.data_type import DataType 
-from flatnav.index import create_index
 
 # Get your numpy-formatted dataset. M determines 
 dataset_size = 1_000_000
@@ -95,7 +94,7 @@ index.set_num_threads(num_build_threads)
 index.add(data=dataset_to_index, ef_construction=ef_construction)
 ```
 
-Note that we specified `DataType.float32` to indicate that we want to build an index with vectors represented with `float` type. If you want to use a different precision, such as `uint8_t` or `int8_t` (which are the only other ones curreently supported), you can use `DataType.uint8` or `DataType.int8`.
+Note that we specified `DataType.float32` to indicate that we want to build an index with vectors represented with `float` type. If you want to use a different precision, such as `uint8_t` or `int8_t` (which are the only other ones currently supported), you can use `DataType.uint8` or `DataType.int8`.
 The distance type can either be `l2` or `angular`. The `collect_stats` flag will record the number of distance evaluations.
 
 To query the index we just created by generating IID vectors from the standard normal distribution, we do it as follows 
@@ -128,7 +127,7 @@ distances, indices = index.search(queries=queries, ef_search=ef_search, K=k)
 
 ### Getting Started in C++
 
-As mentioned earlier, there is nothing to build since this is heaer-only. We will translate the above Python code in C++ to illustrate how to use the C++ API. 
+As mentioned earlier, there is nothing to build since this is header-only. We will translate the above Python code in C++ to illustrate how to use the C++ API. 
 
 ```c++
 #include <cstdint>
