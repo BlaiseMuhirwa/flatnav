@@ -67,7 +67,7 @@ import numpy as np
 import flatnav
 from flatnav.data_type import DataType 
 
-# Get your numpy-formatted dataset. M determines 
+# Get your numpy-formatted dataset.
 dataset_size = 1_000_000
 dataset_dimension = 128
 dataset_to_index = np.random.randn(dataset_size, dataset_dimension)
@@ -202,19 +202,22 @@ int main(int argc, char** argv) {
 
 For a deeper analysis on graph re-ordering, refer to the original paper linked above. 
 
-At a high level, graph re-ordering constructs a labeling function $P: V \to \{1, 2, ..., n \}$ that map connected nodes to labels that are close to each other such that node $v$ is assigned to memory location $P(v)$. The goal of this construction is to improve cache efficiency. 
+At a high level, graph re-ordering constructs a labeling function $P: V \to \{1, 2, ..., n \}$ that maps connected nodes to labels that are close to each other such that node $v$ is assigned to memory location $P(v)$. The goal of this construction is to improve cache efficiency. 
 
 Two graph re-ordering strategies are available in FlatNav, namely 
 * GOrder 
 * Reverse Cuthill Mckee (RCM)
 
 GOrder constructs $P$ by maximizing the number of shared edges among node blocks of size $w$. This improves cache efficiency because a block containing many overlapping nodes is likely to avoid cache  misses since each node's neighbors are stored no further than $w$ memory locations away. Formally, $P_{GO}$ is expressed as 
+
 \[
   P_{GO} = \argmax_{P} \sum_{u, v \in V s.t |P(u)-P(v)| < w} S_s(u,v) + S_n(u,v)
 \]
+
 where $S_s(u,v)$ indicates whether the two nodes have a direct link and $S_n(u,v)$ indicates how many neighbors they share in common.
 
 RCM, on the other hand, minimizes the bandwidth of the adjacency matrix, which is sparse and symmetric where bandwidth is the maximum distance of a non-zero element to the main diagonal. Formally, $P_{RCM}$ is given by 
+
 \[
 P_{RCM} = \argmin_{P} \max_{(u,v) \in E}|P(u) - P(v)|
 \]
