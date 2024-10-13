@@ -11,6 +11,10 @@ build
 # Virtual environments 
 .env 
 
+# Experimental assets 
+metrics
+node-access-distributions
+
 # Python wheel related folders/files
 flatnav_python/flatnav.egg-info/
 flatnav_python/poetry.lock

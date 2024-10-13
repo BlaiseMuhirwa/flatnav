@@ -6,7 +6,7 @@
 #include <flatnav/util/Datatype.h>
 #include <fstream>
 #include <iostream>
-#include <quantization/ProductQuantization.h>
+#include <developmental-features/quantization/ProductQuantization.h>
 #include <random>
 #include <utility>
 #include <vector>

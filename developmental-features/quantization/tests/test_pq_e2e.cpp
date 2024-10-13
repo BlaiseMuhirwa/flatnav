@@ -3,7 +3,7 @@
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <gtest/gtest.h>
 #include <memory>
-#include <quantization/ProductQuantization.h>
+#include <developmental-features/quantization/ProductQuantization.h>
 #include <random>
 
 using flatnav::quantization::ProductQuantizer;

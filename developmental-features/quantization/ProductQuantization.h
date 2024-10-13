@@ -20,8 +20,8 @@
 #include <omp.h>
 #endif
 
-#include <quantization/CentroidsGenerator.h>
-#include <quantization/Utils.h>
+#include <developmental-features/quantization/CentroidsGenerator.h>
+#include <developmental-features/quantization/Utils.h>
 #include <queue>
 #include <stdexcept>
 #include <string>
