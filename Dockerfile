@@ -85,8 +85,7 @@ WORKDIR ${FLATNAV_PATH}
 COPY flatnav/ ./flatnav/
 COPY flatnav_python/ ./flatnav_python/
 COPY experiments/ ./experiments/
-# We don't need quantization for now, but it doesn't hurt to have it.
-COPY quantization/ ./quantization/
+
 # Copy external dependencies (for now only cereal)
 COPY external/ ./external/
 

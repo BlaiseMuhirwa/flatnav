@@ -614,9 +614,6 @@ install-hnswlib:
 	poetry run python setup.py bdist_wheel 
 	poetry add hnswlib-original/python_bindings/dist/*.whl
 
-s3-push:
-	poetry run python push-snapshot-to-s3.py
-
 cleanup:
 	rm -rf hnswlib-original 
 
