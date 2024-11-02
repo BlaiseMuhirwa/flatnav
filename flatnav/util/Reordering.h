@@ -24,8 +24,7 @@
 namespace flatnav::util {
 
 template <typename node_id_t>
-std::vector<node_id_t>
-gOrder(std::vector<std::vector<node_id_t>> &outdegree_table, const int w) {
+std::vector<node_id_t> gOrder(std::vector<std::vector<node_id_t>>& outdegree_table, const int w) {
   /* Simple explanation of the Gorder Algorithm:
   insert all v into Q each with priority 0
   select a start node into P
@@ -55,7 +54,7 @@ gOrder(std::vector<std::vector<node_id_t>> &outdegree_table, const int w) {
   // create table of in-degrees
   std::vector<std::vector<node_id_t>> indegree_table(cur_num_nodes);
   for (node_id_t node = 0; node < cur_num_nodes; node++) {
-    for (node_id_t &edge : outdegree_table[node]) {
+    for (node_id_t& edge : outdegree_table[node]) {
       indegree_table[edge].push_back(node);
     }
   }
@@ -72,15 +71,15 @@ gOrder(std::vector<std::vector<node_id_t>> &outdegree_table, const int w) {
     node_id_t v_e = P[i - 1];
     // ve = newest node in window
     // for each node u in out-edges of ve:
-    for (node_id_t &u : outdegree_table[v_e]) {
+    for (node_id_t& u : outdegree_table[v_e]) {
       Q.increment(u);
     }
     // for each node u in in-edges of v_e:
-    for (node_id_t &u : indegree_table[v_e]) {
+    for (node_id_t& u : indegree_table[v_e]) {
       // if u in Q, increment priority of u
       Q.increment(u);
       // for each node v in out-edges of u:
-      for (node_id_t &v : outdegree_table[u]) {
+      for (node_id_t& v : outdegree_table[u]) {
         Q.increment(v);
       }
     }
@@ -88,12 +87,12 @@ gOrder(std::vector<std::vector<node_id_t>> &outdegree_table, const int w) {
     if (i > w + 1) {
       node_id_t v_b = P[i - w - 1];
       // for each node u in out-edges of vb:
-      for (node_id_t &u : outdegree_table[v_b]) {
+      for (node_id_t& u : outdegree_table[v_b]) {
         Q.decrement(u);
       }
 
       // for each node u in in-edges of v_b
-      for (node_id_t &u : indegree_table[v_b]) {
+      for (node_id_t& u : indegree_table[v_b]) {
         // if u in Q, increment priority of u
         // Note: it doesn't seem to matter whether this particular
         // operation is an increment or a decrement. In a previous
@@ -101,7 +100,7 @@ gOrder(std::vector<std::vector<node_id_t>> &outdegree_table, const int w) {
         // technically wrong) but the performance was nearly the same.
         Q.decrement(u);
         // for each node v in out-edges of u:
-        for (node_id_t &v : outdegree_table[u]) {
+        for (node_id_t& v : outdegree_table[u]) {
           Q.decrement(v);
         }
       }
@@ -118,8 +117,7 @@ gOrder(std::vector<std::vector<node_id_t>> &outdegree_table, const int w) {
 }
 
 template <typename node_id_t>
-std::vector<node_id_t>
-rcmOrder(std::vector<std::vector<node_id_t>> &outdegree_table) {
+std::vector<node_id_t> rcmOrder(std::vector<std::vector<node_id_t>>& outdegree_table) {
 
   int cur_num_nodes = outdegree_table.size();
   std::vector<std::pair<node_id_t, int>> sorted_nodes;
@@ -131,10 +129,10 @@ rcmOrder(std::vector<std::vector<node_id_t>> &outdegree_table) {
     degrees.push_back(deg);
   }
 
-  std::sort(
-      sorted_nodes.begin(), sorted_nodes.end(),
-      [](const std::pair<node_id_t, int> &a,
-         const std::pair<node_id_t, int> &b) { return a.second < b.second; });
+  std::sort(sorted_nodes.begin(), sorted_nodes.end(),
+            [](const std::pair<node_id_t, int>& a, const std::pair<node_id_t, int>& b) {
+              return a.second < b.second;
+            });
 
   std::vector<node_id_t> P;
   auto visited_set = VisitedSet(cur_num_nodes);
@@ -151,14 +149,13 @@ rcmOrder(std::vector<std::vector<node_id_t>> &outdegree_table) {
 
       // get list of neighbors
       std::vector<std::pair<node_id_t, int>> neighbors;
-      for (auto &edge : outdegree_table[node]) {
+      for (auto& edge : outdegree_table[node]) {
         neighbors.push_back({edge, degrees[edge]});
       }
 
       // sort neighbors by degree (min degree first)
       std::sort(neighbors.begin(), neighbors.end(),
-                [](const std::pair<node_id_t, int> &a,
-                   const std::pair<node_id_t, int> &b) {
+                [](const std::pair<node_id_t, int>& a, const std::pair<node_id_t, int>& b) {
                   return a.second < b.second;
                 });
 
@@ -177,13 +174,12 @@ rcmOrder(std::vector<std::vector<node_id_t>> &outdegree_table) {
 
           // get list of neighbors of candidate
           std::vector<std::pair<node_id_t, int>> candidate_neighbors;
-          for (auto &edge : outdegree_table[candidate]) {
+          for (auto& edge : outdegree_table[candidate]) {
             candidate_neighbors.push_back({edge, degrees[edge]});
           }
           // sort neighbors by degree (min degree first)
           std::sort(candidate_neighbors.begin(), candidate_neighbors.end(),
-                    [](const std::pair<node_id_t, int> &a,
-                       const std::pair<node_id_t, int> &b) {
+                    [](const std::pair<node_id_t, int>& a, const std::pair<node_id_t, int>& b) {
                       return a.second < b.second;
                     });
           // add neighbors to queue
@@ -203,4 +199,4 @@ rcmOrder(std::vector<std::vector<node_id_t>> &outdegree_table) {
   return Pinv;
 }
 
-} // namespace flatnav::util
+}  // namespace flatnav::util

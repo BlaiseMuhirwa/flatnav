@@ -26,39 +26,39 @@ enum class DataType {
 /**
  * @brief Get a string representation of the data type
  */
-inline constexpr const char *name(DataType data_type) {
+inline constexpr const char* name(DataType data_type) {
   switch (data_type) {
-  case DataType::uint8:
-    return "uint8";
-  case DataType::uint16:
-    return "uint16";
-  case DataType::uint32:
-    return "uint32";
-  case DataType::uint64:
-    return "uint64";
-  case DataType::int8:
-    return "int8";
-  case DataType::int16:
-    return "int16";
-  case DataType::int32:
-    return "int32";
-  case DataType::int64:
-    return "int64";
-  case DataType::float16:
-    return "float16";
-  case DataType::float32:
-    return "float32";
-  case DataType::float64:
-    return "float64";
-  default:
-    return "undefined";
+    case DataType::uint8:
+      return "uint8";
+    case DataType::uint16:
+      return "uint16";
+    case DataType::uint32:
+      return "uint32";
+    case DataType::uint64:
+      return "uint64";
+    case DataType::int8:
+      return "int8";
+    case DataType::int16:
+      return "int16";
+    case DataType::int32:
+      return "int32";
+    case DataType::int64:
+      return "int64";
+    case DataType::float16:
+      return "float16";
+    case DataType::float32:
+      return "float32";
+    case DataType::float64:
+      return "float64";
+    default:
+      return "undefined";
   }
 }
 
 /**
  * @brief Get the data type from a string representation
  */
-inline constexpr DataType type(const std::string_view &data_type) {
+inline constexpr DataType type(const std::string_view& data_type) {
   if (data_type == "uint8") {
     return DataType::uint8;
   } else if (data_type == "uint16") {
@@ -91,42 +91,48 @@ inline constexpr DataType type(const std::string_view &data_type) {
  */
 inline constexpr size_t size(DataType data_type) {
   switch (data_type) {
-  case DataType::uint8:
-    return sizeof(uint8_t);
-  case DataType::uint16:
-    return sizeof(uint16_t);
-  case DataType::uint32:
-    return sizeof(uint32_t);
-  case DataType::uint64:
-    return sizeof(uint64_t);
-  case DataType::int8:
-    return sizeof(int8_t);
-  case DataType::int16:
-    return sizeof(int16_t);
-  case DataType::int32:
-    return sizeof(int32_t);
-  case DataType::int64:
-    return sizeof(int64_t);
-  case DataType::float16:
-    return sizeof(float) / 2;
-  case DataType::float32:
-    return sizeof(float);
-  case DataType::float64:
-    return sizeof(double);
-  default:
-    return 0;
+    case DataType::uint8:
+      return sizeof(uint8_t);
+    case DataType::uint16:
+      return sizeof(uint16_t);
+    case DataType::uint32:
+      return sizeof(uint32_t);
+    case DataType::uint64:
+      return sizeof(uint64_t);
+    case DataType::int8:
+      return sizeof(int8_t);
+    case DataType::int16:
+      return sizeof(int16_t);
+    case DataType::int32:
+      return sizeof(int32_t);
+    case DataType::int64:
+      return sizeof(int64_t);
+    case DataType::float16:
+      return sizeof(float) / 2;
+    case DataType::float32:
+      return sizeof(float);
+    case DataType::float64:
+      return sizeof(double);
+    default:
+      return 0;
   }
 }
 
 // Some nice template metaprogramming (TMP) to allow us to get compile-time
 // distance dispatching.
-template <DataType data_type> struct type_for_data_type;
+template <DataType data_type>
+struct type_for_data_type;
 
-template <> struct type_for_data_type<DataType::float32> {
+template <>
+struct type_for_data_type<DataType::float32> {
   using type = float;
 };
-template <> struct type_for_data_type<DataType::int8> { using type = int8_t; };
-template <> struct type_for_data_type<DataType::uint8> {
+template <>
+struct type_for_data_type<DataType::int8> {
+  using type = int8_t;
+};
+template <>
+struct type_for_data_type<DataType::uint8> {
   using type = uint8_t;
 };
 
@@ -151,7 +157,8 @@ template <> struct type_for_data_type<DataType::uint8> {
  * @tparam F A callable object
  * @tparam data_types The data types to iterate over
  */
-template <typename F, DataType... data_types> struct for_each_data_type;
+template <typename F, DataType... data_types>
+struct for_each_data_type;
 
 /**
  * @brief Template specialization for for_each_data_type when there are data
@@ -162,7 +169,7 @@ template <typename F, DataType... data_types> struct for_each_data_type;
  */
 template <typename F, DataType data_type, DataType... rest>
 struct for_each_data_type<F, data_type, rest...> {
-  static void apply(F &&f) {
+  static void apply(F&& f) {
     f.template operator()<data_type>();
     for_each_data_type<F, rest...>::apply(std::forward<F>(f));
   }
@@ -173,8 +180,9 @@ struct for_each_data_type<F, data_type, rest...> {
  * types to iterate over
  * @tparam F A callable object
  */
-template <typename F> struct for_each_data_type<F> {
-  static void apply(F &&) {}
+template <typename F>
+struct for_each_data_type<F> {
+  static void apply(F&&) {}
 };
 
-} // namespace flatnav::util
+}  // namespace flatnav::util

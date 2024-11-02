@@ -21,7 +21,7 @@
 namespace flatnav::quantization {
 
 class CentroidsGenerator {
-public:
+ public:
   /**
    * @brief Construct a new Centroids Generator object
    *
@@ -37,20 +37,21 @@ public:
    * @param verbose                   Whether to print verbose output
    * @param seed                      The seed for the random number generator
    */
-  CentroidsGenerator(uint32_t dim, uint32_t num_centroids,
-                     uint32_t num_iterations = 62, bool normalized = true,
-                     bool verbose = false, int seed = 3333)
-      : _dim(dim), _num_centroids(num_centroids),
-        _clustering_iterations(num_iterations), _normalized(normalized),
-        _verbose(verbose), _centroids_initialized(false), _seed(seed),
+  CentroidsGenerator(uint32_t dim, uint32_t num_centroids, uint32_t num_iterations = 62,
+                     bool normalized = true, bool verbose = false, int seed = 3333)
+      : _dim(dim),
+        _num_centroids(num_centroids),
+        _clustering_iterations(num_iterations),
+        _normalized(normalized),
+        _verbose(verbose),
+        _centroids_initialized(false),
+        _seed(seed),
         _initialization_type("default") {}
 
-  void initializeCentroids(
-      const float *data, uint64_t n,
-      const std::function<float(const float *, const float *)> &distance_func) {
+  void initializeCentroids(const float* data, uint64_t n,
+                           const std::function<float(const float*, const float*)>& distance_func) {
     auto initialization_type = _initialization_type;
-    std::transform(initialization_type.begin(), initialization_type.end(),
-                   initialization_type.begin(),
+    std::transform(initialization_type.begin(), initialization_type.end(), initialization_type.begin(),
                    [](unsigned char c) { return std::tolower(c); });
 
     if (_centroids.size() != _num_centroids * _dim) {
@@ -64,9 +65,8 @@ public:
     } else if (initialization_type == "hypercube") {
       hypercubeInitialize(data, n);
     } else {
-      throw std::invalid_argument(
-          "Invalid centroids initialization initialization type: " +
-          initialization_type);
+      throw std::invalid_argument("Invalid centroids initialization initialization type: " +
+                                  initialization_type);
     }
     _centroids_initialized = true;
   }
@@ -94,13 +94,11 @@ public:
    * @param distance_func The distance function to use (e.g. l2 distance or
    cosinde/inner product)
    */
-  void generateCentroids(
-      const float *vectors, const float *vec_weights, uint64_t n,
-      const std::function<float(const float *, const float *)> &distance_func) {
+  void generateCentroids(const float* vectors, const float* vec_weights, uint64_t n,
+                         const std::function<float(const float*, const float*)>& distance_func) {
     if (n < _num_centroids) {
       throw std::runtime_error(
-          "Invalid configuration. The number of centroids: " +
-          std::to_string(_num_centroids) +
+          "Invalid configuration. The number of centroids: " + std::to_string(_num_centroids) +
           " is bigger than the number of data points: " + std::to_string(n));
     }
 
@@ -110,8 +108,7 @@ public:
     std::vector<uint32_t> assignment(n);
 
     // K-means loop
-    for (uint32_t iteration = 0; iteration < _clustering_iterations;
-         iteration++) {
+    for (uint32_t iteration = 0; iteration < _clustering_iterations; iteration++) {
 // Step 1. Find the minimizing centroid based on l2 distance
 #pragma omp parallel for
       for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
@@ -119,9 +116,8 @@ public:
 
         for (uint32_t c_index = 0; c_index < _num_centroids; c_index++) {
           // Get distance using the distance function
-          float *vector = const_cast<float *>(vectors + (vec_index * _dim));
-          float *centroid =
-              const_cast<float *>(_centroids.data() + (c_index * _dim));
+          float* vector = const_cast<float*>(vectors + (vec_index * _dim));
+          float* centroid = const_cast<float*>(_centroids.data() + (c_index * _dim));
           auto distance = distance_func(vector, centroid);
 
           if (distance < min_distance) {
@@ -139,8 +135,7 @@ public:
       for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
         for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
 #pragma omp atomic
-          sums[assignment[vec_index] * _dim + dim_index] +=
-              vectors[vec_index * _dim + dim_index];
+          sums[assignment[vec_index] * _dim + dim_index] += vectors[vec_index * _dim + dim_index];
         }
 #pragma omp atomic
         counts[assignment[vec_index]]++;
@@ -148,43 +143,40 @@ public:
 #pragma omp parallel for
       for (uint32_t c_index = 0; c_index < _num_centroids; c_index++) {
         for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-          _centroids[c_index * _dim + dim_index] =
-              counts[c_index]
-                  ? sums[c_index * _dim + dim_index] / counts[c_index]
-                  : _centroids[c_index * _dim + dim_index];
+          _centroids[c_index * _dim + dim_index] = counts[c_index]
+                                                       ? sums[c_index * _dim + dim_index] / counts[c_index]
+                                                       : _centroids[c_index * _dim + dim_index];
         }
       }
     }
   }
 
-  inline const float *centroids() const { return _centroids.data(); }
+  inline const float* centroids() const { return _centroids.data(); }
 
-  inline void setInitializationType(const std::string &initialization_type) {
+  inline void setInitializationType(const std::string& initialization_type) {
     _initialization_type = initialization_type;
   }
 
-private:
+ private:
   /**
    * @brief Initialize the centroids by randomly sampling k centroids among the
    * n data points
    * @param data  The input data points
    * @param n     The number of data points
    */
-  void randomInitialize(const float *data, uint64_t n) {
+  void randomInitialize(const float* data, uint64_t n) {
     std::vector<uint64_t> indices(n);
 
     std::iota(indices.begin(), indices.end(), 0);
     std::mt19937 generator(_seed + 1);
     std::vector<uint64_t> sample_indices(_num_centroids);
-    std::sample(indices.begin(), indices.end(), sample_indices.begin(),
-                _num_centroids, generator);
+    std::sample(indices.begin(), indices.end(), sample_indices.begin(), _num_centroids, generator);
 
     for (uint32_t i = 0; i < _num_centroids; i++) {
       auto sample_index = sample_indices[i];
 
       for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-        _centroids[(i * _dim) + dim_index] =
-            data[(sample_index * _dim) + dim_index];
+        _centroids[(i * _dim) + dim_index] = data[(sample_index * _dim) + dim_index];
       }
     }
   }
@@ -204,9 +196,8 @@ private:
    * @param data  The input data points
    * @param n     The number of data points
    */
-  void kmeansPlusPlusInitialize(
-      const float *data, uint64_t n,
-      const std::function<float(const float *, const float *)> &distance_func) {
+  void kmeansPlusPlusInitialize(const float* data, uint64_t n,
+                                const std::function<float(const float*, const float*)>& distance_func) {
     std::mt19937 generator(_seed);
     std::uniform_int_distribution<uint64_t> distribution(0, n - 1);
 
@@ -216,8 +207,7 @@ private:
       _centroids[dim_index] = data[first_centroid_index * _dim + dim_index];
     }
 
-    std::vector<double> min_squared_distances(
-        n, std::numeric_limits<double>::max());
+    std::vector<double> min_squared_distances(n, std::numeric_limits<double>::max());
 
     // Step 2. For k-1 remaining centroids
     for (uint32_t cent_idx = 1; cent_idx < _num_centroids; cent_idx++) {
@@ -230,8 +220,8 @@ private:
 
         for (uint64_t c = 0; c < cent_idx; c++) {
 
-          float *centroid = const_cast<float *>(_centroids.data() + (c * _dim));
-          float *vector = const_cast<float *>(data + (i * _dim));
+          float* centroid = const_cast<float*>(_centroids.data() + (c * _dim));
+          float* vector = const_cast<float*>(data + (i * _dim));
           auto distance = distance_func(centroid, vector);
 
           if (distance < min_distance) {
@@ -256,8 +246,7 @@ private:
 
       // Add selected centroid the the centroids array
       for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-        _centroids[cent_idx * _dim + dim_index] =
-            data[next_centroid_index * _dim + dim_index];
+        _centroids[cent_idx * _dim + dim_index] = data[next_centroid_index * _dim + dim_index];
       }
     }
   }
@@ -288,7 +277,7 @@ private:
 
  */
 
-  void hypercubeInitialize(const float *data, uint64_t n) {
+  void hypercubeInitialize(const float* data, uint64_t n) {
 
     std::vector<float> means(_dim);
     for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
@@ -304,11 +293,11 @@ private:
       maxm = fabs(means[dim_index]) > maxm ? fabs(means[dim_index]) : maxm;
     }
 
-    float *centroids = _centroids.data();
+    float* centroids = _centroids.data();
     auto num_bits = log2(_num_centroids);
 
     for (uint32_t i = 0; i < _num_centroids; i++) {
-      float *centroid = const_cast<float *>(centroids + (i * _dim));
+      float* centroid = const_cast<float*>(centroids + (i * _dim));
       for (uint32_t j = 0; j < num_bits; j++) {
         centroid[j] = means[j] + (((i >> j) & 1) ? 1 : -1) * maxm;
       }
@@ -341,10 +330,11 @@ private:
   std::string _initialization_type;
 
   friend class cereal::access;
-  template <typename Archive> void serialize(Archive &ar) {
-    ar(_dim, _num_centroids, _centroids, _clustering_iterations, _normalized,
-       _verbose, _centroids_initialized, _seed, _initialization_type);
+  template <typename Archive>
+  void serialize(Archive& ar) {
+    ar(_dim, _num_centroids, _centroids, _clustering_iterations, _normalized, _verbose,
+       _centroids_initialized, _seed, _initialization_type);
   }
 };
 
-} // namespace flatnav::quantization
+}  // namespace flatnav::quantization

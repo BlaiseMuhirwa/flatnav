@@ -15,6 +15,9 @@ build
 metrics
 node-access-distributions
 
+# PYcache
+**/__pycache__
+
 # Python wheel related folders/files
 flatnav_python/flatnav.egg-info/
 flatnav_python/poetry.lock

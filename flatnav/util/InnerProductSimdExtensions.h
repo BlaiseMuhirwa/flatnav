@@ -6,13 +6,12 @@ namespace flatnav::util {
 
 #if defined(USE_AVX512)
 
-static float computeIP_Avx512(const void *x, const void *y,
-                              const size_t &dimension) {
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
+static float computeIP_Avx512(const void* x, const void* y, const size_t& dimension) {
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x));
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
   // Align to 16-floats boundary
-  const float *end_x = pointer_x + (dimension >> 4 << 4);
+  const float* end_x = pointer_x + (dimension >> 4 << 4);
   simd16float32 product, v1, v2;
 
   simd16float32 sum(0.0f);
@@ -29,15 +28,14 @@ static float computeIP_Avx512(const void *x, const void *y,
   return 1.0f - total;
 }
 
-#endif // USE_AVX512
+#endif  // USE_AVX512
 
 #if defined(USE_AVX)
-static float computeIP_Avx(const void *x, const void *y,
-                           const size_t &dimension) {
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
+static float computeIP_Avx(const void* x, const void* y, const size_t& dimension) {
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x));
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
-  const float *end_x = pointer_x + (dimension >> 4 << 4);
+  const float* end_x = pointer_x + (dimension >> 4 << 4);
   simd8float32 product, v1, v2;
   simd8float32 sum(0.0f);
 
@@ -61,14 +59,13 @@ static float computeIP_Avx(const void *x, const void *y,
   return 1.0f - total;
 }
 
-static float computeIP_Avx_4aligned(const void *x, const void *y,
-                                    const size_t &dimension) {
+static float computeIP_Avx_4aligned(const void* x, const void* y, const size_t& dimension) {
 
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x));
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
-  const float *first_chunk_end = pointer_x + (dimension >> 4 << 4);
-  const float *second_chunk_end = pointer_x + (dimension >> 2 << 2);
+  const float* first_chunk_end = pointer_x + (dimension >> 4 << 4);
+  const float* second_chunk_end = pointer_x + (dimension >> 2 << 2);
 
   simd8float32 v1, v2;
   simd8float32 sum(0.0f);
@@ -82,8 +79,7 @@ static float computeIP_Avx_4aligned(const void *x, const void *y,
   }
 
   // TODO: See if we can reduce this to fewer instructions
-  simd4float32 aggregate =
-      simd4float32(sum.get_low()) + simd4float32(sum.get_high());
+  simd4float32 aggregate = simd4float32(sum.get_low()) + simd4float32(sum.get_high());
   simd4float32 v1_residual, v2_residual;
 
   while (pointer_x != second_chunk_end) {
@@ -98,16 +94,15 @@ static float computeIP_Avx_4aligned(const void *x, const void *y,
   return 1.0f - total;
 }
 
-#endif // USE_AVX
+#endif  // USE_AVX
 
 #if defined(USE_SSE)
 
-const float computeIP_Sse(const void *x, const void *y,
-                          const size_t &dimension) {
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
+const float computeIP_Sse(const void* x, const void* y, const size_t& dimension) {
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x));
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
-  const float *end_x = pointer_x + (dimension >> 4 << 4);
+  const float* end_x = pointer_x + (dimension >> 4 << 4);
   simd4float32 v1, v2;
   simd4float32 sum(0.0f);
 
@@ -141,12 +136,11 @@ const float computeIP_Sse(const void *x, const void *y,
   return 1.0f - total;
 }
 
-const float computeIP_Sse_4aligned(const void *x, const void *y,
-                                   const size_t &dimension) {
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
-  const float *first_chunk_end = pointer_x + (dimension >> 4 << 4);
-  const float *second_chunk_end = pointer_x + (dimension >> 2 << 2);
+const float computeIP_Sse_4aligned(const void* x, const void* y, const size_t& dimension) {
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x));
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y));
+  const float* first_chunk_end = pointer_x + (dimension >> 4 << 4);
+  const float* second_chunk_end = pointer_x + (dimension >> 2 << 2);
 
   simd4float32 v1, v2;
   simd4float32 sum(0.0f);
@@ -188,8 +182,7 @@ const float computeIP_Sse_4aligned(const void *x, const void *y,
   return 1.0f - total;
 }
 
-const float computeIP_SseWithResidual_16(const void *x, const void *y,
-                                         const size_t &dimension) {
+const float computeIP_SseWithResidual_16(const void* x, const void* y, const size_t& dimension) {
   size_t aligned_dimension = dimension >> 4 << 4;
   size_t residual_dimension = dimension - aligned_dimension;
 
@@ -200,18 +193,15 @@ const float computeIP_SseWithResidual_16(const void *x, const void *y,
   first_chunk_sum *= -1.0f;
 
   float residual_sum = 0.0f;
-  float *pointer_x =
-      static_cast<float *>(const_cast<void *>(x)) + aligned_dimension;
-  float *pointer_y =
-      static_cast<float *>(const_cast<void *>(y)) + aligned_dimension;
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x)) + aligned_dimension;
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y)) + aligned_dimension;
   for (size_t i = 0; i < residual_dimension; i++) {
     residual_sum += pointer_x[i] * pointer_y[i];
   }
   return 1.0f - (first_chunk_sum + residual_sum);
 }
 
-const float computeIP_SseWithResidual_4(const void *x, const void *y,
-                                        const size_t &dimension) {
+const float computeIP_SseWithResidual_4(const void* x, const void* y, const size_t& dimension) {
   size_t aligned_dimension = dimension >> 2 << 2;
   size_t residual_dimension = dimension - aligned_dimension;
 
@@ -222,16 +212,14 @@ const float computeIP_SseWithResidual_4(const void *x, const void *y,
   first_chunk_sum *= -1.0f;
 
   float residual_sum = 0.0f;
-  float *pointer_x =
-      static_cast<float *>(const_cast<void *>(x)) + aligned_dimension;
-  float *pointer_y =
-      static_cast<float *>(const_cast<void *>(y)) + aligned_dimension;
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x)) + aligned_dimension;
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y)) + aligned_dimension;
   for (size_t i = 0; i < residual_dimension; i++) {
     residual_sum += pointer_x[i] * pointer_y[i];
   }
   return 1.0f - (first_chunk_sum + residual_sum);
 }
 
-#endif // USE_SSE
+#endif  // USE_SSE
 
-} // namespace flatnav::util
+}  // namespace flatnav::util

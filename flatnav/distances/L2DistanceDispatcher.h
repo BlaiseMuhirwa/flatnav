@@ -7,7 +7,7 @@
 namespace flatnav::distances {
 
 template <typename T>
-static float defaultSquaredL2(const T *x, const T *y, const size_t &dimension) {
+static float defaultSquaredL2(const T* x, const T* y, const size_t& dimension) {
   float squared_distance = 0;
   for (size_t i = 0; i < dimension; i++) {
     float difference = x[i] - y[i];
@@ -20,7 +20,8 @@ static float defaultSquaredL2(const T *x, const T *y, const size_t &dimension) {
 // distance
 //  between two arrays of type T.
 // @TODO: We should add constraints to the T type.
-template <typename T> struct SquaredL2Impl {
+template <typename T>
+struct SquaredL2Impl {
   /**
    * Computes the squared L2 distance between two arrays of type T.
    *
@@ -29,16 +30,15 @@ template <typename T> struct SquaredL2Impl {
    * @param dimension The dimension of the arrays.
    * @return The squared L2 distance between the two arrays.
    */
-  static float computeDistance(const T *x, const T *y,
-                               const size_t &dimension) {
+  static float computeDistance(const T* x, const T* y, const size_t& dimension) {
     return defaultSquaredL2<T>(x, y, dimension);
   }
 };
 
 // Specialization of SquaredL2Impl for the float type.
-template <> struct SquaredL2Impl<float> {
-  static float computeDistance(const float *x, const float *y,
-                               const size_t &dimension) {
+template <>
+struct SquaredL2Impl<float> {
+  static float computeDistance(const float* x, const float* y, const size_t& dimension) {
 #if defined(USE_AVX512)
     if (platformSupportsAvx512()) {
       if (dimension % 16 == 0) {
@@ -86,9 +86,9 @@ template <> struct SquaredL2Impl<float> {
   }
 };
 
-template <> struct SquaredL2Impl<int8_t> {
-  static float computeDistance(const int8_t *x, const int8_t *y,
-                               const size_t &dimension) {
+template <>
+struct SquaredL2Impl<int8_t> {
+  static float computeDistance(const int8_t* x, const int8_t* y, const size_t& dimension) {
 // #if defined(USE_AVX512BW) && defined(USE_AVX512VNNI)
 //     if (platformSupportsAvx512()) {
 //       return flatnav::util::computeL2_Avx512_int8(x, y, dimension);
@@ -103,9 +103,9 @@ template <> struct SquaredL2Impl<int8_t> {
   }
 };
 
-template <> struct SquaredL2Impl<uint8_t> {
-  static float computeDistance(const uint8_t *x, const uint8_t *y,
-                               const size_t &dimension) {
+template <>
+struct SquaredL2Impl<uint8_t> {
+  static float computeDistance(const uint8_t* x, const uint8_t* y, const size_t& dimension) {
 #if defined(USE_AVX512)
     if (platformSupportsAvx512()) {
       if (dimension % 64 == 0) {
@@ -120,9 +120,9 @@ template <> struct SquaredL2Impl<uint8_t> {
 
 struct L2DistanceDispatcher {
   template <typename T>
-  static float dispatch(const T *x, const T *y, const size_t &dimension) {
+  static float dispatch(const T* x, const T* y, const size_t& dimension) {
     return SquaredL2Impl<T>::computeDistance(x, y, dimension);
   }
 };
 
-} // namespace flatnav::distances
+}  // namespace flatnav::distances

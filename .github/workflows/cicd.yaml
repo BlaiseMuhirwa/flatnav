@@ -63,7 +63,7 @@ jobs:
     - name: Install dependencies
       run: |
         # Install CMake and clang
-        ./bin/install_clang.sh
+        ./bin/install_clang_and_libomp.sh
         ./bin/install_cmake.sh
 
     - name: Build flatnav 

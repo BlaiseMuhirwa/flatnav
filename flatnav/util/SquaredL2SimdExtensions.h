@@ -5,13 +5,12 @@
 namespace flatnav::util {
 
 #if defined(USE_AVX512)
-static float computeL2_Avx512(const void *x, const void *y,
-                              const size_t &dimension) {
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
+static float computeL2_Avx512(const void* x, const void* y, const size_t& dimension) {
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x));
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
   // Align to 16-floats boundary
-  const float *end_x = pointer_x + (dimension >> 4 << 4);
+  const float* end_x = pointer_x + (dimension >> 4 << 4);
   simd16float32 difference, v1, v2;
 
   simd16float32 sum(0.0f);
@@ -30,10 +29,9 @@ static float computeL2_Avx512(const void *x, const void *y,
 /**
  * @todo Make this support dimensions that are not multiples of 64
  */
-static float computeL2_Avx512_Uint8(const void *x, const void *y,
-                                    const size_t &dimension) {
-  const uint8_t *pointer_x = static_cast<const uint8_t *>(x);
-  const uint8_t *pointer_y = static_cast<const uint8_t *>(y);
+static float computeL2_Avx512_Uint8(const void* x, const void* y, const size_t& dimension) {
+  const uint8_t* pointer_x = static_cast<const uint8_t*>(x);
+  const uint8_t* pointer_y = static_cast<const uint8_t*>(y);
 
   // Initialize sum to zero
   __m512i sum = _mm512_setzero_si512();
@@ -41,10 +39,8 @@ static float computeL2_Avx512_Uint8(const void *x, const void *y,
   // Loop over the input arrays
   for (size_t i = 0; i < dimension; i += 64) {
     // Load 64 bytes from each array
-    __m512i v1 =
-        _mm512_loadu_si512(reinterpret_cast<const __m512i *>(pointer_x + i));
-    __m512i v2 =
-        _mm512_loadu_si512(reinterpret_cast<const __m512i *>(pointer_y + i));
+    __m512i v1 = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(pointer_x + i));
+    __m512i v2 = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(pointer_y + i));
 
     // Unpack to 16-bit integers to avoid overflow
     __m512i v1_lo = _mm512_unpacklo_epi8(v1, _mm512_setzero_si512());
@@ -72,23 +68,22 @@ static float computeL2_Avx512_Uint8(const void *x, const void *y,
   sum256 = _mm256_hadd_epi32(sum256, sum256);
 
   int32_t buffer[8];
-  _mm256_storeu_si256(reinterpret_cast<__m256i *>(buffer), sum256);
+  _mm256_storeu_si256(reinterpret_cast<__m256i*>(buffer), sum256);
 
   int32_t total_sum = buffer[0] + buffer[4];
 
   return static_cast<float>(total_sum);
 }
 
-#endif // USE_AVX512
+#endif  // USE_AVX512
 
 #if defined(USE_AVX)
 
-static float computeL2_Avx2(const void *x, const void *y,
-                            const size_t &dimension) {
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
+static float computeL2_Avx2(const void* x, const void* y, const size_t& dimension) {
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x));
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
-  const float *end_x = pointer_x + (dimension & ~7);
+  const float* end_x = pointer_x + (dimension & ~7);
   simd8float32 difference, v1, v2;
   simd8float32 sum(0.0f);
 
@@ -112,20 +107,18 @@ static float computeL2_Avx2(const void *x, const void *y,
 
   float result[8];
   sum.storeu(result);
-  return result[0] + result[1] + result[2] + result[3] + result[4] + result[5] +
-         result[6] + result[7];
+  return result[0] + result[1] + result[2] + result[3] + result[4] + result[5] + result[6] + result[7];
 }
 
-#endif // USE_AVX
+#endif  // USE_AVX
 
 #if defined(USE_SSE)
 
-static float computeL2_Sse(const void *x, const void *y,
-                           const size_t &dimension) {
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
+static float computeL2_Sse(const void* x, const void* y, const size_t& dimension) {
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x));
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
-  const float *end_x = pointer_x + (dimension >> 4 << 4);
+  const float* end_x = pointer_x + (dimension >> 4 << 4);
   simd4float32 difference, v1, v2;
   simd4float32 sum(0.0f);
 
@@ -162,28 +155,25 @@ static float computeL2_Sse(const void *x, const void *y,
   return sum.reduce_add();
 }
 
-
 #if defined(USE_SSE4_1)
 
 // This function computes the L2 distance between two int8 vectors using SSE2
 // instructions.
-static float computeL2_Sse_int8(const void *x, const void *y,
-                                const size_t &dimension) {
-  int8_t *pointer_x = static_cast<int8_t *>(const_cast<void *>(x));
-  int8_t *pointer_y = static_cast<int8_t *>(const_cast<void *>(y));
+static float computeL2_Sse_int8(const void* x, const void* y, const size_t& dimension) {
+  int8_t* pointer_x = static_cast<int8_t*>(const_cast<void*>(x));
+  int8_t* pointer_y = static_cast<int8_t*>(const_cast<void*>(y));
 
   __m128i sum = _mm_setzero_si128();
   size_t aligned_dimension = dimension & ~0xF;
   size_t i = 0;
 
   for (; i < aligned_dimension; i += 16) {
-    __m128i vx = _mm_loadu_si128(reinterpret_cast<__m128i *>(pointer_x + i));
-    __m128i vy = _mm_loadu_si128(reinterpret_cast<__m128i *>(pointer_y + i));
+    __m128i vx = _mm_loadu_si128(reinterpret_cast<__m128i*>(pointer_x + i));
+    __m128i vy = _mm_loadu_si128(reinterpret_cast<__m128i*>(pointer_y + i));
     __m128i diff = _mm_sub_epi8(vx, vy);
 
     // Convert to 16-bit and square
-    __m128i diff_squared =
-        _mm_madd_epi16(_mm_cvtepi8_epi16(diff), _mm_cvtepi8_epi16(diff));
+    __m128i diff_squared = _mm_madd_epi16(_mm_cvtepi8_epi16(diff), _mm_cvtepi8_epi16(diff));
 
     // Accumulate in 32-bit integer
     sum = _mm_add_epi32(sum, diff_squared);
@@ -198,19 +188,17 @@ static float computeL2_Sse_int8(const void *x, const void *y,
 
   // Reduce sum
   int32_t buffer[4];
-  _mm_storeu_si128(reinterpret_cast<__m128i *>(buffer), sum);
-  return static_cast<float>(buffer[0] + buffer[1] + buffer[2] + buffer[3] +
-                            partial_sum);
+  _mm_storeu_si128(reinterpret_cast<__m128i*>(buffer), sum);
+  return static_cast<float>(buffer[0] + buffer[1] + buffer[2] + buffer[3] + partial_sum);
 }
 
-#endif // USE_SSE4_1
+#endif  // USE_SSE4_1
 
-static float computeL2_Sse4Aligned(const void *x, const void *y,
-                                   const size_t &dimension) {
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
+static float computeL2_Sse4Aligned(const void* x, const void* y, const size_t& dimension) {
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x));
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
-  const float *end_x = pointer_x + (dimension >> 2 << 2);
+  const float* end_x = pointer_x + (dimension >> 2 << 2);
   simd4float32 difference, v1, v2;
   simd4float32 sum(0.0f);
 
@@ -226,17 +214,14 @@ static float computeL2_Sse4Aligned(const void *x, const void *y,
   return sum.reduce_add();
 }
 
-static float computeL2_SseWithResidual_16(const void *x, const void *y,
-                                          const size_t &dimension) {
+static float computeL2_SseWithResidual_16(const void* x, const void* y, const size_t& dimension) {
 
   size_t dimension_aligned = dimension >> 4 << 4;
   float aligned_distance = computeL2_Sse(x, y, dimension_aligned);
   size_t residual_dimension = dimension - dimension_aligned;
   float residual_distance = 0.0f;
-  float *pointer_x =
-      static_cast<float *>(const_cast<void *>(x)) + dimension_aligned;
-  float *pointer_y =
-      static_cast<float *>(const_cast<void *>(y)) + dimension_aligned;
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x)) + dimension_aligned;
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y)) + dimension_aligned;
   for (size_t i = 0; i < residual_dimension; i++) {
     float difference = *pointer_x - *pointer_y;
     residual_distance += difference * difference;
@@ -246,12 +231,11 @@ static float computeL2_SseWithResidual_16(const void *x, const void *y,
   return aligned_distance + residual_distance;
 }
 
-static float computeL2_Sse4aligned(const void *x, const void *y,
-                                   const size_t &dimension) {
-  float *pointer_x = static_cast<float *>(const_cast<void *>(x));
-  float *pointer_y = static_cast<float *>(const_cast<void *>(y));
+static float computeL2_Sse4aligned(const void* x, const void* y, const size_t& dimension) {
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x));
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
-  const float *end_x = pointer_x + (dimension >> 2 << 2);
+  const float* end_x = pointer_x + (dimension >> 2 << 2);
   simd4float32 difference, v1, v2;
   simd4float32 sum(0.0f);
 
@@ -267,16 +251,13 @@ static float computeL2_Sse4aligned(const void *x, const void *y,
   return sum.reduce_add();
 }
 
-static float computeL2_SseWithResidual_4(const void *x, const void *y,
-                                         const size_t &dimension) {
+static float computeL2_SseWithResidual_4(const void* x, const void* y, const size_t& dimension) {
   size_t dimension_aligned = dimension >> 2 << 2;
   float aligned_distance = computeL2_Sse4aligned(x, y, dimension_aligned);
   size_t residual_dimension = dimension - dimension_aligned;
   float residual_distance = 0.0f;
-  float *pointer_x =
-      static_cast<float *>(const_cast<void *>(x)) + dimension_aligned;
-  float *pointer_y =
-      static_cast<float *>(const_cast<void *>(y)) + dimension_aligned;
+  float* pointer_x = static_cast<float*>(const_cast<void*>(x)) + dimension_aligned;
+  float* pointer_y = static_cast<float*>(const_cast<void*>(y)) + dimension_aligned;
   for (size_t i = 0; i < residual_dimension; i++) {
     float difference = *pointer_x - *pointer_y;
     residual_distance += difference * difference;
@@ -286,6 +267,6 @@ static float computeL2_SseWithResidual_4(const void *x, const void *y,
   return aligned_distance + residual_distance;
 }
 
-#endif // USE_SSE
+#endif  // USE_SSE
 
-} // namespace flatnav::util
+}  // namespace flatnav::util
