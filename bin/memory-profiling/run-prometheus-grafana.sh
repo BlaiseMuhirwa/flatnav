@@ -2,16 +2,15 @@
 
 # Use this script to collect statistics (memory, CPU, etc.) from the host machine including 
 # the Docker container(s) running on it. 
-# Run cAdvisor to collect container statistics, prometheus to store the statistics, and 
-# Grafana to visualize the statistics.
+# Run cAdvisor to collect container statistics, prometheus to scrape metrics, and 
+# Grafana for visualization.
 # cAdvisor exposes port 8080 that prometheus scrapes to collect the statistics.
-
 
 
 set -e
 
 # Move to the root directory
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 PROMETHEUS_CONFIG_FILE="$(pwd)/bin/memory-profiling/prometheus.yml"
 
@@ -39,7 +38,7 @@ start_container() {
     fi
 
     echo "Starting container: $container_name"
-    docker run --name="$container_name" "${run_command[@]}" "$image"
+    docker run "${run_command[@]}" --name="$container_name" "$image"
 }
 
 # Start cAdvisor
@@ -52,12 +51,10 @@ start_container "cadvisor" "google/cadvisor:latest" \
     --detach=true
 
 # Start Prometheus
-start_container "prometheus" "prom/prometheus" \
-    -d \
-    -p 9091:9090 \
+start_container "prometheus" "prom/prometheus" -p 5000:9090 -d \
     -v "${PROMETHEUS_CONFIG_FILE}:/etc/prometheus/prometheus.yml"
 
 # Start Grafana
-start_container "grafana" "grafana/grafana" \
-    -d \
-    -p 3000:3000
+start_container "grafana" "grafana/grafana" -d -p 3000:3000
+
+
