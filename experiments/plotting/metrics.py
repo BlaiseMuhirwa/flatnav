@@ -77,6 +77,15 @@ metric_manager.register_metric(
     config=MetricConfig(description="Queries per second", worst_value=float("-inf")),
     function=lambda querying_time, num_queries: num_queries / querying_time,
 )
+
+metric_manager.register_metric(
+    name="latency_avg",
+    config=MetricConfig(
+        description="Average latency (ms)", worst_value=float("inf")
+    ),
+    function=lambda latencies: np.mean(latencies) * 1000,
+)
+
 metric_manager.register_metric(
     name="latency_p50",
     config=MetricConfig(

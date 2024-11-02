@@ -47,7 +47,8 @@ auto cast_and_call(DataType data_type, const py::array &array, Func &&function,
             py::array_t<uint8_t, py::array::c_style | py::array::forcecast>>(),
         std::forward<Args>(args)...);
   default:
-    throw std::invalid_argument("Unsupported data type.");
+    auto error = std::string("Unsupported data type: ") + flatnav::util::name(data_type);
+    throw std::invalid_argument(error);
   }
 }
 

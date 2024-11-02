@@ -10,7 +10,7 @@
 # Reference: https://github.com/microsoft/SPTAG/tree/main/datasets/SPACEV1B
 
 space-v1b-bench-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name msft-spacev-1b \
 		--dataset /root/data/SPACEV1B/collection.npy \
 		--queries /root/data/SPACEV1B/queries.npy \
@@ -25,7 +25,7 @@ space-v1b-bench-hnsw:
 
 
 space-v1b-bench-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name msft-spacev-1b \
 		--dataset /root/data/SPACEV1B/collection.npy \
 		--queries /root/data/SPACEV1B/queries.npy \
@@ -41,7 +41,7 @@ space-v1b-bench-flatnav:
 		--metric l2
 
 spacev-10m-bench-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name spacev-10m \
 		--dataset /root/data/spacev-10m-euclidean/spacev-10m-euclidean.train.npy \
 		--queries /root/data/spacev-10m-euclidean/spacev-10m-euclidean.test.npy \
@@ -57,7 +57,7 @@ spacev-10m-bench-flatnav:
 		--metric l2
 
 spacev-10m-bench-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name spacev-10m \
 		--dataset /root/data/spacev-10m-euclidean/spacev-10m-euclidean.train.npy \
 		--queries /root/data/spacev-10m-euclidean/spacev-10m-euclidean.test.npy \
@@ -71,7 +71,7 @@ spacev-10m-bench-hnsw:
 		--metric l2
 
 yandex-deep-10m-bench-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name yandex-deep-10m \
 		--dataset /root/data/yandex-deep-10m-euclidean/yandex-deep-10m-euclidean.train.npy \
 		--queries /root/data/yandex-deep-10m-euclidean/yandex-deep-10m-euclidean.test.npy \
@@ -87,7 +87,7 @@ yandex-deep-10m-bench-flatnav:
 		--metric l2
 
 yandex-deep-10m-bench-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name yandex-deep-10m \
 		--dataset /root/data/yandex-deep-10m-euclidean/yandex-deep-10m-euclidean.train.npy \
 		--queries /root/data/yandex-deep-10m-euclidean/yandex-deep-10m-euclidean.test.npy \
@@ -101,7 +101,7 @@ yandex-deep-10m-bench-hnsw:
 		--metric l2
 
 yandex-tti-10m-bench-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name yandex-tti-10m \
 		--dataset /root/data/yandex-tti-10m-angular/yandex-tti-10m-angular.train.npy \
 		--queries /root/data/yandex-tti-10m-angular/yandex-tti-10m-angular.test.npy \
@@ -117,7 +117,7 @@ yandex-tti-10m-bench-flatnav:
 		--metric angular
 
 yandex-tti-10m-bench-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name yandex-tti-10m \
 		--dataset /root/data/yandex-tti-10m-angular/yandex-tti-10m-angular.train.npy \
 		--queries /root/data/yandex-tti-10m-angular/yandex-tti-10m-angular.test.npy \
@@ -138,7 +138,7 @@ yandex-tti-10m-bench-hnsw:
 # Begin 100-Million Scale Benchmarks
 # ################################
 bigann-100m-hnsw: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name bigann-100m \
                 --dataset /root/data/bigann-100m-euclidean/bigann_train_100m.npy \
                 --queries /root/data/bigann-100m-euclidean/bigann_queries.npy \
@@ -153,7 +153,7 @@ bigann-100m-hnsw:
 
 
 bigann-100m-flatnav: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name bigann-100m \
                 --dataset /root/data/bigann-100m-euclidean/bigann_train_100m.npy \
                 --queries /root/data/bigann-100m-euclidean/bigann_queries.npy \
@@ -170,7 +170,7 @@ bigann-100m-flatnav:
 
 
 yandex-deep-100m-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name yandex-deep-100m \
                 --dataset /root/data/yandex-deep-100m/yandex_train_100m.npy \
                 --queries /root/data/yandex-deep-100m/yandex_queries.npy \
@@ -185,7 +185,7 @@ yandex-deep-100m-hnsw:
 
 
 yandex-deep-100m-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name yandex-deep-100m \
                 --dataset /root/data/yandex-deep-100m/yandex_train_100m.npy \
                 --queries /root/data/yandex-deep-100m/yandex_queries.npy \
@@ -202,7 +202,7 @@ yandex-deep-100m-flatnav:
 
 
 spacev-100m-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name spacev-100m \
                 --dataset /root/data/spacev-100m/spacev_train_100m.npy \
                 --queries /root/data/spacev-100m/spacev_queries.npy \
@@ -218,7 +218,7 @@ spacev-100m-flatnav:
         	--num-search-threads 1
 
 spacev-100m-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name spacev-100m \
                 --dataset /root/data/spacev-100m/spacev_train_100m.npy \
                 --queries /root/data/spacev-100m/spacev_queries.npy \
@@ -233,7 +233,7 @@ spacev-100m-hnsw:
 
 
 tti-100m-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
         	--dataset-name tti-100m \
         	--dataset /root/data/tti-100m/tti_train_100m.npy \
         	--queries /root/data/tti-100m/tti_queries.npy \
@@ -249,7 +249,7 @@ tti-100m-flatnav:
         	--num-search-threads 1
 
 tti-100m-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name tti-100m \
                 --dataset /root/data/tti-100m/tti_train_100m.npy \
                 --queries /root/data/tti-100m/tti_queries.npy \
@@ -270,7 +270,7 @@ tti-100m-hnsw:
 # Begin 10-Million Scale Benchmarks
 # # ################################
 bigann-10m-flatnav: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name bigann-10m \
                 --dataset /root/data/bigann-10m-euclidean/bigann_train_10m.npy \
                 --queries /root/data/bigann-10m-euclidean/bigann_queries.npy \
@@ -287,7 +287,7 @@ bigann-10m-flatnav:
 
 
 bigann-10m-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name bigann-10m \
                 --dataset /root/data/bigann-10m-euclidean/bigann_train_10m.npy \
                 --queries /root/data/bigann-10m-euclidean/bigann_queries.npy \
@@ -302,7 +302,7 @@ bigann-10m-hnsw:
 
 
 yandex-deep-10m-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name yandex-deep-10m \
                 --dataset /root/data/yandex-deep-10m/yandex_train_10m.npy \
                 --queries /root/data/yandex-deep-10m/yandex_queries.npy \
@@ -319,7 +319,7 @@ yandex-deep-10m-flatnav:
 
 
 yandex-deep-10m-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name yandex-deep-10m \
                 --dataset /root/data/yandex-deep-10m/yandex_train_10m.npy \
                 --queries /root/data/yandex-deep-10m/yandex_queries.npy \
@@ -334,7 +334,7 @@ yandex-deep-10m-hnsw:
 
 
 spacev-10m-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name spacev-10m \
                 --dataset /root/data/spacev-10m/spacev_train_10m.npy \
                 --queries /root/data/spacev-10m/spacev_queries.npy \
@@ -351,7 +351,7 @@ spacev-10m-flatnav:
 
 
 spacev-10m-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name spacev-10m \
                 --dataset /root/data/spacev-10m/spacev_train_10m.npy \
                 --queries /root/data/spacev-10m/spacev_queries.npy \
@@ -366,7 +366,7 @@ spacev-10m-hnsw:
 
 
 tti-10m-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name tti-10m \
                 --dataset /root/data/tti_10m/tti_train_10m.npy \
                 --queries /root/data/tti_10m/tti_queries.npy \
@@ -382,7 +382,7 @@ tti-10m-flatnav:
         	--num-search-threads 1
 
 tti-10m-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
                 --dataset-name tti-10m \
                 --dataset /root/data/tti_10m/tti_train_10m.npy \
                 --queries /root/data/tti_10m/tti_queries.npy \
@@ -405,7 +405,7 @@ tti-10m-hnsw:
 ################################
 
 deep-image-flatnav: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name deep-image-96 \
 		--dataset /root/data/deep-image-96-angular/deep-image-96-angular.train.npy \
 		--queries /root/data/deep-image-96-angular/deep-image-96-angular.test.npy \
@@ -421,7 +421,7 @@ deep-image-flatnav:
                 --num-search-threads 1
 
 deep-image-hnsw: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name deep-image-96 \
 		--dataset /root/data/deep-image-96-angular/deep-image-96-angular.train.npy \
 		--queries /root/data/deep-image-96-angular/deep-image-96-angular.test.npy \
@@ -435,7 +435,7 @@ deep-image-hnsw:
                 --num-search-threads 1
 
 mnist-bench-flatnav: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name mnist-784 \
 		--dataset /root/data/mnist-784-euclidean/mnist-784-euclidean.train.npy \
 		--queries /root/data/mnist-784-euclidean/mnist-784-euclidean.test.npy \
@@ -451,7 +451,7 @@ mnist-bench-flatnav:
 		--num-search-threads 1 
 
 mnist-bench-hnsw: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name mnist-784 \
 		--dataset /root/data/mnist-784-euclidean/mnist-784-euclidean.train.npy \
 		--queries /root/data/mnist-784-euclidean/mnist-784-euclidean.test.npy \
@@ -465,7 +465,7 @@ mnist-bench-hnsw:
 		--num-search-threads 1 
 
 gist-bench-flatnav: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name gist \
 		--dataset /root/data/gist-960-euclidean/gist-960-euclidean.train.npy \
 		--queries /root/data/gist-960-euclidean/gist-960-euclidean.test.npy \
@@ -482,7 +482,7 @@ gist-bench-flatnav:
 
 
 gist-bench-hnsw: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name gist \
 		--dataset /root/data/gist-960-euclidean/gist-960-euclidean.train.npy \
 		--queries /root/data/gist-960-euclidean/gist-960-euclidean.test.npy \
@@ -497,14 +497,14 @@ gist-bench-hnsw:
 
 
 sift-bench-flatnav: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name sift \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
 		--index-type flatnav \
 		--num-node-links 32 \
-		--ef-construction 30 40 50 100 200 300 \
+		--ef-construction 30 \
 		--ef-search 100 200 300 500 1000 3000 \
 		--metric l2 \
 		--num-build-threads 16 \
@@ -512,7 +512,7 @@ sift-bench-flatnav:
 
 
 sift-bench-hnsw: 
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset-name sift \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
@@ -527,7 +527,7 @@ sift-bench-hnsw:
 
 
 glove25-bench-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
 		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
 		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
@@ -543,7 +543,7 @@ glove25-bench-flatnav:
 		--metric angular
 
 glove25-bench-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset /root/data/glove-25-angular/glove-25-angular.train.npy \
 		--queries /root/data/glove-25-angular/glove-25-angular.test.npy \
 		--gtruth /root/data/glove-25-angular/glove-25-angular.gtruth.npy \
@@ -557,7 +557,7 @@ glove25-bench-hnsw:
 		--metric angular
 
 glove50-bench-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset /root/data/glove-50-angular/glove-50-angular.train.npy \
 		--queries /root/data/glove-50-angular/glove-50-angular.test.npy \
 		--gtruth /root/data/glove-50-angular/glove-50-angular.gtruth.npy \
@@ -573,7 +573,7 @@ glove50-bench-flatnav:
 		--metric angular
 
 glove50-bench-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset /root/data/glove-50-angular/glove-50-angular.train.npy \
 		--queries /root/data/glove-50-angular/glove-50-angular.test.npy \
 		--gtruth /root/data/glove-50-angular/glove-50-angular.gtruth.npy \
@@ -587,7 +587,7 @@ glove50-bench-hnsw:
 		--metric angular
 
 glove100-bench-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
 		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
 		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
@@ -603,7 +603,7 @@ glove100-bench-flatnav:
 		--metric angular
 
 glove100-bench-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset /root/data/glove-100-angular/glove-100-angular.train.npy \
 		--queries /root/data/glove-100-angular/glove-100-angular.test.npy \
 		--gtruth /root/data/glove-100-angular/glove-100-angular.gtruth.npy \
@@ -617,7 +617,7 @@ glove100-bench-hnsw:
 		--metric angular
 
 glove200-bench-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset /root/data/glove-200-angular/glove-200-angular.train.npy \
 		--queries /root/data/glove-200-angular/glove-200-angular.test.npy \
 		--gtruth /root/data/glove-200-angular/glove-200-angular.gtruth.npy \
@@ -633,7 +633,7 @@ glove200-bench-flatnav:
 		--metric angular
 
 glove200-bench-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset /root/data/glove-200-angular/glove-200-angular.train.npy \
 		--queries /root/data/glove-200-angular/glove-200-angular.test.npy \
 		--gtruth /root/data/glove-200-angular/glove-200-angular.gtruth.npy \
@@ -648,7 +648,7 @@ glove200-bench-hnsw:
 
 
 nytimes-bench-flatnav:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset /root/data/nytimes-256-angular/nytimes-256-angular.train.npy \
 		--queries /root/data/nytimes-256-angular/nytimes-256-angular.test.npy \
 		--gtruth /root/data/nytimes-256-angular/nytimes-256-angular.gtruth.npy \
@@ -665,7 +665,7 @@ nytimes-bench-flatnav:
 
 
 nytimes-bench-hnsw:
-	poetry run python run-benchmark.py \
+	poetry run python run_benchmark.py \
 		--dataset /root/data/nytimes-256-angular/nytimes-256-angular.train.npy \
 		--queries /root/data/nytimes-256-angular/nytimes-256-angular.test.npy \
 		--gtruth /root/data/nytimes-256-angular/nytimes-256-angular.gtruth.npy \
