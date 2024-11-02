@@ -1,5 +1,10 @@
 #pragma once
 
+#include <flatnav/distances/DistanceInterface.h>
+#include <flatnav/util/Macros.h>
+#include <flatnav/util/Multithreading.h>
+#include <flatnav/util/Reordering.h>
+#include <flatnav/util/VisitedSetPool.h>
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -8,11 +13,6 @@
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
 #include <cstring>
-#include <flatnav/distances/DistanceInterface.h>
-#include <flatnav/util/Macros.h>
-#include <flatnav/util/Multithreading.h>
-#include <flatnav/util/Reordering.h>
-#include <flatnav/util/VisitedSetPool.h>
 #include <fstream>
 #include <limits>
 #include <memory>
@@ -30,7 +30,8 @@ namespace flatnav {
 
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
-template <typename dist_t, typename label_t> class Index {
+template <typename dist_t, typename label_t>
+class Index {
   typedef std::pair<float, label_t> dist_label_t;
   // internal node numbering scheme. We might need to change this to uint64_t
   typedef uint32_t node_id_t;
@@ -39,11 +40,10 @@ template <typename dist_t, typename label_t> class Index {
   // NOTE: by default this is a max-heap. We could make this a min-heap
   // by using std::greater, but we want to use the queue as both a max-heap and
   // min-heap depending on the context.
-  typedef std::priority_queue<dist_node_t, std::vector<dist_node_t>>
-      PriorityQueue;
+  typedef std::priority_queue<dist_node_t, std::vector<dist_node_t>> PriorityQueue;
 
   // Large (several GB), pre-allocated block of memory.
-  char *_index_memory;
+  char* _index_memory;
 
   size_t _M;
   // size of one data point (does not support variable-size data, strings)
@@ -51,7 +51,7 @@ template <typename dist_t, typename label_t> class Index {
   // Node consists of: ([data] [M links] [data label]). This layout was chosen
   // after benchmarking - it's slightly more cache-efficient than others.
   size_t _node_size_bytes;
-  size_t _max_node_count; // Determines size of internal pre-allocated memory
+  size_t _max_node_count;  // Determines size of internal pre-allocated memory
   size_t _cur_num_nodes;
   std::unique_ptr<DistanceInterface<dist_t>> _distance;
   std::mutex _index_data_guard;
@@ -59,7 +59,7 @@ template <typename dist_t, typename label_t> class Index {
   uint32_t _num_threads;
 
   // Remembers which nodes we've visited, to avoid re-computing distances.
-  VisitedSetPool *_visited_set_pool;
+  VisitedSetPool* _visited_set_pool;
   std::vector<std::mutex> _node_links_mutexes;
 
   bool _collect_stats = false;
@@ -69,8 +69,8 @@ template <typename dist_t, typename label_t> class Index {
   mutable std::atomic<uint64_t> _distance_computations = 0;
   mutable std::atomic<uint64_t> _metric_hops = 0;
 
-  Index(const Index &) = delete;
-  Index &operator=(const Index &) = delete;
+  Index(const Index&) = delete;
+  Index& operator=(const Index&) = delete;
 
   // A custom move constructor is needed because the class manages dynamic
   // resources (_index_memory, _visited_set_pool),
@@ -78,8 +78,9 @@ template <typename dist_t, typename label_t> class Index {
   // leaks or double frees. The default move constructor cannot ensure these
   // resources are safely transferred and the source object is left in a valid
   // state.
-  Index(Index &&other) noexcept
-      : _index_memory(other._index_memory), _M(other._M),
+  Index(Index&& other) noexcept
+      : _index_memory(other._index_memory),
+        _M(other._M),
         _data_size_bytes(other._data_size_bytes),
         _node_size_bytes(other._node_size_bytes),
         _max_node_count(other._max_node_count),
@@ -93,7 +94,7 @@ template <typename dist_t, typename label_t> class Index {
     other._visited_set_pool = nullptr;
   }
 
-  Index &operator=(Index &&other) noexcept {
+  Index& operator=(Index&& other) noexcept {
     if (this != &other) {
       delete[] _index_memory;
       delete _visited_set_pool;
@@ -116,16 +117,15 @@ template <typename dist_t, typename label_t> class Index {
     return *this;
   }
 
-  template <typename Archive> void serialize(Archive &archive) {
-    archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count,
-            _cur_num_nodes, *_distance);
+  template <typename Archive>
+  void serialize(Archive& archive) {
+    archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count, _cur_num_nodes, *_distance);
 
     // Serialize the allocated memory for the index & query.
-    archive(
-        cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
+    archive(cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
   }
 
-public:
+ public:
   /**
    * @brief Construct a new Index object for approximate near neighbor search.
    *
@@ -141,21 +141,24 @@ public:
    * @param collect_stats Flag indicating whether to collect statistics during
    * the search process.
    */
-  Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size,
-        int max_edges_per_node, bool collect_stats = false)
-      : _M(max_edges_per_node), _max_node_count(dataset_size),
-        _cur_num_nodes(0), _distance(std::move(dist)), _num_threads(1),
+  Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size, int max_edges_per_node,
+        bool collect_stats = false)
+      : _M(max_edges_per_node),
+        _max_node_count(dataset_size),
+        _cur_num_nodes(0),
+        _distance(std::move(dist)),
+        _num_threads(1),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
-        _node_links_mutexes(dataset_size), _collect_stats(collect_stats) {
+        _node_links_mutexes(dataset_size),
+        _collect_stats(collect_stats) {
 
     // Get the size in bytes of the _node_links_mutexes vector.
     size_t mutexes_size_bytes = _node_links_mutexes.size() * sizeof(std::mutex);
 
     _data_size_bytes = _distance->dataSize();
-    _node_size_bytes =
-        _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
+    _node_size_bytes = _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
     size_t index_memory_size = _node_size_bytes * _max_node_count;
 
     _index_memory = new char[index_memory_size];
@@ -166,11 +169,10 @@ public:
     delete _visited_set_pool;
   }
 
-  void buildGraphLinks(const std::string &mtx_filename) {
+  void buildGraphLinks(const std::string& mtx_filename) {
     std::ifstream input_file(mtx_filename);
     if (!input_file.is_open()) {
-      throw std::runtime_error("Unable to open file for reading: " +
-                               mtx_filename);
+      throw std::runtime_error("Unable to open file for reading: " + mtx_filename);
     }
 
     std::string line;
@@ -188,13 +190,15 @@ public:
     // nodes in the index and that the number of edges is equal to the number of
     // links per node.
     if (num_vertices != _max_node_count) {
-      throw std::runtime_error("Number of vertices in the mtx file does not "
-                               "match the size allocated for the index.");
+      throw std::runtime_error(
+          "Number of vertices in the mtx file does not "
+          "match the size allocated for the index.");
     }
 
     if (num_edges != _M) {
-      throw std::runtime_error("Number of edges in the mtx file does not match "
-                               "the number of links per node.");
+      throw std::runtime_error(
+          "Number of edges in the mtx file does not match "
+          "the number of links per node.");
     }
 
     int u, v;
@@ -202,7 +206,7 @@ public:
       // Adjust for 1-based indexing in Matrix Market format
       u--;
       v--;
-      node_id_t *links = getNodeLinks(u);
+      node_id_t* links = getNodeLinks(u);
       // Now add a directed edge from u to v. We need to check for the first
       // available slot in the links array since there might be other edges
       // added before this one. By definition, a slot is available if and only
@@ -221,7 +225,7 @@ public:
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
     std::vector<std::vector<uint32_t>> outdegree_table(_cur_num_nodes);
     for (node_id_t node = 0; node < _cur_num_nodes; node++) {
-      node_id_t *links = getNodeLinks(node);
+      node_id_t* links = getNodeLinks(node);
       for (int i = 0; i < _M; i++) {
         if (links[i] != node) {
           outdegree_table[node].push_back(links[i]);
@@ -240,7 +244,7 @@ public:
    * @param label The label (meta-data) of the vector.
    * @param new_node_id The id of the new node.
    */
-  void allocateNode(void *data, label_t &label, node_id_t &new_node_id) {
+  void allocateNode(void* data, label_t& label, node_id_t& new_node_id) {
 
     new_node_id = _cur_num_nodes;
     _distance->transformData(
@@ -248,7 +252,7 @@ public:
         /* src = */ data);
     *(getNodeLabel(new_node_id)) = label;
 
-    node_id_t *links = getNodeLinks(new_node_id);
+    node_id_t* links = getNodeLinks(new_node_id);
     // Initialize all edges to self
     std::fill_n(links, _M, new_node_id);
     _cur_num_nodes++;
@@ -281,11 +285,10 @@ public:
    * index is reached.
    */
   template <typename data_type>
-  void addBatch(void *data, std::vector<label_t> &labels, int ef_construction,
+  void addBatch(void* data, std::vector<label_t>& labels, int ef_construction,
                 int num_initializations = 100) {
     if (num_initializations <= 0) {
-      throw std::invalid_argument(
-          "num_initializations must be greater than 0.");
+      throw std::invalid_argument("num_initializations must be greater than 0.");
     }
     uint32_t total_num_nodes = labels.size();
     uint32_t data_dimension = _distance->dimension();
@@ -293,7 +296,7 @@ public:
     // Don't spawn any threads if we are only using one.
     if (_num_threads == 1) {
       for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
-        void *vector = (data_type *)data + (row_id * data_dimension);
+        void* vector = (data_type*)data + (row_id * data_dimension);
         label_t label = labels[row_id];
         this->add(vector, label, ef_construction, num_initializations);
       }
@@ -304,7 +307,7 @@ public:
         /* start_index = */ 0, /* end_index = */ total_num_nodes,
         /* num_threads = */ _num_threads, /* function = */
         [&](uint32_t row_index) {
-          void *vector = (data_type *)data + (row_index * data_dimension);
+          void* vector = (data_type*)data + (row_index * data_dimension);
           label_t label = labels[row_index];
           this->add(vector, label, ef_construction, num_initializations);
         });
@@ -332,13 +335,13 @@ public:
    * @exception std::runtime_error Thrown if the maximum number of nodes is
    * reached.
    */
-  void add(void *data, label_t &label, int ef_construction,
-           int num_initializations) {
+  void add(void* data, label_t& label, int ef_construction, int num_initializations) {
 
     if (_cur_num_nodes >= _max_node_count) {
-      throw std::runtime_error("Maximum number of nodes reached. Consider "
-                               "increasing the `max_node_count` parameter to "
-                               "create a larger index.");
+      throw std::runtime_error(
+          "Maximum number of nodes reached. Consider "
+          "increasing the `max_node_count` parameter to "
+          "create a larger index.");
     }
     _index_data_guard.lock();
     auto entry_node = initializeSearch(data, num_initializations);
@@ -365,26 +368,21 @@ public:
    * @param ef_search The search beam width.
    * @param num_initializations The number of random initializations to use.
    */
-  std::vector<dist_label_t> search(const void *query, const int K,
-                                   int ef_search,
+  std::vector<dist_label_t> search(const void* query, const int K, int ef_search,
                                    int num_initializations = 100) {
     node_id_t entry_node = initializeSearch(query, num_initializations);
-    PriorityQueue neighbors =
-        beamSearch(/* query = */ query,
-                   /* entry_node = */ entry_node,
-                   /* buffer_size = */ std::max(ef_search, K));
+    PriorityQueue neighbors = beamSearch(/* query = */ query,
+                                         /* entry_node = */ entry_node,
+                                         /* buffer_size = */ std::max(ef_search, K));
     auto size = neighbors.size();
     std::vector<dist_label_t> results;
     results.reserve(size);
     while (!neighbors.empty()) {
-      results.emplace_back(neighbors.top().first,
-                           *getNodeLabel(neighbors.top().second));
+      results.emplace_back(neighbors.top().first, *getNodeLabel(neighbors.top().second));
       neighbors.pop();
     }
     std::sort(results.begin(), results.end(),
-              [](const dist_label_t &left, const dist_label_t &right) {
-                return left.first < right.first;
-              });
+              [](const dist_label_t& left, const dist_label_t& right) { return left.first < right.first; });
     if (results.size() > static_cast<size_t>(K)) {
       results.resize(K);
     }
@@ -392,9 +390,9 @@ public:
     return results;
   }
 
-  void doGraphReordering(const std::vector<std::string> &reordering_methods) {
+  void doGraphReordering(const std::vector<std::string>& reordering_methods) {
 
-    for (const auto &method : reordering_methods) {
+    for (const auto& method : reordering_methods) {
       auto outdegree_table = getGraphOutdegreeTable();
       std::vector<node_id_t> P;
       if (method == "gorder") {
@@ -411,8 +409,7 @@ public:
 
   void reorderGOrder(const int window_size = 5) {
     auto outdegree_table = getGraphOutdegreeTable();
-    std::vector<node_id_t> P =
-        util::gOrder<node_id_t>(outdegree_table, window_size);
+    std::vector<node_id_t> P = util::gOrder<node_id_t>(outdegree_table, window_size);
 
     relabel(P);
   }
@@ -423,8 +420,7 @@ public:
     relabel(P);
   }
 
-  static std::unique_ptr<Index<dist_t, label_t>>
-  loadIndex(const std::string &filename) {
+  static std::unique_ptr<Index<dist_t, label_t>> loadIndex(const std::string& filename) {
     std::ifstream stream(filename, std::ios::binary);
 
     if (!stream.is_open()) {
@@ -434,34 +430,28 @@ public:
     cereal::BinaryInputArchive archive(stream);
     std::unique_ptr<Index<dist_t, label_t>> index(new Index<dist_t, label_t>());
 
-    std::unique_ptr<DistanceInterface<dist_t>> dist =
-        std::make_unique<dist_t>();
+    std::unique_ptr<DistanceInterface<dist_t>> dist = std::make_unique<dist_t>();
 
     // 1. Deserialize metadata
-    archive(index->_M, index->_data_size_bytes, index->_node_size_bytes,
-            index->_max_node_count, index->_cur_num_nodes, *dist);
+    archive(index->_M, index->_data_size_bytes, index->_node_size_bytes, index->_max_node_count,
+            index->_cur_num_nodes, *dist);
     index->_visited_set_pool = new VisitedSetPool(
         /* initial_pool_size = */ 1,
         /* num_elements = */ index->_max_node_count);
     index->_distance = std::move(dist);
-    index->_num_threads = std::max(
-        (uint32_t)1, (uint32_t)std::thread::hardware_concurrency() / 2);
-    index->_node_links_mutexes =
-        std::vector<std::mutex>(index->_max_node_count);
+    index->_num_threads = std::max((uint32_t)1, (uint32_t)std::thread::hardware_concurrency() / 2);
+    index->_node_links_mutexes = std::vector<std::mutex>(index->_max_node_count);
 
     // 2. Allocate memory using deserialized metadata
-    index->_index_memory =
-        new char[index->_node_size_bytes * index->_max_node_count];
+    index->_index_memory = new char[index->_node_size_bytes * index->_max_node_count];
 
     // 3. Deserialize content into allocated memory
-    archive(
-        cereal::binary_data(index->_index_memory,
-                            index->_node_size_bytes * index->_max_node_count));
+    archive(cereal::binary_data(index->_index_memory, index->_node_size_bytes * index->_max_node_count));
 
     return index;
   }
 
-  void saveIndex(const std::string &filename) {
+  void saveIndex(const std::string& filename) {
     std::ofstream stream(filename, std::ios::binary);
 
     if (!stream.is_open()) {
@@ -488,8 +478,7 @@ public:
     return static_cast<uint64_t>(_node_size_bytes * _max_node_count);
   }
   inline uint64_t mutexesAllocatedMemory() const {
-    return static_cast<uint64_t>(_node_links_mutexes.size() *
-                                 sizeof(std::mutex));
+    return static_cast<uint64_t>(_node_links_mutexes.size() * sizeof(std::mutex));
   }
 
   inline uint64_t visitedSetPoolAllocatedMemory() const {
@@ -509,9 +498,7 @@ public:
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
 
-  inline uint64_t distanceComputations() const {
-    return _distance_computations.load();
-  }
+  inline uint64_t distanceComputations() const { return _distance_computations.load(); }
 
   void resetStats() {
     _distance_computations = 0;
@@ -530,28 +517,25 @@ public:
     _distance->getSummary();
   }
 
-private:
+ private:
   friend class cereal::access;
   // Default constructor for cereal
   Index() = default;
 
-  char *getNodeData(const node_id_t &n) const {
-    return _index_memory + (n * _node_size_bytes);
+  char* getNodeData(const node_id_t& n) const { return _index_memory + (n * _node_size_bytes); }
+
+  node_id_t* getNodeLinks(const node_id_t& n) const {
+    char* location = _index_memory + (n * _node_size_bytes) + _data_size_bytes;
+    return reinterpret_cast<node_id_t*>(location);
   }
 
-  node_id_t *getNodeLinks(const node_id_t &n) const {
-    char *location = _index_memory + (n * _node_size_bytes) + _data_size_bytes;
-    return reinterpret_cast<node_id_t *>(location);
+  label_t* getNodeLabel(const node_id_t& n) const {
+    char* location = _index_memory + (n * _node_size_bytes) + _data_size_bytes + (_M * sizeof(node_id_t));
+    return reinterpret_cast<label_t*>(location);
   }
 
-  label_t *getNodeLabel(const node_id_t &n) const {
-    char *location = _index_memory + (n * _node_size_bytes) + _data_size_bytes +
-                     (_M * sizeof(node_id_t));
-    return reinterpret_cast<label_t *>(location);
-  }
-
-  inline void swapNodes(node_id_t a, node_id_t b, void *temp_data,
-                        node_id_t *temp_links, label_t *temp_label) {
+  inline void swapNodes(node_id_t a, node_id_t b, void* temp_data, node_id_t* temp_links,
+                        label_t* temp_label) {
 
     // stash b in temp
     std::memcpy(temp_data, getNodeData(b), _data_size_bytes);
@@ -580,12 +564,11 @@ private:
    *
    * @return PriorityQueue
    */
-  PriorityQueue beamSearch(const void *query, const node_id_t entry_node,
-                           const int buffer_size) {
+  PriorityQueue beamSearch(const void* query, const node_id_t entry_node, const int buffer_size) {
     PriorityQueue neighbors;
     PriorityQueue candidates;
 
-    auto *visited_set = _visited_set_pool->pollAvailableSet();
+    auto* visited_set = _visited_set_pool->pollAvailableSet();
     visited_set->clear();
 
     // Prefetch the data for entry node before computing its distance.
@@ -593,9 +576,8 @@ private:
     _mm_prefetch(getNodeData(entry_node), _MM_HINT_T0);
 #endif
 
-    float dist =
-        _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node),
-                            /* asymmetric = */ true);
+    float dist = _distance->distance(/* x = */ query, /* y = */ getNodeData(entry_node),
+                                     /* asymmetric = */ true);
 
     float max_dist = dist;
     candidates.emplace(-dist, entry_node);
@@ -636,15 +618,13 @@ private:
     return neighbors;
   }
 
-  void processCandidateNode(const void *query, node_id_t &node, float &max_dist,
-                            const int buffer_size, VisitedSet *visited_set,
-                            PriorityQueue &neighbors,
-                            PriorityQueue &candidates) {
+  void processCandidateNode(const void* query, node_id_t& node, float& max_dist, const int buffer_size,
+                            VisitedSet* visited_set, PriorityQueue& neighbors, PriorityQueue& candidates) {
     // Lock all operations on this specific node
     std::unique_lock<std::mutex> lock(_node_links_mutexes[node]);
     float dist = 0.f;
 
-    node_id_t *neighbor_node_links = getNodeLinks(node);
+    node_id_t* neighbor_node_links = getNodeLinks(node);
     for (uint32_t i = 0; i < _M; i++) {
       node_id_t neighbor_node_id = neighbor_node_links[i];
 
@@ -657,8 +637,7 @@ private:
       }
 #endif
 
-      bool neighbor_is_visited =
-          visited_set->isVisited(/* num = */ neighbor_node_id);
+      bool neighbor_is_visited = visited_set->isVisited(/* num = */ neighbor_node_id);
 
       if (neighbor_is_visited) {
         continue;
@@ -693,7 +672,7 @@ private:
    * heuristic. The neighbors priority queue contains elements sorted by
    * distance where the top element is the furthest neighbor from the query.
    */
-  void selectNeighbors(PriorityQueue &neighbors) {
+  void selectNeighbors(PriorityQueue& neighbors) {
     if (neighbors.size() < _M) {
       return;
     }
@@ -717,11 +696,10 @@ private:
       candidates.pop();
 
       bool should_keep_candidate = true;
-      for (const dist_node_t &second_pair : saved_candidates) {
+      for (const dist_node_t& second_pair : saved_candidates) {
 
-        cur_dist =
-            _distance->distance(/* x = */ getNodeData(second_pair.second),
-                                /* y = */ getNodeData(current_pair.second));
+        cur_dist = _distance->distance(/* x = */ getNodeData(second_pair.second),
+                                       /* y = */ getNodeData(current_pair.second));
 
         if (cur_dist < (-current_pair.first)) {
           should_keep_candidate = false;
@@ -737,19 +715,19 @@ private:
     }
     // TODO: implement my own priority queue, get rid of vector
     // saved_candidates, add directly to neighborqueue earlier.
-    for (const dist_node_t &current_pair : saved_candidates) {
+    for (const dist_node_t& current_pair : saved_candidates) {
       neighbors.emplace(-current_pair.first, current_pair.second);
     }
   }
 
-  void connectNeighbors(PriorityQueue &neighbors, node_id_t new_node_id) {
+  void connectNeighbors(PriorityQueue& neighbors, node_id_t new_node_id) {
     // connects neighbors according to the HSNW heuristic
 
     // Lock all operations on this node
     std::unique_lock<std::mutex> lock(_node_links_mutexes[new_node_id]);
 
-    node_id_t *new_node_links = getNodeLinks(new_node_id);
-    int i = 0; // iterates through links for "new_node_id"
+    node_id_t* new_node_links = getNodeLinks(new_node_id);
+    int i = 0;  // iterates through links for "new_node_id"
 
     while (neighbors.size() > 0) {
       node_id_t neighbor_node_id = neighbors.top().second;
@@ -757,9 +735,8 @@ private:
       new_node_links[i] = neighbor_node_id;
       // now do the back-connections (a little tricky)
 
-      std::unique_lock<std::mutex> neighbor_lock(
-          _node_links_mutexes[neighbor_node_id]);
-      node_id_t *neighbor_node_links = getNodeLinks(neighbor_node_id);
+      std::unique_lock<std::mutex> neighbor_lock(_node_links_mutexes[neighbor_node_id]);
+      node_id_t* neighbor_node_links = getNodeLinks(neighbor_node_id);
       bool is_inserted = false;
       for (size_t j = 0; j < _M; j++) {
         if (neighbor_node_links[j] == neighbor_node_id) {
@@ -777,30 +754,28 @@ private:
         // construct a candidate set including the old links AND our new
         // one, then prune this candidate set to get the new neighbors.
 
-        float max_dist =
-            _distance->distance(/* x = */ getNodeData(neighbor_node_id),
-                                /* y = */ getNodeData(new_node_id));
+        float max_dist = _distance->distance(/* x = */ getNodeData(neighbor_node_id),
+                                             /* y = */ getNodeData(new_node_id));
 
         PriorityQueue candidates;
         candidates.emplace(max_dist, new_node_id);
         for (size_t j = 0; j < _M; j++) {
           if (neighbor_node_links[j] != neighbor_node_id) {
             auto label = neighbor_node_links[j];
-            auto distance =
-                _distance->distance(/* x = */ getNodeData(neighbor_node_id),
-                                    /* y = */ getNodeData(label));
+            auto distance = _distance->distance(/* x = */ getNodeData(neighbor_node_id),
+                                                /* y = */ getNodeData(label));
             candidates.emplace(distance, label);
           }
         }
         selectNeighbors(candidates);
         // connect the pruned set of candidates, including self-loops:
         size_t j = 0;
-        while (candidates.size() > 0) { // candidates
+        while (candidates.size() > 0) {  // candidates
           neighbor_node_links[j] = candidates.top().second;
           candidates.pop();
           j++;
         }
-        while (j < _M) { // self-loops (unused links)
+        while (j < _M) {  // self-loops (unused links)
           neighbor_node_links[j] = neighbor_node_id;
           j++;
         }
@@ -827,12 +802,10 @@ private:
    * @param num_initializations
    * @return node_id_t
    */
-  inline node_id_t initializeSearch(const void *query,
-                                    int num_initializations) {
+  inline node_id_t initializeSearch(const void* query, int num_initializations) {
     // select entry_node from a set of random entry point options
     if (num_initializations <= 0) {
-      throw std::invalid_argument(
-          "num_initializations must be greater than 0.");
+      throw std::invalid_argument("num_initializations must be greater than 0.");
     }
 
     int step_size = _cur_num_nodes / num_initializations;
@@ -846,9 +819,8 @@ private:
     }
 
     for (node_id_t node = 0; node < _cur_num_nodes; node += step_size) {
-      float dist =
-          _distance->distance(/* x = */ query, /* y = */ getNodeData(node),
-                              /* asymmetric = */ true);
+      float dist = _distance->distance(/* x = */ query, /* y = */ getNodeData(node),
+                                       /* asymmetric = */ true);
       if (dist < min_dist) {
         min_dist = dist;
         entry_node = node;
@@ -857,21 +829,21 @@ private:
     return entry_node;
   }
 
-  void relabel(const std::vector<node_id_t> &P) {
+  void relabel(const std::vector<node_id_t>& P) {
     // 1. Rewire all of the node connections
     for (node_id_t n = 0; n < _cur_num_nodes; n++) {
-      node_id_t *links = getNodeLinks(n);
+      node_id_t* links = getNodeLinks(n);
       for (int m = 0; m < _M; m++) {
         links[m] = P[links[m]];
       }
     }
 
     // 2. Physically re-layout the nodes (in place)
-    char *temp_data = new char[_data_size_bytes];
-    node_id_t *temp_links = new node_id_t[_M];
-    label_t *temp_label = new label_t;
+    char* temp_data = new char[_data_size_bytes];
+    node_id_t* temp_links = new node_id_t[_M];
+    label_t* temp_label = new label_t;
 
-    auto *visited_set = _visited_set_pool->pollAvailableSet();
+    auto* visited_set = _visited_set_pool->pollAvailableSet();
 
     // In this context, is_visited stores which nodes have been relocated
     // (it would be equivalent to name this variable "is_relocated").
@@ -914,4 +886,4 @@ private:
   }
 };
 
-} // namespace flatnav
+}  // namespace flatnav

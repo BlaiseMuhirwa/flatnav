@@ -16,8 +16,7 @@ namespace flatnav {
  * installing the Python library.
  */
 template <typename Function, typename... Args>
-void executeInParallel(uint32_t start_index, uint32_t end_index,
-                       uint32_t num_threads, Function function,
+void executeInParallel(uint32_t start_index, uint32_t end_index, uint32_t num_threads, Function function,
                        Args... additional_args) {
   if (num_threads == 0) {
     throw std::invalid_argument("Invalid number of threads");
@@ -35,8 +34,8 @@ void executeInParallel(uint32_t start_index, uint32_t end_index,
         break;
       }
       // Use std::apply to pass arguments to the function
-      std::apply(function, std::tuple_cat(std::make_tuple(current_vector_idx),
-                                          std::make_tuple(additional_args...)));
+      std::apply(function,
+                 std::tuple_cat(std::make_tuple(current_vector_idx), std::make_tuple(additional_args...)));
     }
   };
 
@@ -48,4 +47,4 @@ void executeInParallel(uint32_t start_index, uint32_t end_index,
   }
 }
 
-} // namespace flatnav
+}  // namespace flatnav

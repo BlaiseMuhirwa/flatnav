@@ -1,9 +1,9 @@
 
-#include "gtest/gtest.h"
-#include <chrono>
 #include <flatnav/util/Macros.h>
 #include <flatnav/util/SimdUtils.h>
+#include <chrono>
 #include <random>
+#include "gtest/gtest.h"
 
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
@@ -11,7 +11,7 @@
 namespace flatnav::testing {
 
 class DistanceTest : public ::testing::Test {
-protected:
+ protected:
   void SetUp() override {
     // Initialize x and y with values drawn from a normal distribution
     std::default_random_engine generator;
@@ -37,8 +37,7 @@ protected:
 TEST_F(DistanceTest, TestAvx512L2Distance) {
 #if defined(USE_AVX512)
   float result = flatnav::util::computeL2_Avx512(x, y, dimensions);
-  float expected =
-      flatnav::distances::defaultSquaredL2<float>(x, y, dimensions);
+  float expected = flatnav::distances::defaultSquaredL2<float>(x, y, dimensions);
   ASSERT_NEAR(result, expected, epsilon);
 
 #endif
@@ -49,19 +48,18 @@ TEST_F(DistanceTest, TestAvx512L2DistanceUint8) {
 #if defined(USE_AVX512)
   auto total_num_vectors = 1000;
   auto total_size = dimensions * total_num_vectors;
-  uint8_t *x_matrix = (uint8_t *)malloc(total_size);
-  uint8_t *y_matrix = (uint8_t *)malloc(total_size);
+  uint8_t* x_matrix = (uint8_t*)malloc(total_size);
+  uint8_t* y_matrix = (uint8_t*)malloc(total_size);
   for (size_t i = 0; i < total_size; i++) {
     x_matrix[i] = (uint8_t)rand() % 256;
     y_matrix[i] = (uint8_t)rand() % 256;
   }
 
   for (size_t i = 0; i < total_num_vectors; i++) {
-    uint8_t *x = x_matrix + i * dimensions;
-    uint8_t *y = y_matrix + i * dimensions;
+    uint8_t* x = x_matrix + i * dimensions;
+    uint8_t* y = y_matrix + i * dimensions;
     float result = flatnav::util::computeL2_Avx512_Uint8(x, y, dimensions);
-    float expected =
-        flatnav::distances::defaultSquaredL2<uint8_t>(x, y, dimensions);
+    float expected = flatnav::distances::defaultSquaredL2<uint8_t>(x, y, dimensions);
     ASSERT_NEAR(result, expected, epsilon);
   }
 
@@ -76,8 +74,7 @@ TEST_F(DistanceTest, TestAvxL2Distance) {
 #if defined(USE_AVX)
 
   float result = flatnav::util::computeL2_Avx2(x, y, dimensions);
-  float expected =
-      flatnav::distances::defaultSquaredL2<float>(x, y, dimensions);
+  float expected = flatnav::distances::defaultSquaredL2<float>(x, y, dimensions);
 
   ASSERT_NEAR(result, expected, epsilon);
 
@@ -106,8 +103,7 @@ TEST(TestSingleIntrinsic, TestReduceAddSse) {
 TEST_F(DistanceTest, TestSseL2Distance) {
 #if defined(USE_SSE)
   float result = flatnav::util::computeL2_Sse(x, y, dimensions);
-  float expected =
-      flatnav::distances::defaultSquaredL2<float>(x, y, dimensions);
+  float expected = flatnav::distances::defaultSquaredL2<float>(x, y, dimensions);
   ASSERT_NEAR(result, expected, epsilon);
 
   // try with dimensions not divisible by 16
@@ -182,4 +178,4 @@ TEST_F(DistanceTest, TestSseInnerProductDistance) {
 #endif
 }
 
-} // namespace flatnav::testing
+}  // namespace flatnav::testing

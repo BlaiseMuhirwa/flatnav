@@ -1,11 +1,11 @@
-#include "gtest/gtest.h"
-#include <cassert>
-#include <cstdio> // for remove
 #include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/index/Index.h>
+#include <cassert>
+#include <cstdio>  // for remove
 #include <random>
+#include "gtest/gtest.h"
 
 using flatnav::Index;
 using flatnav::distances::DistanceInterface;
@@ -31,23 +31,20 @@ std::vector<float> generateRandomVectors(uint32_t num_vectors, uint32_t dim) {
 }
 
 template <typename dist_t, typename label_t>
-void runTest(float *data, std::unique_ptr<DistanceInterface<dist_t>> &&distance,
-             int N, int M, int dim, int ef_construction,
-             const std::string &save_file) {
+void runTest(float* data, std::unique_ptr<DistanceInterface<dist_t>>&& distance, int N, int M, int dim,
+             int ef_construction, const std::string& save_file) {
   auto data_size = distance->dataSize();
 
-  std::unique_ptr<Index<dist_t, label_t>> index =
-      std::make_unique<Index<dist_t, label_t>>(
-          /* dist = */ std::move(distance), /* dataset_size = */ N,
-          /* max_edges = */ M);
+  std::unique_ptr<Index<dist_t, label_t>> index = std::make_unique<Index<dist_t, label_t>>(
+      /* dist = */ std::move(distance), /* dataset_size = */ N,
+      /* max_edges = */ M);
 
   std::vector<int> labels(N);
   std::iota(labels.begin(), labels.end(), 0);
   index->template addBatch<float>(data, labels, ef_construction);
   index->saveIndex(/* filename = */ save_file);
 
-  auto new_index =
-      Index<dist_t, label_t>::loadIndex(/* filename = */ save_file);
+  auto new_index = Index<dist_t, label_t>::loadIndex(/* filename = */ save_file);
 
   ASSERT_EQ(new_index->maxEdgesPerNode(), M);
   ASSERT_EQ(new_index->dataSizeBytes(), index->dataSizeBytes());
@@ -55,19 +52,16 @@ void runTest(float *data, std::unique_ptr<DistanceInterface<dist_t>> &&distance,
   ASSERT_EQ(new_index->nodeSizeBytes(), data_size + (4 * M) + 4);
   ASSERT_EQ(new_index->maxNodeCount(), N);
 
-  uint64_t total_index_size =
-      new_index->nodeSizeBytes() * new_index->maxNodeCount();
+  uint64_t total_index_size = new_index->nodeSizeBytes() * new_index->maxNodeCount();
 
   std::vector<float> queries = generateRandomVectors(QUERY_VECTORS, dim);
 
   for (uint32_t i = 0; i < QUERY_VECTORS; i++) {
-    float *q = queries.data() + (dim * i);
+    float* q = queries.data() + (dim * i);
 
-    std::vector<std::pair<float, int>> query_result =
-        index->search(q, K, EF_SEARCH);
+    std::vector<std::pair<float, int>> query_result = index->search(q, K, EF_SEARCH);
 
-    std::vector<std::pair<float, int>> new_query_result =
-        new_index->search(q, K, EF_SEARCH);
+    std::vector<std::pair<float, int>> new_query_result = new_index->search(q, K, EF_SEARCH);
 
     for (uint32_t j = 0; j < K; j++) {
       ASSERT_EQ(query_result[j].first, new_query_result[j].first);
@@ -109,4 +103,4 @@ TEST(FlatnavSerializationTest, TestInnerProductIndexSerialization) {
   EXPECT_EQ(std::remove(save_file.c_str()), 0);
 }
 
-} // namespace flatnav::testing
+}  // namespace flatnav::testing

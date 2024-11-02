@@ -11,11 +11,11 @@
 
 #ifdef __SSE3__
 #define USE_SSE3
-#endif // __SSE3__
+#endif  // __SSE3__
 
 #ifdef __SSE4_1__
 #define USE_SSE4_1
-#endif // __SSE4_1__
+#endif  // __SSE4_1__
 
 #ifdef __AVX__
 #define USE_AVX
@@ -24,18 +24,18 @@
 
 #ifdef __AVX512BW__
 #define USE_AVX512BW
-#endif // __AVX512BW__
+#endif  // __AVX512BW__
 
 #ifdef __AVX512VNNI__
 #define USE_AVX512VNNI
-#endif // __AVX512VNNI__
+#endif  // __AVX512VNNI__
 
 #define USE_AVX512
-#endif // __AVX512F__
+#endif  // __AVX512F__
 
-#endif // __AVX__
+#endif  // __AVX__
 #endif
-#endif // NO_SIMD_VECTORIZATION
+#endif  // NO_SIMD_VECTORIZATION
 
 #if defined(USE_AVX) || defined(USE_SSE)
 
@@ -89,7 +89,7 @@ uint64_t xgetbv(unsigned int index) {
 #else
 #define PORTABLE_ALIGN32 __declspec(align(32))
 #define PORTABLE_ALIGN64 __declspec(align(64))
-#endif // __GNUC__
+#endif  // __GNUC__
 
 #define _XCR_XFEATURE_ENABLED_MASK 0
 

@@ -1,13 +1,13 @@
 #pragma once
 
-#include <cereal/access.hpp>
-#include <cereal/cereal.hpp>
-#include <cstddef> // for size_t
-#include <cstring> // for memcpy
 #include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/distances/IPDistanceDispatcher.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/InnerProductSimdExtensions.h>
+#include <cereal/access.hpp>
+#include <cereal/cereal.hpp>
+#include <cstddef>  // for size_t
+#include <cstring>  // for memcpy
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -21,38 +21,35 @@ using util::DataType;
 using util::type_for_data_type;
 
 template <DataType data_type = DataType::float32>
-class InnerProductDistance
-    : public DistanceInterface<InnerProductDistance<data_type>> {
+class InnerProductDistance : public DistanceInterface<InnerProductDistance<data_type>> {
 
   friend class DistanceInterface<InnerProductDistance>;
   // Enum for compile-time constant
   enum { DISTANCE_ID = 1 };
 
-public:
+ public:
   InnerProductDistance() = default;
   InnerProductDistance(size_t dim)
-      : _dimension(dim),
-        _data_size_bytes(dim * flatnav::util::size(data_type)) {}
+      : _dimension(dim), _data_size_bytes(dim * flatnav::util::size(data_type)) {}
 
   static std::unique_ptr<InnerProductDistance<data_type>> create(size_t dim) {
     return std::make_unique<InnerProductDistance<data_type>>(dim);
   }
 
-  constexpr float distanceImpl(const void *x, const void *y,
-                               [[maybe_unused]] bool asymmetric = false) const {
-    return IPDistanceDispatcher::dispatch(
-        static_cast<const typename type_for_data_type<data_type>::type *>(x),
-        static_cast<const typename type_for_data_type<data_type>::type *>(y),
-        _dimension);
+  constexpr float distanceImpl(const void* x, const void* y, [[maybe_unused]] bool asymmetric = false) const {
+    return IPDistanceDispatcher::dispatch(static_cast<const typename type_for_data_type<data_type>::type*>(x),
+                                          static_cast<const typename type_for_data_type<data_type>::type*>(y),
+                                          _dimension);
   }
 
-private:
+ private:
   size_t _dimension;
   size_t _data_size_bytes;
 
   friend class cereal::access;
 
-  template <typename Archive> void serialize(Archive &ar) {
+  template <typename Archive>
+  void serialize(Archive& ar) {
     ar(_dimension, _data_size_bytes);
   }
 
@@ -60,9 +57,7 @@ private:
 
   size_t dataSizeImpl() { return _data_size_bytes; }
 
-  void transformDataImpl(void *dst, const void *src) {
-    std::memcpy(dst, src, _data_size_bytes);
-  }
+  void transformDataImpl(void* dst, const void* src) { std::memcpy(dst, src, _data_size_bytes); }
 
   void getSummaryImpl() {
     std::cout << "\nInnerProductDistance Parameters" << std::flush;
@@ -73,4 +68,4 @@ private:
   }
 };
 
-} // namespace flatnav::distances
+}  // namespace flatnav::distances
