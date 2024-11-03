@@ -10,14 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: 'recursive'
 
       - name: Install clang-format and make
         run: |
+          set -ex
           sudo apt-get update
           sudo apt-get install -y clang-format make
+          clang-format --version
 
       - name: Check C++ Formatting
         run: |
@@ -48,6 +50,11 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    - name: Install libomp (macOS only)
+      if: runner.os == 'macOS'
+      run: |
+        brew install libomp
+
     - name: Set up Poetry
       uses: snok/install-poetry@v1
       with:
@@ -66,8 +73,7 @@ jobs:
 
     - name: Run Unit Tests
       run: |
-        cd flatnav_python
-        poetry run pytest -vs unit_tests
+        make run-python-unit-tests
 
   run-cpp-unit-tests:
     needs: test-clang-format
