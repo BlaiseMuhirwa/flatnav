@@ -8,3 +8,11 @@ build-cpp:
 
 cmake-format:
 	cmake-format -i CMakeLists.txt
+
+run-cpp-unit-tests: build-cpp
+	./build/test_distances
+	./build/test_serialization
+
+setup-clang-cmake-libomp:
+	./bin/install_clang_and_libomp.sh
+	./bin/install_cmake.sh

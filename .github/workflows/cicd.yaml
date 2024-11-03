@@ -6,13 +6,37 @@ env:
   POETRY_VERSION: "1.6.1"
 
 jobs:
+test-clang-format:
+  runs-on: ubuntu-latest
+  steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+      with:
+        submodules: 'recursive'
+
+    - name: Install clang-format and make
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format make
+
+    - name: Check C++ Formatting
+      run: |
+        # Run the format-cpp Make target
+        make format-cpp
+        # Check if there are any changes after formatting
+        if ! git diff --exit-code; then
+          echo "Some files are not formatted correctly. Please run 'make format-cpp' and commit the changes."
+          exit 1
+        fi
+
+
   test-python-library:
     strategy:
       # Ensure that failure for one test does not cancel other actions
       fail-fast: false
       matrix:
-        os: [ubuntu-latest] 
-        python-version: ['3.9', '3.10', '3.11']
+        os: [ubuntu-latest, macos-latest] 
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout Repository
@@ -52,7 +76,7 @@ jobs:
       fail-fast: false
       matrix:
         # TODO: Would love to add macos here. 
-        os: [ubuntu-latest] 
+        os: [ubuntu-latest, macos-latest] 
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout Repository
@@ -62,16 +86,10 @@ jobs:
 
     - name: Install dependencies
       run: |
-        # Install CMake and clang
-        ./bin/install_clang_and_libomp.sh
-        ./bin/install_cmake.sh
-
-    - name: Build flatnav 
+        # Install CMake, Clang and LibOMP
+        make setup-clang-cmake-libomp
+        
+    - name: Build and Run C++ Unit Tests
       run: |
-        # Build flatnav as well as all tests and examples 
-        ./bin/build.sh -e -t 
-
-    - name: Run Unit Tests
-      run: |
-        ./build/test_distances
-        ./build/test_serialization
+        set -ex
+        make run-cpp-unit-tests
