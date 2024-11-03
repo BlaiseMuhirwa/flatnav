@@ -1,9 +1,13 @@
 name: Run Tests
 
-on: [push, pull_request]
+on: [pull_request]
 
 env: 
   POETRY_VERSION: "1.6.1"
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   test-clang-format:
@@ -13,6 +17,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: 'recursive'
+          # Ensures we can push changes
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install clang-format and make
         run: |
@@ -25,10 +31,21 @@ jobs:
         run: |
           # Run the format-cpp Make target
           make format-cpp
+
           # Check if there are any changes after formatting
-          if ! git diff --exit-code; then
-            echo "Some files are not formatted correctly. Please run 'make format-cpp' and commit the changes."
-            exit 1
+          if ! git diff --quiet; then
+            echo "Formatting changes detected. Committing and pushing the changes."
+            
+            # Set up git user for commit
+            git config user.name "GitHub Action Bot"
+            git config user.email "bot@users.noreply.github.com"
+
+            # Add, commit, and push the changes
+            git add .
+            git commit -m "chore: auto-format C++ code via clang-format"
+            git push origin HEAD
+          else
+            echo "No formatting changes needed."
           fi
 
   test-python-library:
