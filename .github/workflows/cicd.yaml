@@ -17,7 +17,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: 'recursive'
-          # Ensures we can push changes
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install clang-format and make
@@ -27,9 +26,8 @@ jobs:
           sudo apt-get install -y clang-format make
           clang-format --version
 
-      - name: Check C++ Formatting
+      - name: Check C++ source code formatting
         run: |
-          # Run the format-cpp Make target
           make format-cpp
 
           # Check if there are any changes after formatting
@@ -43,10 +41,13 @@ jobs:
             # Add, commit, and push the changes
             git add .
             git commit -m "chore: auto-format C++ code via clang-format"
-            git push origin HEAD
+            
+            # Push to the current branch
+            git push origin HEAD:${{ github.head_ref || github.ref_name }}
           else
             echo "No formatting changes needed."
           fi
+
 
   test-python-library:
     strategy:
