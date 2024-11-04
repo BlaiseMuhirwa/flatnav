@@ -12,7 +12,6 @@ set -e
 # Move to the root directory
 cd "$(dirname "$0")/../.."
 
-PROMETHEUS_CONFIG_FILE="$(pwd)/bin/memory-profiling/prometheus.yml"
 
 # Parse --force or -f flag
 FORCE=false
@@ -42,7 +41,7 @@ start_container() {
 }
 
 # Start cAdvisor
-start_container "cadvisor" "google/cadvisor:latest" \
+start_container "cadvisor" "gcr.io/cadvisor/cadvisor:latest" \
     --volume=/:/rootfs:ro \
     --volume=/var/run:/var/run:ro \
     --volume=/sys:/sys:ro \
@@ -51,6 +50,14 @@ start_container "cadvisor" "google/cadvisor:latest" \
     --detach=true
 
 # Start Prometheus
+PROMETHEUS_CONFIG_TEMPLATE="$(pwd)/bin/memory-profiling/prometheus-template.yml"
+PROMETHEUS_CONFIG_FILE="prometheus.yml"
+CADVISOR_IP=$(docker inspect cadvisor --format '{{.NetworkSettings.Networks.bridge.IPAddress}}')
+CADVISOR_PORT=8080
+
+# Use sed to replace the IP and port in the template file
+sed "s/\${CADVISOR_IP}/${CADVISOR_IP}/g; s/\${CADVISOR_PORT}/${CADVISOR_PORT}/g" "$PROMETHEUS_CONFIG_TEMPLATE" > "$PROMETHEUS_CONFIG_FILE"
+
 start_container "prometheus" "prom/prometheus" -p 5000:9090 -d \
     -v "${PROMETHEUS_CONFIG_FILE}:/etc/prometheus/prometheus.yml"
 
