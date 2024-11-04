@@ -40,6 +40,22 @@ space-v1b-bench-flatnav:
 		--num-search-threads 1 \
 		--metric l2
 
+bigann-bench-flatnav:
+	poetry run python run-benchmark.py \
+		--dataset-name msft-spacev-1b \
+		--dataset /root/data/bigann1B/base.1B.u8bin \
+		--queries /root/data/bigann1B/query.public.10K.u8bin \
+		--gtruth /root/data/bigann1B/gnd/idx_1000M.ivecs \
+		--index-type flatnav \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename bigann.mtx \
+		--num-node-links 16 \
+		--ef-construction 30 \
+		--ef-search 100 \
+		--num-build-threads 42 \
+		--num-search-threads 1 \
+		--metric l2
+
 ################################
 # End Billion-Scale Benchmarks
 ################################

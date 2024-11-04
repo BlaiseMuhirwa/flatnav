@@ -303,6 +303,13 @@ def main(
             hnsw_base_layer_filename=hnsw_base_layer_filename,
             num_build_threads=num_build_threads,
         )
+
+        # Save index to disk if we're using flatnav
+        if index_type == "flatnav":
+            filename = f"{index_type}_m={node_links}_efcons={ef_cons}.index"
+            full_path = "/scratch0/brc7/" + filename
+            index.save(f"{full_path}")
+            exit(0)
         
         if reordering_strategies is not None:
             if index_type != "flatnav":
