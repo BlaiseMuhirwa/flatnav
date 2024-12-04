@@ -26,32 +26,33 @@ jobs:
           sudo apt-get install -y clang-format make
           clang-format --version
 
-      run: |
-        make format-cpp
+      - name: Run clang-format
+        run: |
+          make format-cpp
 
-        # Check if there are any changes after formatting
-        if ! git diff --quiet; then
-          echo "Formatting changes detected. Committing and pushing the changes."
-          
-          # Set up git user for commit
-          git config user.name "GitHub Action Bot"
-          git config user.email "bot@users.noreply.github.com"
+          # Check if there are any changes after formatting
+          if ! git diff --quiet; then
+            echo "Formatting changes detected. Committing and pushing the changes."
+            
+            # Set up git user for commit
+            git config user.name "GitHub Action Bot"
+            git config user.email "bot@users.noreply.github.com"
 
-          # Add and commit the changes
-          git add .
-          git commit -m "chore: auto-format C++ code via clang-format"
-          
-          # Fetch the latest changes from the remote
-          git fetch origin
-          
-          # Rebase onto the latest remote branch
-          git rebase origin/${{ github.head_ref || github.ref_name }}
+            # Add and commit the changes
+            git add .
+            git commit -m "chore: auto-format C++ code via clang-format"
+            
+            # Fetch the latest changes from the remote
+            git fetch origin
+            
+            # Rebase onto the latest remote branch
+            git rebase origin/${{ github.head_ref || github.ref_name }}
 
-          # Push the changes (force-with-lease to avoid overwriting unrelated changes)
-          git push --force-with-lease origin HEAD:${{ github.head_ref || github.ref_name }}
-        else
-          echo "No formatting changes needed."
-        fi
+            # Push the changes (force-with-lease to avoid overwriting unrelated changes)
+            git push --force-with-lease origin HEAD:${{ github.head_ref || github.ref_name }}
+          else
+            echo "No formatting changes needed."
+          fi
 
 
   test-python-library:
@@ -104,7 +105,6 @@ jobs:
       # Ensure that failure for one test does not cancel other actions
       fail-fast: false
       matrix:
-        # TODO: Would love to add macos here. 
         os: [ubuntu-latest, macos-latest] 
     runs-on: ${{ matrix.os }}
     steps:
