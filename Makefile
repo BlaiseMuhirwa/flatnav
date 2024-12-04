@@ -8,3 +8,14 @@ build-cpp:
 
 cmake-format:
 	cmake-format -i CMakeLists.txt
+
+run-cpp-unit-tests: build-cpp
+	./build/test_distances
+	./build/test_serialization
+
+run-python-unit-tests:
+	cd flatnav_python && poetry run pytest -vs unit_tests
+
+setup-clang-cmake-libomp:
+	./bin/install_clang_and_libomp.sh
+	./bin/install_cmake.sh
