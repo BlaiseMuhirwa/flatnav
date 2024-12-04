@@ -26,27 +26,32 @@ jobs:
           sudo apt-get install -y clang-format make
           clang-format --version
 
-      - name: Check C++ source code formatting
-        run: |
-          make format-cpp
+      run: |
+        make format-cpp
 
-          # Check if there are any changes after formatting
-          if ! git diff --quiet; then
-            echo "Formatting changes detected. Committing and pushing the changes."
-            
-            # Set up git user for commit
-            git config user.name "GitHub Action Bot"
-            git config user.email "bot@users.noreply.github.com"
+        # Check if there are any changes after formatting
+        if ! git diff --quiet; then
+          echo "Formatting changes detected. Committing and pushing the changes."
+          
+          # Set up git user for commit
+          git config user.name "GitHub Action Bot"
+          git config user.email "bot@users.noreply.github.com"
 
-            # Add, commit, and push the changes
-            git add .
-            git commit -m "chore: auto-format C++ code via clang-format"
-            
-            # Push to the current branch
-            git push origin HEAD:${{ github.head_ref || github.ref_name }}
-          else
-            echo "No formatting changes needed."
-          fi
+          # Add and commit the changes
+          git add .
+          git commit -m "chore: auto-format C++ code via clang-format"
+          
+          # Fetch the latest changes from the remote
+          git fetch origin
+          
+          # Rebase onto the latest remote branch
+          git rebase origin/${{ github.head_ref || github.ref_name }}
+
+          # Push the changes (force-with-lease to avoid overwriting unrelated changes)
+          git push --force-with-lease origin HEAD:${{ github.head_ref || github.ref_name }}
+        else
+          echo "No formatting changes needed."
+        fi
 
 
   test-python-library:
