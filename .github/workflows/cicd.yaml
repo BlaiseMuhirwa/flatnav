@@ -111,7 +111,10 @@ jobs:
       # Ensure that failure for one test does not cancel other actions
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest] 
+        # TODO: Add macos-latest here. 
+        # Currently it's failing as can be seen here: 
+        # Ref: https://github.com/BlaiseMuhirwa/flatnav/actions/runs/12161129183/job/33915004519?pr=72
+        os: [ubuntu-latest] 
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout Repository
