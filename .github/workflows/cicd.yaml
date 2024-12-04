@@ -44,9 +44,12 @@ jobs:
             
             # Fetch the latest changes from the remote
             git fetch origin
-            
-            # Rebase onto the latest remote branch
-            git rebase origin/${{ github.head_ref || github.ref_name }}
+
+            # Merge the latest changes from the remote branch
+            if ! git merge origin/${{ github.head_ref || github.ref_name }} --no-edit; then
+              echo "Merge conflict detected. Please resolve conflicts manually."
+              exit 1
+            fi
 
             # Push the changes (force-with-lease to avoid overwriting unrelated changes)
             git push --force-with-lease origin HEAD:${{ github.head_ref || github.ref_name }}
