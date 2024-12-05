@@ -58,6 +58,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#experimental-api-and-future-extensions">Experimental API and Future Extensions</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="#citation">Citation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="flatnav_python.html">FlatNav Index Module</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cpp_api.html">C++ API Documentation</a></li>
 </ul>
@@ -88,10 +89,8 @@
              
   <section id="flatnav">
 <h1>FlatNav<a class="headerlink" href="#flatnav" title="Link to this heading"></a></h1>
-<p>FlatNav is a fast and header-only graph-based index for Approximate Nearest Neighbor Search (ANNS).
-Thanks to various graph re-ordering implementation techniques from <a class="reference external" href="https://arxiv.org/pdf/2104.03221.pdf">Coleman et al.</a>, optimization using SIMD intrinsics, and the design that leverages a single-layered
-in-memory index, FlatNav provides billion-scale vector search with high recall, SoTA query latency and
-significant memory savings.</p>
+<p>FlatNav is a fast and header-only graph-based index for Approximate Nearest Neighbor Search (ANNS). FlatNav is inspired by the influential <a class="reference external" href="https://github.com/nmslib/hnswlib">Hierarchical Navigable Small World (HNSW) index</a>, but with the hierarchical component removed. As detailed in our <a class="reference external" href="https://arxiv.org/pdf/2412.01940">research paper</a>, we found that FlatNav achieved identical performance to HNSW on high-dimensional datasets (dimensionality &gt; 32) with approximately 38% less peak memory consumption and a simplified implementation.</p>
+<p>We hope to maintain this open source library as a resource for broader community. Please consider opening a Github Issue for bugs and feature requests, or get in touch with us directly for discussions.</p>
 <section id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
 <p>FlatNav is implemented in C++ with a complete Python extension with <a class="reference external" href="https://uscilab.github.io/cereal/">cereal</a> as the only external dependency. This is a header-only library, so there is nothing to build. You can just include the necessary headers in your existing code.</p>
@@ -353,6 +352,21 @@ _<span class="w"> </span>nytimes-256-angular
 While some of these features may be usable, they are not guarranteed to be stable. Stable features will be expected to be part of the PyPI releases.
 The most notable on-going extension that’s under development is product quantization.</p>
 </section>
+</section>
+<section id="citation">
+<h1>Citation<a class="headerlink" href="#citation" title="Link to this heading"></a></h1>
+<p>If you find this library useful, please consider citing our associated paper:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@misc</span><span class="p">{</span><span class="n">munyampirwa2024hierarchyhhnswstands</span><span class="p">,</span>
+      <span class="n">title</span><span class="o">=</span><span class="p">{</span><span class="n">Down</span> <span class="k">with</span> <span class="n">the</span> <span class="n">Hierarchy</span><span class="p">:</span> <span class="n">The</span> <span class="s1">&#39;H&#39;</span> <span class="ow">in</span> <span class="n">HNSW</span> <span class="n">Stands</span> <span class="k">for</span> <span class="s2">&quot;Hubs&quot;</span><span class="p">},</span>
+      <span class="n">author</span><span class="o">=</span><span class="p">{</span><span class="n">Blaise</span> <span class="n">Munyampirwa</span> <span class="ow">and</span> <span class="n">Vihan</span> <span class="n">Lakshman</span> <span class="ow">and</span> <span class="n">Benjamin</span> <span class="n">Coleman</span><span class="p">},</span>
+      <span class="n">year</span><span class="o">=</span><span class="p">{</span><span class="mi">2024</span><span class="p">},</span>
+      <span class="n">eprint</span><span class="o">=</span><span class="p">{</span><span class="mf">2412.01940</span><span class="p">},</span>
+      <span class="n">archivePrefix</span><span class="o">=</span><span class="p">{</span><span class="n">arXiv</span><span class="p">},</span>
+      <span class="n">primaryClass</span><span class="o">=</span><span class="p">{</span><span class="n">cs</span><span class="o">.</span><span class="n">LG</span><span class="p">},</span>
+      <span class="n">url</span><span class="o">=</span><span class="p">{</span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">arxiv</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="nb">abs</span><span class="o">/</span><span class="mf">2412.01940</span><span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
 </section>
 
 
