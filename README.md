@@ -1,9 +1,8 @@
 ## FlatNav 
 
-FlatNav is a fast and header-only graph-based index for Approximate Nearest Neighbor Search (ANNS).
-Thanks to various graph re-ordering implementation techniques from [Coleman et al.](https://arxiv.org/pdf/2104.03221.pdf), optimization using SIMD intrinsics, and the design that leverages a single-layered 
-in-memory index, FlatNav provides billion-scale vector search with high recall, SoTA query latency and 
-significant memory savings. 
+FlatNav is a fast and header-only graph-based index for Approximate Nearest Neighbor Search (ANNS). FlatNav is inspired by the influential [Hierarchical Navigable Small World (HNSW) index](https://github.com/nmslib/hnswlib), but with the hierarchical component removed. As detailed in our [research paper](https://arxiv.org/pdf/2412.01940), we found that FlatNav achieved identical performance to HNSW on high-dimensional datasets (dimensionality > 32) with approximately 38% less peak memory consumption and a simplified implementation. 
+
+We hope to maintain this open source library as a resource for broader community. Please consider opening a Github Issue for bugs and feature requests, or get in touch with us directly for discussions.
 
 
 ### Installation 
@@ -272,3 +271,18 @@ _ nytimes-256-angular
 You can find the current work under development under the [development-features](https://github.com/BlaiseMuhirwa/flatnav/blob/main/development-features) directory. 
 While some of these features may be usable, they are not guarranteed to be stable. Stable features will be expected to be part of the PyPI releases. 
 The most notable on-going extension that's under development is product quantization.
+
+## Citation
+If you find this library useful, please consider citing our associated paper:
+
+```
+@misc{munyampirwa2024hierarchyhhnswstands,
+      title={Down with the Hierarchy: The 'H' in HNSW Stands for "Hubs"}, 
+      author={Blaise Munyampirwa and Vihan Lakshman and Benjamin Coleman},
+      year={2024},
+      eprint={2412.01940},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2412.01940}, 
+}
+```
