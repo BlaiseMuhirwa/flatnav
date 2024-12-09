@@ -197,49 +197,6 @@ int main(int argc, char** argv) {
 
 ```
 
-### Near Neighbor Graph Reordering
-
-For a deeper analysis on graph re-ordering, refer to the original paper linked above. 
-
-At a high level, graph re-ordering constructs a labeling function $P: V \to \{1, 2, ..., n \}$ that maps connected nodes to labels that are close to each other such that node $v$ is assigned to memory location $P(v)$. The goal of this construction is to improve cache efficiency. 
-
-Two graph re-ordering strategies are available in FlatNav, namely 
-* GOrder 
-* Reverse Cuthill Mckee (RCM)
-
-GOrder constructs $P$ by maximizing the number of shared edges among node blocks of size $w$. This improves cache efficiency because a block containing many overlapping nodes is likely to avoid cache  misses since each node's neighbors are stored no further than $w$ memory locations away. Formally, $P_{GO}$ is expressed as 
-
-<p align="center">
-  <img src="./docs/assets/gorder.png" alt="GOrder Equation">
-</p>
-
-
-where $S_s(u,v)$ indicates whether the two nodes have a direct link and $S_n(u,v)$ indicates how many neighbors they share in common.
-
-RCM, on the other hand, minimizes the bandwidth of the adjacency matrix, which is sparse and symmetric where bandwidth is the maximum distance of a non-zero element to the main diagonal. Formally, $P_{RCM}$ is given by 
-
-<p align="center">
-  <img src="./docs/assets/rcm.png" alt="GOrder Equation">
-</p>
-
-
-which effectively minimizes the maximum label assignment difference between any two connected nodes. 
-
-To run graph re-ordering, 
-
-* Construct a near neighbor index from a given data file. See the [construct_npy.cpp](https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools/construct_npy.cpp) for a C++ example that builds an index 
-from a `.npy` file and serializes it to disk. 
-* Re-order the nodes in the graph by applying one of the available graph-reordering methods among Reverse Cuthill Mckee (RCM) or Gorder (graph-order). A C++ example that defaults to the `gorder` method can be found in the [query_npy.cpp](https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools/query_npy.cpp).
-* Query a re-ordered index. This will also compute the recall and the average query latency. 
-
-
-To re-order the index after constructing it in Python can be done in one line of code
-```python
-...
-# You can also chain "gorder" and "rcm" by using ["gorder", "rcm"]
-index.reorder(strategies=["gorder"])
-```
-
 ### Datasets from ANN-Benchmarks
 
 ANN-Benchmarks provide HDF5 files for a standard benchmark of near-neighbor datasets, queries and ground-truth results. To index any of these datasets you can use the `construct_npy.cpp` and `query_npy.cpp` files linked above.
