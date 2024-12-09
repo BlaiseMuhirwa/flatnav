@@ -18,8 +18,6 @@
         <script src="_static/documentation_options.js?v=d45e8c67"></script>
         <script src="_static/doctools.js?v=888ff710"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-        <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -53,7 +51,6 @@
 <li class="toctree-l2"><a class="reference internal" href="#support-for-simd-extensions">Support for SIMD Extensions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#getting-started-in-python">Getting Started in Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#getting-started-in-c">Getting Started in C++</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#near-neighbor-graph-reordering">Near Neighbor Graph Reordering</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#datasets-from-ann-benchmarks">Datasets from ANN-Benchmarks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#experimental-api-and-future-extensions">Experimental API and Future Extensions</a></li>
 </ul>
@@ -289,39 +286,6 @@ The distance type can either be <code class="docutils literal notranslate"><span
 <span class="w">  </span><span class="c1">// Query the index and compute the recall.</span>
 <span class="w">  </span><span class="n">run_knn_search</span><span class="p">(</span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">queries</span><span class="p">,</span><span class="w"> </span><span class="n">gtruth</span><span class="p">,</span><span class="w"> </span><span class="n">ef_search</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">num_queries</span><span class="p">,</span><span class="w"> </span><span class="n">num_gtruth</span><span class="p">,</span><span class="w"> </span><span class="n">dataset_dimension</span><span class="p">);</span>
 <span class="p">}</span>
-</pre></div>
-</div>
-</section>
-<section id="near-neighbor-graph-reordering">
-<h2>Near Neighbor Graph Reordering<a class="headerlink" href="#near-neighbor-graph-reordering" title="Link to this heading"></a></h2>
-<p>For a deeper analysis on graph re-ordering, refer to the original paper linked above.</p>
-<p>At a high level, graph re-ordering constructs a labeling function <span class="math notranslate nohighlight">\(P: V \to \{1, 2, ..., n \}\)</span> that maps connected nodes to labels that are close to each other such that node <span class="math notranslate nohighlight">\(v\)</span> is assigned to memory location <span class="math notranslate nohighlight">\(P(v)\)</span>. The goal of this construction is to improve cache efficiency.</p>
-<p>Two graph re-ordering strategies are available in FlatNav, namely</p>
-<ul class="simple">
-<li><p>GOrder</p></li>
-<li><p>Reverse Cuthill Mckee (RCM)</p></li>
-</ul>
-<p>GOrder constructs <span class="math notranslate nohighlight">\(P\)</span> by maximizing the number of shared edges among node blocks of size <span class="math notranslate nohighlight">\(w\)</span>. This improves cache efficiency because a block containing many overlapping nodes is likely to avoid cache  misses since each node’s neighbors are stored no further than <span class="math notranslate nohighlight">\(w\)</span> memory locations away. Formally, <span class="math notranslate nohighlight">\(P_{GO}\)</span> is expressed as</p>
-<p align="center">
-  <img src="./docs/assets/gorder.png" alt="GOrder Equation">
-</p>
-<p>where <span class="math notranslate nohighlight">\(S_s(u,v)\)</span> indicates whether the two nodes have a direct link and <span class="math notranslate nohighlight">\(S_n(u,v)\)</span> indicates how many neighbors they share in common.</p>
-<p>RCM, on the other hand, minimizes the bandwidth of the adjacency matrix, which is sparse and symmetric where bandwidth is the maximum distance of a non-zero element to the main diagonal. Formally, <span class="math notranslate nohighlight">\(P_{RCM}\)</span> is given by</p>
-<p align="center">
-  <img src="./docs/assets/rcm.png" alt="GOrder Equation">
-</p>
-<p>which effectively minimizes the maximum label assignment difference between any two connected nodes.</p>
-<p>To run graph re-ordering,</p>
-<ul class="simple">
-<li><p>Construct a near neighbor index from a given data file. See the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools/construct_npy.cpp">construct_npy.cpp</a> for a C++ example that builds an index
-from a <code class="docutils literal notranslate"><span class="pre">.npy</span></code> file and serializes it to disk.</p></li>
-<li><p>Re-order the nodes in the graph by applying one of the available graph-reordering methods among Reverse Cuthill Mckee (RCM) or Gorder (graph-order). A C++ example that defaults to the <code class="docutils literal notranslate"><span class="pre">gorder</span></code> method can be found in the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools/query_npy.cpp">query_npy.cpp</a>.</p></li>
-<li><p>Query a re-ordered index. This will also compute the recall and the average query latency.</p></li>
-</ul>
-<p>To re-order the index after constructing it in Python can be done in one line of code</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="o">...</span>
-<span class="c1"># You can also chain &quot;gorder&quot; and &quot;rcm&quot; by using [&quot;gorder&quot;, &quot;rcm&quot;]</span>
-<span class="n">index</span><span class="o">.</span><span class="n">reorder</span><span class="p">(</span><span class="n">strategies</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;gorder&quot;</span><span class="p">])</span>
 </pre></div>
 </div>
 </section>
