@@ -357,7 +357,7 @@ class Index {
         /* query = */ data, /* entry_node = */ entry_node,
         /* buffer_size = */ ef_construction);
 
-    int selection_M = std::min(_M / 2, 1);
+    int selection_M = std::max(_M / 2, 1);
     selectNeighbors(/* neighbors = */ neighbors, /* M = */ selection_M);
     connectNeighbors(neighbors, new_node_id);
   }
