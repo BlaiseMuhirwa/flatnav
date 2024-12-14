@@ -357,7 +357,8 @@ class Index {
         /* query = */ data, /* entry_node = */ entry_node,
         /* buffer_size = */ ef_construction);
 
-    selectNeighbors(/* neighbors = */ neighbors);
+    int selection_M = std::max(static_cast<int>(_M / 2), 1);
+    selectNeighbors(/* neighbors = */ neighbors, /* M = */ selection_M);
     connectNeighbors(neighbors, new_node_id);
   }
 
@@ -672,14 +673,14 @@ class Index {
    * heuristic. The neighbors priority queue contains elements sorted by
    * distance where the top element is the furthest neighbor from the query.
    */
-  void selectNeighbors(PriorityQueue& neighbors) {
-    if (neighbors.size() < _M) {
+  void selectNeighbors(PriorityQueue& neighbors, int M) {
+    if (neighbors.size() < M) {
       return;
     }
 
     PriorityQueue candidates;
     std::vector<dist_node_t> saved_candidates;
-    saved_candidates.reserve(_M);
+    saved_candidates.reserve(M);
 
     while (neighbors.size() > 0) {
       candidates.emplace(-neighbors.top().first, neighbors.top().second);
@@ -688,7 +689,7 @@ class Index {
 
     float cur_dist = 0.0;
     while (candidates.size() > 0) {
-      if (saved_candidates.size() >= _M) {
+      if (saved_candidates.size() >= M) {
         break;
       }
       // Extract the closest element from candidates.
@@ -767,7 +768,8 @@ class Index {
             candidates.emplace(distance, label);
           }
         }
-        selectNeighbors(candidates);
+        // 2X larger than the previous call to selectNeighbors.
+        selectNeighbors(candidates, _M);
         // connect the pruned set of candidates, including self-loops:
         size_t j = 0;
         while (candidates.size() > 0) {  // candidates
