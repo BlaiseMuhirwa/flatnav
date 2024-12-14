@@ -768,8 +768,8 @@ class Index {
             candidates.emplace(distance, label);
           }
         }
-        int connection_M = _M;  // 2X larger than the previous call to selectNeighbors.
-        selectNeighbors(candidates, connection_M);
+        // 2X larger than the previous call to selectNeighbors.
+        selectNeighbors(candidates, _M);
         // connect the pruned set of candidates, including self-loops:
         size_t j = 0;
         while (candidates.size() > 0) {  // candidates
