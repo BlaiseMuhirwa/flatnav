@@ -273,6 +273,10 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     _index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
   }
 
+  void setDataType(const DataType data_type) {
+    _data_type = data_type;
+  }
+
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() { return _index->getGraphOutdegreeTable(); }
 
   uint32_t getMaxEdgesPerNode() { return _index->maxEdgesPerNode(); }
@@ -456,6 +460,8 @@ void bindSpecialization(py::module_& index_submodule) {
       .def("save", &IndexType::save, py::arg("filename"), SAVE_DOCSTRING)
       .def("build_graph_links", &IndexType::buildGraphLinks, py::arg("mtx_filename"),
            BUILD_GRAPH_LINKS_DOCSTRING)
+      .def("set_data_type", &IndexType::setDataType, py::arg("data_type"),
+           "")
       .def("get_graph_outdegree_table", &IndexType::getGraphOutdegreeTable,
            GET_GRAPH_OUTDEGREE_TABLE_DOCSTRING)
       .def("reorder", &IndexType::reorder, py::arg("strategies"), REORDER_DOCSTRING)

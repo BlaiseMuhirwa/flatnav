@@ -61,6 +61,7 @@ DATA_DIR=${DATA_DIR:-$(pwd)/data}
 
 # Directory for storing metrics and plots. 
 METRICS_DIR=${METRICS_DIR:-$(pwd)/metrics}
+CONTAINER_NAME=${CONTAINER_NAME:-benchmark-runner}
 
 echo "Building docker image with tag name: $TAG_NAME"
 
@@ -87,13 +88,16 @@ then
     exit 0
 fi
 
+# Start memory profiler 
+./bin/memory-profiling/run-prometheus-grafana.sh
+
 
 # Run the container and mount the data/ directory as volume to /root/data
 # Pass the make target as argument to the container. 
 # NOTE: Mounting the ~/.aws directory so that the container can access the aws credentials
 # to upload the indexes to s3. This is not the most secure thing to do, but it's the easiest.
 docker run \
-        --name benchmark-runner \
+        --name $CONTAINER_NAME \
         -it \
         -e MAKE_TARGET=$1 \
         --env-file bin/.env-vars \
