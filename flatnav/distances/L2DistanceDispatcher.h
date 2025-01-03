@@ -3,6 +3,7 @@
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/Macros.h>
 #include <flatnav/util/SquaredL2SimdExtensions.h>
+#include <cassert>
 
 namespace flatnav::distances {
 
@@ -121,6 +122,7 @@ struct SquaredL2Impl<uint8_t> {
 struct L2DistanceDispatcher {
   template <typename T>
   static float dispatch(const T* x, const T* y, const size_t& dimension) {
+    // return defaultSquaredL2<T>(x, y, dimension);
     return SquaredL2Impl<T>::computeDistance(x, y, dimension);
   }
 };

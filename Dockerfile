@@ -1,10 +1,9 @@
 # Build arguments 
 # This is a relatively large image, so we might want to use a smaller base image, such as
 # alpine in the future if image size becomes an issue.
-ARG BASE_IMAGE=ubuntu:22.04
+ARG BASE_IMAGE=debian:buster-slim
 
 FROM ${BASE_IMAGE} as base
-
 
 ARG POETRY_VERSION=1.8.2
 ARG PYTHON_VERSION=3.11.6
@@ -12,41 +11,61 @@ ARG POETRY_HOME="/opt/poetry"
 ARG ROOT_DIR="/root"
 ARG FLATNAV_PATH="${ROOT_DIR}/flatnavlib"
 
-
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends \
-        # Need for python installation: 
-        # https://github.com/pyenv/pyenv/wiki#suggested-build-environment
-        make \
-        build-essential \
-        ca-certificates \
-        libssl-dev \
-        zlib1g-dev \
-        libbz2-dev \
-        libreadline-dev \
-        libsqlite3-dev \
-        wget \
-        curl \
-        llvm \
-        libncursesw5-dev \
-        xz-utils \
-        tk-dev \
-        libxml2-dev \
-        libxmlsec1-dev \
-        libffi-dev \
-        liblzma-dev \
-        # Multi-process manager inside docker 
-        supervisor \
-        # Install the rest
-        git \
-        gcc \
-        g++ \
-        apt-utils \
-        wget \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /tmp/*
+
+
+
+RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
+    -o Acquire::AllowUnauthenticated=true -y && \
+    apt-get install -y --no-install-recommends \
+        make build-essential ca-certificates && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* && \
+    apt-get update -o Acquire::AllowInsecureRepositories=true \
+    -o Acquire::AllowUnauthenticated=true -y && \
+    apt-get install -y --no-install-recommends \
+        libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* && \
+    apt-get update -o Acquire::AllowInsecureRepositories=true \
+    -o Acquire::AllowUnauthenticated=true -y && \
+    apt-get install -y --no-install-recommends \
+        wget curl llvm libncursesw5-dev xz-utils tk-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* && \
+    apt-get update -o Acquire::AllowInsecureRepositories=true \
+    -o Acquire::AllowUnauthenticated=true -y && \
+    apt-get install -y --no-install-recommends \
+        libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev supervisor git gcc g++ apt-utils && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
+
+
+# RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
+#     -o Acquire::AllowUnauthenticated=true -y \
+#     && apt-get install -y --no-install-recommends \
+#         make \
+#         build-essential \
+#         ca-certificates \
+#         libssl-dev \
+#         zlib1g-dev \
+#         libbz2-dev \
+#         libreadline-dev \
+#         libsqlite3-dev \
+#         wget \
+#         curl \
+#         llvm \
+#         libncursesw5-dev \
+#         xz-utils \
+#         tk-dev \
+#         libxml2-dev \
+#         libxmlsec1-dev \
+#         libffi-dev \
+#         liblzma-dev \
+#         supervisor \
+#         git \
+#         gcc \
+#         g++ \
+#         apt-utils \
+#     && apt-get clean \
+#     && rm -rf /var/lib/apt/lists/* \
+#     && rm -rf /tmp/*
 
 # Install python 
 # We use pyenv to manage python versions 
@@ -99,15 +118,17 @@ RUN ./install_flatnav.sh
 
 # Install hnwlib (from a forked repo that has extensions we need)
 WORKDIR ${FLATNAV_PATH}
-RUN git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git \
-    && cd hnswlib-original/python_bindings \
-    && poetry install --no-root \
-    && poetry run python setup.py bdist_wheel  
+# RUN git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git \
+#     && cd hnswlib-original/python_bindings \
+#     && poetry install --no-root \
+#     && poetry run python setup.py bdist_wheel  
+
+RUN cd experiments && make install-hnswlib
 
 # Get the wheel as an environment variable 
 # NOTE: This is not robust and will break if there are multiple wheels in the dist folder
 ENV FLATNAV_WHEEL=${FLATNAV_PATH}/flatnav_python/dist/*.whl
-ENV HNSWLIB_WHEEL=${FLATNAV_PATH}/hnswlib-original/python_bindings/dist/*.whl
+ENV HNSWLIB_WHEEL=${FLATNAV_PATH}/experiments/hnswlib-original/python_bindings/dist/*.whl
 
 # Add flatnav and hnswlib to the experiment runner 
 WORKDIR ${FLATNAV_PATH}/experiments

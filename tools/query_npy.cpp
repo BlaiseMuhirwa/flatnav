@@ -48,7 +48,7 @@ void run(float* queries, int* gtruth, const std::string& index_filename, const s
       float* q = queries + dim * i;
       int* g = gtruth + num_gtruth * i;
 
-      std::vector<std::pair<float, int>> result = index->search(q, K, ef_search);
+      std::vector<std::pair<float, int>> result = index->searchModified(q, K, ef_search);
 
       double recall = 0;
       for (int j = 0; j < K; j++) {
@@ -119,12 +119,20 @@ int main(int argc, char** argv) {
   }
 
   std::clog << "Loading " << num_queries << " queries" << std::endl;
-  float* queries = queryfile.data<float>();
+  uint8_t* queries = queryfile.data<uint8_t>();
+
+  int total_size = num_queries * dim;
+  float* queries_float = new float[total_size];
+  for (size_t i = 0; i < total_size; i++) {
+    queries_float[i] = static_cast<float>(queries[i]);
+  }
+
+
   std::clog << "Loading " << num_queries << " ground truth results with k = " << k << std::endl;
   int* gtruth = truthfile.data<int>();
 
   if (quantized) {
-    run<ProductQuantizer>(/* queries = */ queries, /* gtruth = */
+    run<ProductQuantizer>(/* queries = */ queries_float, /* gtruth = */
                           gtruth,
                           /* index_filename = */ indexfilename,
                           /* ef_searches = */ ef_searches, /* K = */ k,
@@ -133,7 +141,7 @@ int main(int argc, char** argv) {
                           /* reorder = */ reorder);
   } else if (space_ID == 0) {
     run<SquaredL2Distance<DataType::float32>>(
-        /* queries = */ queries,
+        /* queries = */ queries_float,
         /* gtruth = */ gtruth,
         /* index_filename = */ indexfilename,
         /* ef_searches = */ ef_searches, /* K = */ k,
@@ -143,7 +151,7 @@ int main(int argc, char** argv) {
 
   } else if (space_ID == 1) {
     run<InnerProductDistance<DataType::float32>>(
-        /* queries = */ queries, /* gtruth = */
+        /* queries = */ queries_float, /* gtruth = */
         gtruth,
         /* index_filename = */ indexfilename,
         /* ef_searches = */ ef_searches,
@@ -155,6 +163,8 @@ int main(int argc, char** argv) {
   } else {
     throw std::invalid_argument("Invalid space ID. Valid IDs are 0 and 1.");
   }
+
+  delete[] queries_float;
 
   return 0;
 }
