@@ -92,17 +92,15 @@ RUN ./install_flatnav.sh
 
 # Install hnwlib (from a forked repo that has extensions we need)
 WORKDIR ${FLATNAV_PATH}
-# RUN git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git \
-#     && cd hnswlib-original/python_bindings \
-#     && poetry install --no-root \
-#     && poetry run python setup.py bdist_wheel  
-
-RUN cd experiments && make install-hnswlib
+RUN git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git \
+    && cd hnswlib-original/python_bindings \
+    && poetry install --no-root \
+    && poetry run python setup.py bdist_wheel  
 
 # Get the wheel as an environment variable 
 # NOTE: This is not robust and will break if there are multiple wheels in the dist folder
 ENV FLATNAV_WHEEL=${FLATNAV_PATH}/flatnav_python/dist/*.whl
-ENV HNSWLIB_WHEEL=${FLATNAV_PATH}/experiments/hnswlib-original/python_bindings/dist/*.whl
+ENV HNSWLIB_WHEEL=${FLATNAV_PATH}/hnswlib-original/python_bindings/dist/*.whl
 
 # Add flatnav and hnswlib to the experiment runner 
 WORKDIR ${FLATNAV_PATH}/experiments

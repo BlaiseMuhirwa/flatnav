@@ -40,22 +40,6 @@ space-v1b-bench-flatnav:
 		--num-search-threads 1 \
 		--metric l2
 
-bigann-bench-flatnav:
-	poetry run python run-benchmark.py \
-		--dataset-name msft-spacev-1b \
-		--dataset /root/data/bigann1B/base.1B.u8bin \
-		--queries /root/data/bigann1B/query.public.10K.u8bin \
-		--gtruth /root/data/bigann1B/gnd/idx_1000M.ivecs \
-		--index-type flatnav \
-		--use-hnsw-base-layer \
-		--hnsw-base-layer-filename bigann.mtx \
-		--num-node-links 16 \
-		--ef-construction 30 \
-		--ef-search 100 \
-		--num-build-threads 42 \
-		--num-search-threads 1 \
-		--metric l2
-
 ################################
 # End Billion-Scale Benchmarks
 ################################
@@ -93,41 +77,6 @@ bigann-100m-flatnav:
                 --metric l2 \
                 --num-build-threads 32 \
                 --num-search-threads 1
-
-
-bigann-50m-flatnav:
-	poetry run python run-benchmark.py \
-		--dataset-name bigann-50m \
-		--train-dataset-range 0 50000000 \
-		--dataset /root/data/bigann1B/base.1B.u8bin \
-		--queries /root/data/bigann1B/query.public.10K.u8bin \
-		--gtruth /root/data/bigann1B/gnd/idx_50M.ivecs \
-		--index-type flatnav \
-		--ef-construction 30 \
-		--num-node-links 32 \
-		--ef-search 100 200 300 400 500 \
-		--metric l2 \
-		--num-build-threads 32 \
-		--num-search-threads 1
-
-bigann-50m-hnsw:
-	poetry run python run-benchmark.py \
-		--dataset-name bigann-50m \
-		--train-dataset-range 0 50000000  \
-		--dataset /root/data/bigann1B/base.1B.u8bin \
-		--queries /root/data/bigann1B/query.public.10K.u8bin \
-		--gtruth /root/data/bigann1B/gnd/idx_50M.ivecs \
-		--index-type hnsw \
-		--ef-construction 30 \
-		--num-node-links 32 \
-		--ef-search 100 200 300 400 500 \
-		--metric l2 \
-		--num-build-threads 32 \
-		--num-search-threads 1
-
-
-compare-graphs:
-	poetry run python compare_graphs.py
 
 
 yandex-deep-100m-hnsw:
@@ -656,12 +605,14 @@ generate-wheel:
 	poetry remove flatnav &> /dev/null 
 	cd .. && cd flatnav_python && ./install_flatnav.sh 
 
-
-# poetry add hnswlib-original/python_bindings/dist/*.whl
 install-hnswlib:
+	if [ ! -d "hnswlib-original" ]; then \
+		git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git; \
+	fi
 	cd hnswlib-original/python_bindings && \
 	poetry install --no-root && \
 	poetry run python setup.py bdist_wheel 
+	poetry add hnswlib-original/python_bindings/dist/*.whl
 
 cleanup:
 	rm -rf hnswlib-original 

@@ -319,7 +319,7 @@ class Index {
 
       flatnav::executeInParallel(
           /* start_index = */ 0, /* end_index = */ total_num_nodes,
-          /* num_threads = */ _num_threads, /* function = */aaa
+          /* num_threads = */ _num_threads, /* function = */
           [&](uint32_t row_index) {
               uint64_t offset = static_cast<uint64_t>(row_index) * static_cast<uint64_t>(data_dimension);
               void* vector = (data_type*)data + offset;

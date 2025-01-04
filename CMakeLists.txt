@@ -19,10 +19,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} \
     -Ofast \
-    -lrt \
-    -march=native \
-    -ftree-vectorize \
-    -ftree-vectorizer-verbose=0 \
     -DHAVE_CXX0X \
     -DNDEBUG \
     -fopenmp \
@@ -30,15 +26,18 @@ set(CMAKE_CXX_FLAGS
     -w \
     -ffast-math \
     -funroll-loops")
-#    -ffast-math \
-#    -funroll-loops")
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(cmake/FindAVX.cmake)
 
 option(CMAKE_BUILD_TYPE "Build type" Release)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  message(STATUS "Building in Debug mode with Thread Sanitizer")
+  # Add debug compile flags
+  message(STATUS "Building in Debug mode")
+  # Address sanitizer: https://clang.llvm.org/docs/AddressSanitizer.html
+  # For some reason, using -fsanitize=address,thread,undefined doesn't workt since it appears
+  # that Asan and thread sanitizer have conflicting behavior. To use thread sanitizer, remove 
+  # Asan first and vice-versa
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fsanitize=address,undefined")
 endif()
 
@@ -49,15 +48,15 @@ feature_summary(WHAT ALL)
 
 include_directories("${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}")
 
-#find_package(OpenMP REQUIRED)
-#if(OpenMP_FOUND)
-#  message(STATUS "OpenMP Found. Building the Package using the system OpenMP.")
-#else()
-#  message(
-#    FATAL_ERROR
-#      "OpenMP Not Found. Building the Package using LLVM's OpenMP. This is slower than the system OpenMP."
-#  )
-#endif(OpenMP_FOUND)
+find_package(OpenMP REQUIRED)
+if(OpenMP_FOUND)
+  message(STATUS "OpenMP Found. Building the Package using the system OpenMP.")
+else()
+  message(
+    FATAL_ERROR
+      "OpenMP Not Found. Building the Package using LLVM's OpenMP. This is slower than the system OpenMP."
+  )
+endif(OpenMP_FOUND)
 
 option(BUILD_TESTS "Build all tests")
 option(BUIL_EXAMPLES "Build examples")
