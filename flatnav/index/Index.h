@@ -644,10 +644,8 @@ class Index {
     return neighbors;
   }
 
-  void processCandidateNode(const void* query, node_id_t& node, float& max_dist, 
-                            const int buffer_size, VisitedSet* visited_set, 
-                        PriorityQueue& neighbors, 
-                        PriorityQueue& candidates) {
+  void processCandidateNode(const void* query, node_id_t& node, float& max_dist, const int buffer_size,
+                            VisitedSet* visited_set, PriorityQueue& neighbors, PriorityQueue& candidates) {
     // Lock all operations on this specific node
     std::unique_lock<std::mutex> lock(_node_links_mutexes[node]);
 

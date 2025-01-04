@@ -99,7 +99,6 @@ target_sources(FLAT_NAV_LIB INTERFACE ${HEADERS})
 target_include_directories(FLAT_NAV_LIB INTERFACE ${PROJECT_SOURCE_DIR})
 
 
-target_link_libraries(FLAT_NAV_LIB INTERFACE)
 target_link_libraries(FLAT_NAV_LIB INTERFACE OpenMP::OpenMP_CXX)
 
 if(BUILD_EXAMPLES)
