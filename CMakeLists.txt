@@ -88,10 +88,10 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/flatnav/util/Datatype.h
     ${PROJECT_SOURCE_DIR}/flatnav/util/SimdUtils.h
     ${PROJECT_SOURCE_DIR}/flatnav/distances/DistanceInterface.h
-    ${PROJECT_SOURCE_DIR}/flatnav/index/Index.h)
-#    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/ProductQuantization.h
-#    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/CentroidsGenerator.h
-#    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/Utils.h)
+    ${PROJECT_SOURCE_DIR}/flatnav/index/Index.h
+    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/ProductQuantization.h
+    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/CentroidsGenerator.h
+    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/Utils.h)
 
 # Interface here means that the library is header only
 add_library(FLAT_NAV_LIB INTERFACE)
@@ -100,7 +100,7 @@ target_include_directories(FLAT_NAV_LIB INTERFACE ${PROJECT_SOURCE_DIR})
 
 
 target_link_libraries(FLAT_NAV_LIB INTERFACE)
-#target_link_libraries(FLAT_NAV_LIB INTERFACE OpenMP::OpenMP_CXX)
+target_link_libraries(FLAT_NAV_LIB INTERFACE OpenMP::OpenMP_CXX)
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples")

@@ -35,7 +35,7 @@ template <typename dist_t, typename label_t>
 class Index {
   typedef std::pair<float, label_t> dist_label_t;
   // internal node numbering scheme. We might need to change this to uint64_t
-  typedef unsigned int node_id_t;
+  typedef uint32_t node_id_t;
   typedef std::pair<float, node_id_t> dist_node_t;
 
   // NOTE: by default this is a max-heap. We could make this a min-heap
@@ -76,8 +76,6 @@ class Index {
   // Trying to use them in multi-threaded setting will result in wird behavior.
   mutable std::atomic<uint64_t> _distance_computations = 0;
   mutable std::atomic<uint64_t> _metric_hops = 0;
-
-  std::vector<node_id_t> _entry_point_nodes;
 
   Index(const Index&) = delete;
   Index& operator=(const Index&) = delete;
@@ -179,10 +177,6 @@ class Index {
     delete _visited_set_pool;
   }
 
-
-  void setEntryPointNodes(const std::vector<uint32_t>& entry_nodes) {
-    _entry_point_nodes = entry_nodes;
-  }
 
   void buildGraphLinks(const std::string& mtx_filename) {
     std::ifstream input_file(mtx_filename);
@@ -409,28 +403,6 @@ class Index {
   }
 
 
-  std::vector<dist_label_t> searchModified(const void* query, const int K, int ef_search,
-                                   int num_initializations = 100) {
-    node_id_t entry_node = initializeSearch(query, num_initializations);
-    PriorityQueue neighbors = beamSearch<true>(/* query = */ query,
-                                         /* entry_node = */ entry_node,
-                                         /* buffer_size = */ std::max(ef_search, K));
-    auto size = neighbors.size();
-    std::vector<dist_label_t> results;
-    results.reserve(size);
-    while (!neighbors.empty()) {
-      results.emplace_back(neighbors.top().first, *getNodeLabel(neighbors.top().second));
-      neighbors.pop();
-    }
-    std::sort(results.begin(), results.end(),
-              [](const dist_label_t& left, const dist_label_t& right) { return left.first < right.first; });
-    if (results.size() > static_cast<size_t>(K)) {
-      results.resize(K);
-    }
-
-    return results;
-  }
-
   void doGraphReordering(const std::vector<std::string>& reordering_methods) {
 
     for (const auto& method : reordering_methods) {
@@ -515,23 +487,6 @@ class Index {
     if (_num_threads == 1) {
       _visited_set_pool->setPoolSize(1);
     }
-  }
-
-  std::vector<float> getNodeAtIndex(uint32_t index) const {
-    char* data_ptr = getNodeData(index);
-    if (!data_ptr) {
-        throw std::runtime_error("Null pointer returned by getNodeData");
-    }
-
-    std::vector<float> output;
-    output.resize(_distance->dimension());
-
-    float* float_ptr = reinterpret_cast<float*>(data_ptr); 
-    for (size_t i = 0; i < _distance->dimension(); i++) {
-        output[i] = float_ptr[i];
-    }
-
-    return output; 
   }
 
 
@@ -658,7 +613,7 @@ class Index {
     while (!candidates.empty()) {
       auto [distance, node] = candidates.top();
 
-      if (-distance > max_dist && neighbors.size() == buffer_size) {
+      if (-distance > max_dist && neighbors.size() >= buffer_size) {
         break;
       }
       candidates.pop();
@@ -917,7 +872,6 @@ class Index {
     label_t* temp_label = new label_t;
 
     auto* visited_set = _visited_set_pool->pollAvailableSet();
-    visited_set->clear();
 
     // In this context, is_visited stores which nodes have been relocated
     // (it would be equivalent to name this variable "is_relocated").

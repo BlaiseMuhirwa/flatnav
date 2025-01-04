@@ -22,9 +22,10 @@ void executeInParallel(uint32_t start_index, uint32_t end_index, uint32_t num_th
     throw std::invalid_argument("Invalid number of threads");
   }
 
+  // This needs to be an atomic because mutliple threads will be
+  // modifying it concurrently.
   std::atomic<uint32_t> current(start_index);
   std::thread thread_objects[num_threads];
-
 
   auto parallel_executor = [&] {
     while (true) {
@@ -32,10 +33,9 @@ void executeInParallel(uint32_t start_index, uint32_t end_index, uint32_t num_th
       if (current_vector_idx >= end_index) {
         break;
       }
-      // Invoke the function with arguments
+      // Use std::apply to pass arguments to the function
       std::apply(function,
                  std::tuple_cat(std::make_tuple(current_vector_idx), std::make_tuple(additional_args...)));
-
     }
   };
 
@@ -48,5 +48,3 @@ void executeInParallel(uint32_t start_index, uint32_t end_index, uint32_t num_th
 }
 
 }  // namespace flatnav
-
-

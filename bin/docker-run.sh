@@ -72,6 +72,9 @@ if [ ! -d "$DATA_DIR" ]; then
 fi
 mkdir -p $METRICS_DIR
 
+# Clean up existing docker images matching "flatnav" if any 
+docker rmi -f $(docker images --filter=reference="flatnav" -q) &> /dev/null || true
+
 docker build --tag flatnav:$TAG_NAME -f Dockerfile .
 
 # Check if the first argument is set. If it is, then run docker container with the 
@@ -86,7 +89,7 @@ then
 fi
 
 # Start memory profiler 
-# ./bin/memory-profiling/run-prometheus-grafana.sh
+./bin/memory-profiling/run-prometheus-grafana.sh
 
 
 # Run the container and mount the data/ directory as volume to /root/data

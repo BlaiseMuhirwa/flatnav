@@ -14,6 +14,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
+        # Need for python installation: 
+        # https://github.com/pyenv/pyenv/wiki#suggested-build-environment
         make \
         build-essential \
         ca-certificates \
@@ -32,7 +34,9 @@ RUN apt-get update -y \
         libxmlsec1-dev \
         libffi-dev \
         liblzma-dev \
+        # Multi-process manager inside docker 
         supervisor \
+        # Install the rest
         git \
         gcc \
         g++ \

@@ -239,14 +239,9 @@ def train_index(
         os.remove(hnsw_base_layer_filename)
 
     else:
-        # if os.path.exists("/root/data/flatnav_50m.index"):
-        #     index = flatnav.index.IndexL2Float.load_index(filename="/root/data/flatnav_50m.index")
-        #     index.set_data_type(data_type=DataType.float32)
-        #     return index
-
         index = flatnav.index.create(
             distance_type=distance_type,
-            index_data_type=DataType.float32,
+            index_data_type=FLATNAV_DATA_TYPES[data_type],
             dim=dim,
             dataset_size=dataset_size,
             max_edges_per_node=max_edges_per_node,
@@ -254,9 +249,6 @@ def train_index(
             collect_stats=False,
         )
         index.set_num_threads(num_build_threads)
-
-        # entry_nodes: np.ndarray = np.load("/root/data/50m_entry_nodes_hnsw.npy")
-        # index.set_entry_point_nodes(entry_nodes=entry_nodes)
 
         # Train the index.
         start = time.time()
@@ -266,8 +258,6 @@ def train_index(
         end = time.time()
 
         logging.info(f"Indexing time = {end - start} seconds")
-
-        # index.save("/root/data/flatnav_50m.index")
 
     return index
 
@@ -299,8 +289,6 @@ def main(
         This part is here to ensure that two indices are not in memory at the same time.
         With large datasets, we might get an OOM error. 
         """
-
-        print("Building index")
         
         index = train_index(
             index_type=index_type,
@@ -315,31 +303,7 @@ def main(
             hnsw_base_layer_filename=hnsw_base_layer_filename,
             num_build_threads=num_build_threads,
         )
-
-        if index_type == "flatnav":
-            # print("Saving outdegree table for FlatNav")
-            # outdegree_table = index.get_graph_outdegree_table()
-            # outdegree_table = np.array(outdegree_table, dtype=object)
-            # np.save("/root/data/outdegree_table_flatnav.npy", outdegree_table)
-            
-            # node_at_idx = index.get_node_at(index=42667852)
-            # print(f"Flatnav Node at index 42667852: {node_at_idx}")
-
-            pass
-
-        else:
-            # print("Saving outdegree table for HNSW")
-            # outdegree_table = index.get_graph()
-            # outdegree_table = np.array(outdegree_table, dtype=object)
-            # np.save("/root/data/outdegree_table_hnsw.npy", outdegree_table)
-
-            # entry_point_nodes = index.get_chosen_entry_point_nodes()
-            # entry_point_nodes = np.array(entry_point_nodes)
-            # np.save("/root/data/entry_point_nodes.npy", entry_point_nodes)
-            pass
-
-        # exit(0)
-                    
+        
         if reordering_strategies is not None:
             if index_type != "flatnav":
                 raise ValueError("Reordering only applies to the FlatNav index.")
@@ -381,9 +345,6 @@ def main(
     
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
-
-    print(f"Dataset size: {dataset_size}")
-    print(f"Dimensionality: {dim}")
 
     experiment_key = f"{dataset_name}_{index_type}"
 

@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -36,10 +35,7 @@ void buildIndex(float* data, std::unique_ptr<DistanceInterface<dist_t>> distance
       /* dist = */ std::move(distance), /* dataset_size = */ N,
       /* max_edges = */ M);
 
-  std::cout << "Building with " << build_num_threads << " threads" << std::endl;
   index->setNumThreads(build_num_threads);
-
-  index->getIndexSummary();
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -69,10 +65,7 @@ void run(float* data, flatnav::distances::MetricType metric_type, int N, int M, 
         /* metric_type = */ metric_type);
 
     auto start = std::chrono::high_resolution_clock::now();
-
-    // TODO: Shouldn't use reinterpret_cast here since it's actually a bug. Only using it here to make g++ happy
-    // Revert once debugging is done. 
-    quantizer->train(/* vectors = */ reinterpret_cast<float*>(data), /* num_vectors = */ N);
+    quantizer->train(/* vectors = */ data, /* num_vectors = */ N);
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
     std::clog << "Quantization time: " << (float)duration.count() << " milliseconds" << std::endl;
@@ -82,13 +75,13 @@ void run(float* data, flatnav::distances::MetricType metric_type, int N, int M, 
 
   } else {
     if (metric_type == flatnav::distances::MetricType::L2) {
-      auto distance = SquaredL2Distance<DataType::float32>::create(dim);
+      auto distance = SquaredL2Distance<>::create(dim);
       buildIndex<SquaredL2Distance<DataType::float32>>(data, std::move(distance), N, M, dim, ef_construction,
                                                        build_num_threads, save_file);
 
     } else if (metric_type == flatnav::distances::MetricType::IP) {
-      auto distance = InnerProductDistance<DataType::uint8>::create(dim);
-      buildIndex<InnerProductDistance<DataType::uint8>>(data, std::move(distance), N, M, dim,
+      auto distance = InnerProductDistance<>::create(dim);
+      buildIndex<InnerProductDistance<DataType::float32>>(data, std::move(distance), N, M, dim,
                                                           ef_construction, build_num_threads, save_file);
     }
   }
@@ -126,29 +119,17 @@ int main(int argc, char** argv) {
   int N = datafile.shape[0];
 
   std::clog << "Loading " << dim << "-dimensional dataset with N = " << N << std::endl;
-  uint8_t* data = datafile.data<uint8_t>();
-
-  // Allocate memory for float data
-  uint64_t total_size = static_cast<uint64_t>(N) * static_cast<uint64_t>(dim);
-  float* data_float = new float[total_size];
-
-  for (size_t i = 0; i < total_size; i++) {
-    data_float[i] = static_cast<float>(data[i]);
-  }
-
-
+  float* data = datafile.data<float>();
   flatnav::distances::MetricType metric_type =
       metric_id == 0 ? flatnav::distances::MetricType::L2 : flatnav::distances::MetricType::IP;
 
-  run(/* data = */ data_float,
+  run(/* data = */ data,
       /* metric_type = */ metric_type,
       /* N = */ N, /* M = */ M, /* dim = */ dim,
       /* ef_construction = */ ef_construction,
       /* build_num_threads = */ std::stoi(argv[6]),
       /* save_file = */ argv[7],
       /* quantize = */ quantize);
-
-  delete[] data_float;
 
   return 0;
 }
