@@ -1,6 +1,5 @@
 # Build arguments 
-# This is a relatively large image, so we might want to use a smaller base image, such as
-# alpine in the future if image size becomes an issue.
+# debian:buster-slim is much smaller than ubuntu 22
 ARG BASE_IMAGE=debian:buster-slim
 
 FROM ${BASE_IMAGE} as base
@@ -13,59 +12,34 @@ ARG FLATNAV_PATH="${ROOT_DIR}/flatnavlib"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-
-
-RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
-    -o Acquire::AllowUnauthenticated=true -y && \
-    apt-get install -y --no-install-recommends \
-        make build-essential ca-certificates && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* && \
-    apt-get update -o Acquire::AllowInsecureRepositories=true \
-    -o Acquire::AllowUnauthenticated=true -y && \
-    apt-get install -y --no-install-recommends \
-        libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* && \
-    apt-get update -o Acquire::AllowInsecureRepositories=true \
-    -o Acquire::AllowUnauthenticated=true -y && \
-    apt-get install -y --no-install-recommends \
-        wget curl llvm libncursesw5-dev xz-utils tk-dev && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* && \
-    apt-get update -o Acquire::AllowInsecureRepositories=true \
-    -o Acquire::AllowUnauthenticated=true -y && \
-    apt-get install -y --no-install-recommends \
-        libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev supervisor git gcc g++ apt-utils && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*
-
-
-# RUN apt-get update -o Acquire::AllowInsecureRepositories=true \
-#     -o Acquire::AllowUnauthenticated=true -y \
-#     && apt-get install -y --no-install-recommends \
-#         make \
-#         build-essential \
-#         ca-certificates \
-#         libssl-dev \
-#         zlib1g-dev \
-#         libbz2-dev \
-#         libreadline-dev \
-#         libsqlite3-dev \
-#         wget \
-#         curl \
-#         llvm \
-#         libncursesw5-dev \
-#         xz-utils \
-#         tk-dev \
-#         libxml2-dev \
-#         libxmlsec1-dev \
-#         libffi-dev \
-#         liblzma-dev \
-#         supervisor \
-#         git \
-#         gcc \
-#         g++ \
-#         apt-utils \
-#     && apt-get clean \
-#     && rm -rf /var/lib/apt/lists/* \
-#     && rm -rf /tmp/*
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends \
+        make \
+        build-essential \
+        ca-certificates \
+        libssl-dev \
+        zlib1g-dev \
+        libbz2-dev \
+        libreadline-dev \
+        libsqlite3-dev \
+        wget \
+        curl \
+        llvm \
+        libncursesw5-dev \
+        xz-utils \
+        tk-dev \
+        libxml2-dev \
+        libxmlsec1-dev \
+        libffi-dev \
+        liblzma-dev \
+        supervisor \
+        git \
+        gcc \
+        g++ \
+        apt-utils \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/*
 
 # Install python 
 # We use pyenv to manage python versions 

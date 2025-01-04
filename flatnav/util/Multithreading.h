@@ -25,9 +25,6 @@ void executeInParallel(uint32_t start_index, uint32_t end_index, uint32_t num_th
   std::atomic<uint32_t> current(start_index);
   std::thread thread_objects[num_threads];
 
-  // // Calculate total range and initialize progress tracking
-  // const uint32_t total_range = end_index - start_index;
-  // std::atomic<uint32_t> next_progress_milestone(10);
 
   auto parallel_executor = [&] {
     while (true) {
@@ -39,14 +36,6 @@ void executeInParallel(uint32_t start_index, uint32_t end_index, uint32_t num_th
       std::apply(function,
                  std::tuple_cat(std::make_tuple(current_vector_idx), std::make_tuple(additional_args...)));
 
-      // // Check progress milestone
-      // uint32_t progress = ((current_vector_idx - start_index + 1) * 100) / total_range;
-      // uint32_t milestone = next_progress_milestone.load();
-      // if (progress >= milestone) {
-      //   if (next_progress_milestone.compare_exchange_strong(milestone, milestone + 10)) {
-      //     std::cout << "Progress: " << milestone << "% completed\n";
-      //   }
-      // }
     }
   };
 

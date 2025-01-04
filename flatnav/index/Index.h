@@ -42,7 +42,6 @@ class Index {
   // by using std::greater, but we want to use the queue as both a max-heap and
   // min-heap depending on the context.
 
-
   struct CompareByFirst {
     constexpr bool operator()(dist_node_t const& a, dist_node_t const& b) const noexcept{
       return a.first < b.first;
@@ -262,16 +261,10 @@ class Index {
    */
   void allocateNode(void* data, label_t& label, node_id_t& new_node_id) {
     new_node_id = _cur_num_nodes;
-    // if (new_node_id != label) {
-    //     std::cout << "Error: Node ID: " << new_node_id << ", Label: " << label << std::endl;
-    // }
-
     _distance->transformData(
         /* destination = */ getNodeData(new_node_id),
         /* src = */ data);
     *(getNodeLabel(new_node_id)) = label;
-    // *(getNodeLabel(new_node_id)) = static_cast<label_t>(new_node_id);
-
     node_id_t* links = getNodeLinks(new_node_id);
     // Initialize all edges to self
     std::fill_n(links, _M, new_node_id);
@@ -315,24 +308,22 @@ class Index {
 
       // Don't spawn any threads if we are only using one.
       if (_num_threads == 1) {
-          for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
-              void* vector = (data_type*)data + (row_id * data_dimension);
-              label_t label = labels[row_id];
+          for (uint32_t row_index = 0; row_index < total_num_nodes; row_index++) {
+              uint64_t offset = static_cast<uint64_t>(row_index) * static_cast<uint64_t>(data_dimension);
+              void* vector = (data_type*)data + offset;
+              label_t label = labels[row_index];
               this->add(vector, label, ef_construction, num_initializations);
           }
           return;
       }
 
-      // Use atomic index for deterministic label fetching
-      // std::atomic<uint32_t> label_index(0);
-
       flatnav::executeInParallel(
           /* start_index = */ 0, /* end_index = */ total_num_nodes,
-          /* num_threads = */ _num_threads, /* function = */
+          /* num_threads = */ _num_threads, /* function = */aaa
           [&](uint32_t row_index) {
-              void* vector = (data_type*)data + (row_index * data_dimension);
-              // label_t label = labels[label_index.fetch_add(1)];  // Thread-safe label fetch
-              label_t label = static_cast<label_t>(row_index);
+              uint64_t offset = static_cast<uint64_t>(row_index) * static_cast<uint64_t>(data_dimension);
+              void* vector = (data_type*)data + offset;
+              label_t label = labels[row_index];
               this->add(vector, label, ef_construction, num_initializations);
           });
   }
@@ -377,12 +368,12 @@ class Index {
       return;
     }
 
-    auto neighbors = beamSearch<false>(
+    auto neighbors = beamSearch(
         /* query = */ data, /* entry_node = */ entry_node,
-        /* buffer_size = */ ef_construction, new_node_id);
+        /* buffer_size = */ ef_construction);
 
     int selection_M = std::max(static_cast<int>(_M / 2), 1);
-    selectNeighbors(/* neighbors = */ neighbors, /* M = */ selection_M, /* new_node_id = */ new_node_id);
+    selectNeighbors(/* neighbors = */ neighbors, /* M = */ selection_M);
     connectNeighbors(neighbors, new_node_id);
   }
 
@@ -393,31 +384,27 @@ class Index {
    * @param ef_search The search beam width.
    * @param num_initializations The number of random initializations to use.
    */
-  // std::vector<dist_label_t> 
-  std::priority_queue<std::pair<float, label_t>>
-  search(const void* query, const int K, int ef_search,
+  std::vector<dist_label_t> search(const void* query, const int K, int ef_search,
                                    int num_initializations = 100) {
     node_id_t entry_node = initializeSearch(query, num_initializations);
-    auto neighbors = beamSearch<true>(/* query = */ query,
+    PriorityQueue neighbors = beamSearch(/* query = */ query,
                                          /* entry_node = */ entry_node,
-                                         /* buffer_size = */ std::max(ef_search, K), std::nullopt);
-
-    std::priority_queue<std::pair<float, label_t>> results;
-
-    while (neighbors.size() > K) {
+                                         /* buffer_size = */ std::max(ef_search, K));
+    auto size = neighbors.size();
+    std::vector<dist_label_t> results;
+    results.reserve(size);
+    while (!neighbors.empty()) {
+      auto [distance, node_id] = neighbors.top();
+      auto label = *getNodeLabel(node_id);
+      results.emplace_back(distance, label);
       neighbors.pop();
     }
-
-    while(neighbors.size() > 0) {
-      auto current = neighbors.top();
-      auto label = *getNodeLabel(current.second);
-      // if (current.second != label) {
-      //   std::cout << "[search] Node ID: " << current.second << ". Label: " << label << "\n" << std::flush;
-      // }
-      auto pair = std::pair<float, label_t>(current.first, label);
-      results.push(pair);
-      neighbors.pop();
+    std::sort(results.begin(), results.end(),
+              [](const dist_label_t& left, const dist_label_t& right) { return left.first < right.first; });
+    if (results.size() > static_cast<size_t>(K)) {
+      results.resize(K);
     }
+
     return results;
   }
 
@@ -498,6 +485,7 @@ class Index {
 
     // 2. Allocate memory using deserialized metadata
     uint64_t mem_size = static_cast<uint64_t>(index->_node_size_bytes) * static_cast<uint64_t>(index->_max_node_count);
+
     index->_index_memory = new char[mem_size];
 
     // 3. Deserialize content into allocated memory
@@ -548,7 +536,7 @@ class Index {
 
 
   inline uint64_t getTotalIndexMemory() const {
-    return static_cast<uint64_t>(_node_size_bytes * _max_node_count);
+    return static_cast<uint64_t>(_node_size_bytes) * static_cast<uint64_t>(_max_node_count);
   }
   inline uint64_t mutexesAllocatedMemory() const {
     return static_cast<uint64_t>(_node_links_mutexes.size() * sizeof(std::mutex));
@@ -595,15 +583,23 @@ class Index {
   // Default constructor for cereal
   Index() = default;
 
-  char* getNodeData(const node_id_t& n) const { return _index_memory + (n * _node_size_bytes); }
+  char* getNodeData(const node_id_t& n) const {
+    uint64_t byte_offset = static_cast<uint64_t>(n) * static_cast<uint64_t>(_node_size_bytes);
+    return _index_memory + byte_offset;
+  }
 
   node_id_t* getNodeLinks(const node_id_t& n) const {
-    char* location = _index_memory + (n * _node_size_bytes) + _data_size_bytes;
+    uint64_t byte_offset = static_cast<uint64_t>(n) * static_cast<uint64_t>(_node_size_bytes);
+    byte_offset += _data_size_bytes;
+    char* location = _index_memory + byte_offset;
     return reinterpret_cast<node_id_t*>(location);
   }
 
   label_t* getNodeLabel(const node_id_t& n) const {
-    char* location = _index_memory + (n * _node_size_bytes) + _data_size_bytes + (_M * sizeof(node_id_t));
+    uint64_t byte_offset = static_cast<uint64_t>(n) * static_cast<uint64_t>(_node_size_bytes);
+    byte_offset += _data_size_bytes;
+    byte_offset += (_M * sizeof(node_id_t));
+    char* location = _index_memory + byte_offset;
     return reinterpret_cast<label_t*>(location);
   }
 
@@ -638,26 +634,13 @@ class Index {
    * @return PriorityQueue
    */
 
-  template<bool is_search_time>
-  std::priority_queue<std::pair<float, node_id_t>, 
-                        std::vector<std::pair<float, node_id_t>>, 
-                        CompareByFirst>
-  beamSearch(const void* query, const node_id_t entry_node, 
-          const int buffer_size, std::optional<node_id_t> new_node_id = std::nullopt) {
-    // PriorityQueue neighbors;
-    // PriorityQueue candidates;
-
-    std::priority_queue<std::pair<float, node_id_t>, 
-                        std::vector<std::pair<float, node_id_t>>, 
-                        CompareByFirst> 
-        neighbors;
-    std::priority_queue<std::pair<float, node_id_t>, 
-                        std::vector<std::pair<float, node_id_t>>, 
-                        CompareByFirst>
-        candidates;
+  PriorityQueue beamSearch(const void* query, const node_id_t entry_node, 
+          const int buffer_size) {
+    PriorityQueue neighbors;
+    PriorityQueue candidates;
 
     auto* visited_set = _visited_set_pool->pollAvailableSet();
-    // visited_set->clear();
+    visited_set->clear();
 
     // Prefetch the data for entry node before computing its distance.
 #ifdef USE_SSE
@@ -693,12 +676,11 @@ class Index {
       }
 #endif
 
-      processCandidateNode<is_search_time>(
+      processCandidateNode(
           /* query = */ query, /* node = */ node,
           /* max_dist = */ max_dist, /* buffer_size = */ buffer_size,
           /* visited_set = */ visited_set,
-          /* neighbors = */ neighbors, /* candidates = */ candidates, 
-          /* new_node_id = */ new_node_id);
+          /* neighbors = */ neighbors, /* candidates = */ candidates);
     }
 
     _visited_set_pool->pushVisitedSet(
@@ -707,16 +689,10 @@ class Index {
     return neighbors;
   }
 
-  template<bool is_search_time>
   void processCandidateNode(const void* query, node_id_t& node, float& max_dist, 
                             const int buffer_size, VisitedSet* visited_set, 
-                        std::priority_queue<std::pair<float, node_id_t>, 
-                        std::vector<std::pair<float, node_id_t>>, 
-                        CompareByFirst>& neighbors, 
-                        std::priority_queue<std::pair<float, node_id_t>, 
-                        std::vector<std::pair<float, node_id_t>>, 
-                        CompareByFirst>& candidates,
-                        std::optional<node_id_t> new_node_id = std::nullopt) {
+                        PriorityQueue& neighbors, 
+                        PriorityQueue& candidates) {
     // Lock all operations on this specific node
     std::unique_lock<std::mutex> lock(_node_links_mutexes[node]);
 
@@ -735,17 +711,6 @@ class Index {
 
       bool neighbor_is_visited = visited_set->isVisited(/* num = */ neighbor_node_id);
 
-      // if (new_node_id.has_value() && new_node_id.value() == 3411) {
-      //   if (neighbor_node_id == 1465) {
-      //     if (!neighbor_is_visited) {
-      //       std::cout << "[unvisited] Found node with id 1465\n" << std::flush;
-      //     }
-      //     else {
-      //       std::cout << "[visited] Found node with id 1465\n" << std::flush;
-      //     }
-      //   }
-      // }
-
       if (neighbor_is_visited) {
         continue;
       }
@@ -758,53 +723,15 @@ class Index {
         _distance_computations.fetch_add(1);
       }
 
-      // if (new_node_id.has_value() && new_node_id.value() == 3411) {
-      //   if (neighbor_node_id == 1465) {
-      //     std::cout << "dist= " << dist << ", max_dist=" << max_dist << ", queue_size=" << neighbors.size() << "\n" << std::flush;
-      //   }
-      // }
-
-      // if (new_node_id.has_value() && new_node_id.value() == 3411) {
-      //   if (neighbor_node_id == 1465) {
-      //     std::cout << "[flatnav] Found node 1465 in the beamSearch function\n" << std::flush;
-      //     std::cout << "[flatnav] Distance to node 1465: " << dist << "\n" << std::flush;
-      //     std::cout << "[flatnav] Lower bound: " << max_dist << "\n" << std::flush;
-      //     std::cout << "[flatnav] Top candidates size: " << neighbors.size() << "\n" << std::flush;
-      //     std::cout << "[flatnav] Ef construction: " << buffer_size << "\n" << std::flush;
-
-
-      //     PriorityQueue neighbors_copy = neighbors;
-
-      //     while (!neighbors.empty()) {
-      //       auto [current_dist, current_id] = neighbors.top();
-      //       std::cout << "candidate=" << current_id << ", dist=" << current_dist << "\n" << std::flush;
-      //       neighbors.pop();
-      //     }
-      //     neighbors = neighbors_copy;
-      //   }
-      // }
-
       if (neighbors.size() < buffer_size || dist < max_dist) {
         candidates.emplace(-dist, neighbor_node_id);
         neighbors.emplace(dist, neighbor_node_id);
 #ifdef USE_SSE
         _mm_prefetch(getNodeData(candidates.top().second), _MM_HINT_T0);
 #endif
-
-        if(is_search_time) {
-          while (neighbors.size() > buffer_size) {
-            neighbors.pop();
-          }
+        if (neighbors.size() > buffer_size) {
+          neighbors.pop();
         }
-        else {
-          if (neighbors.size() > buffer_size) {
-            neighbors.pop();
-          }
-        }
-
-        // if (neighbors.size() > buffer_size) {
-        //   neighbors.pop();
-        // }
         if (!neighbors.empty()) {
           max_dist = neighbors.top().first;
         }
@@ -817,25 +744,17 @@ class Index {
    * heuristic. The neighbors priority queue contains elements sorted by
    * distance where the top element is the furthest neighbor from the query.
    */
-  void selectNeighbors(std::priority_queue<std::pair<float, node_id_t>, 
-                        std::vector<std::pair<float, node_id_t>>, 
-                        CompareByFirst>& neighbors, int M, node_id_t new_node_id, std::optional<node_id_t> other_node = std::nullopt) {
+  void selectNeighbors(PriorityQueue& neighbors, int M) {
     if (neighbors.size() < M) {
       return;
     }
 
-    // PriorityQueue candidates;
     std::priority_queue<std::pair<float, node_id_t>> candidates;
     std::vector<dist_node_t> saved_candidates;
     saved_candidates.reserve(M);
 
     while (neighbors.size() > 0) {
       auto [distance, id] = neighbors.top();
-      // if (new_node_id == 3411) {
-      //   if (id == 1465) {
-      //     std::cout << "[select-neighbors] Found node with id 1465 \n" << std::flush;
-      //   }
-      // }
 
       candidates.emplace(-distance, id);
       neighbors.pop();
@@ -852,31 +771,11 @@ class Index {
 
       bool should_keep_candidate = true;
       for (const auto& [_, second_pair_node_id] : saved_candidates) {
-
         float cur_dist = _distance->distance(/* x = */ getNodeData(second_pair_node_id),
                                        /* y = */ getNodeData(current_node_id));
 
-        // if (new_node_id == 7492 && other_node.has_value() && other_node.value() == 1465) {
-        //     std::cout << "[select-neighbors] Doing backward connections for node 1465 "
-        //               << "Current node id: " << current_node_id << " "
-        //               << "Distance to query: " << distance_to_query << " "
-        //               << "Distance to node " << second_pair_node_id << ": " << cur_dist << "\n" << std::flush;
-        // }
-
-
         if (cur_dist < distance_to_query) {
           should_keep_candidate = false;
-
-          // if (current_node_id == 3411) {
-          //   // This is the point when we prune node 3411 when we're connecting 1465
-
-          //   if (other_node.has_value() && other_node.value() == 1465) {
-          //     std::cout << "[select-neighbors] Pruning node 3411\n" << std::flush;
-          //     std::cout << "[select-neighbors] New node id: " << new_node_id << "\n" << std::flush;
-          //   }
-
-          // }
-
           break;
         }
       }
@@ -891,19 +790,12 @@ class Index {
     // TODO: implement my own priority queue, get rid of vector
     // saved_candidates, add directly to neighborqueue earlier.
     for (const dist_node_t& current_pair : saved_candidates) {
-      // if (new_node_id == 3411) {
-      //   if (current_pair.second == 1465) {
-      //     std::cout << "[select-neighbors] Adding node with id 1465 to the neighbors queue\n" << std::flush;
-      //   }
-      // }
       neighbors.emplace(-current_pair.first, current_pair.second);
     }
 
   }
 
-  void connectNeighbors(std::priority_queue<std::pair<float, node_id_t>, 
-                        std::vector<std::pair<float, node_id_t>>, 
-                        CompareByFirst>& neighbors, node_id_t new_node_id) {
+  void connectNeighbors(PriorityQueue& neighbors, node_id_t new_node_id) {
     // connects neighbors according to the HSNW heuristic
 
     // Lock all operations on this node
@@ -925,12 +817,6 @@ class Index {
         if (neighbor_node_links[j] == neighbor_node_id) {
           // If there is a self-loop, replace the self-loop with
           // the desired link.
-
-          // if (new_node_id == 3411) {
-          //   if (neighbor_node_id == 1465) {
-          //     std::cout << "[connect-neighbors] Found node with id 1465\n" << std::flush;
-          //   }
-          // }
           neighbor_node_links[j] = new_node_id;
           is_inserted = true;
           break;
@@ -943,21 +829,10 @@ class Index {
         // construct a candidate set including the old links AND our new
         // one, then prune this candidate set to get the new neighbors.
 
-        // if (new_node_id == 3411) {
-        //   if (neighbor_node_id == 1465) {
-        //     std::cout << "[connect-neighbors] All current slots occupied.\n" << std::flush;
-        //   }
-        // }
-
         float max_dist = _distance->distance(/* x = */ getNodeData(neighbor_node_id),
                                              /* y = */ getNodeData(new_node_id));
 
-        // PriorityQueue candidates;
-        std::priority_queue<std::pair<float, node_id_t>, 
-                        std::vector<std::pair<float, node_id_t>>, 
-                        CompareByFirst> 
-            candidates;
-
+        PriorityQueue candidates;
         candidates.emplace(max_dist, new_node_id);
         for (size_t j = 0; j < _M; j++) {
           if (neighbor_node_links[j] != neighbor_node_id) {
@@ -968,18 +843,11 @@ class Index {
           }
         }
         // 2X larger than the previous call to selectNeighbors.
-        selectNeighbors(candidates, _M, new_node_id, neighbor_node_id);
+        selectNeighbors(candidates, _M);
         // connect the pruned set of candidates, including self-loops:
         size_t j = 0;
         while (candidates.size() > 0) {  // candidates
           neighbor_node_links[j] = candidates.top().second;
-
-          // Let's check if new_node_id is selected by the heuristic
-          // if (neighbor_node_id == 1465) {
-          //   if (candidates.top().second == 3411) {
-          //     std::cout << "[connect-neighbors] Selection heuristic did not prune node 3411\n" << std::flush;
-          //   }
-          // }
           candidates.pop();
           j++;
         }
@@ -994,9 +862,6 @@ class Index {
 
       // loop increments:
       i++;
-      // if (i >= _M) {
-      //   i = _M;
-      // }
       neighbors.pop();
     }
   }
@@ -1037,18 +902,6 @@ class Index {
     return entry_node;
   }
 
-  inline node_id_t initializeSearchModified(const void* query, int num_initializations) {
-    if (_entry_point_nodes.size() == 0) {
-      throw std::runtime_error("No entry nodes provided during index construction. Exiting...");
-    }
-    if (_cur_num_nodes == 0) {
-      return 0;
-    }
-
-    auto entry_point_node = _entry_point_nodes[_cur_num_nodes - 1];
-    return entry_point_node;
-  }
-
   void relabel(const std::vector<node_id_t>& P) {
     // 1. Rewire all of the node connections
     for (node_id_t n = 0; n < _cur_num_nodes; n++) {
@@ -1064,6 +917,7 @@ class Index {
     label_t* temp_label = new label_t;
 
     auto* visited_set = _visited_set_pool->pollAvailableSet();
+    visited_set->clear();
 
     // In this context, is_visited stores which nodes have been relocated
     // (it would be equivalent to name this variable "is_relocated").

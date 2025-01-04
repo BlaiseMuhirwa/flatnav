@@ -113,15 +113,15 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     }
   }
 
-    template <typename data_type>
-  DistancesLabelsPair searchSingleImplModified(
+  template <typename data_type>
+  DistancesLabelsPair searchSingleImpl(
       const py::array_t<data_type, py::array::c_style | py::array::forcecast>& query, int K, int ef_search,
       int num_initializations = 100) {
     if (query.ndim() != 1 || query.shape(0) != _dim) {
       throw std::invalid_argument("Query has incorrect dimensions.");
     }
 
-    auto top_k = this->_index->searchModified(
+    std::vector<std::pair<float, label_t>> top_k = this->_index->search(
         /* query = */ (const void*)query.data(0), /* K = */ K,
         /* ef_search = */ ef_search,
         /* num_initializations = */ num_initializations);
@@ -137,50 +137,6 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     for (size_t i = 0; i < K; i++) {
       distances[i] = top_k[i].first;
       labels[i] = top_k[i].second;
-    }
-
-    // Allows to transfer ownership to Python
-    py::capsule free_labels_when_done(labels, [](void* ptr) { delete (label_t*)ptr; });
-
-    py::capsule free_distances_when_done(distances, [](void* ptr) { delete (float*)ptr; });
-
-    py::array_t<label_t> labels_array =
-        py::array_t<label_t>({K}, {sizeof(label_t)}, labels, free_labels_when_done);
-
-    py::array_t<float> distances_array =
-        py::array_t<float>({K}, {sizeof(float)}, distances, free_distances_when_done);
-
-    return {distances_array, labels_array};
-  }
-
-  template <typename data_type>
-  DistancesLabelsPair searchSingleImpl(
-      const py::array_t<data_type, py::array::c_style | py::array::forcecast>& query, int K, int ef_search,
-      int num_initializations = 100) {
-    if (query.ndim() != 1 || query.shape(0) != _dim) {
-      throw std::invalid_argument("Query has incorrect dimensions.");
-    }
-
-    std::priority_queue<std::pair<float, label_t>> top_k = this->_index->search(
-        /* query = */ (const void*)query.data(0), /* K = */ K,
-        /* ef_search = */ ef_search,
-        /* num_initializations = */ num_initializations);
-
-    if (top_k.size() != K) {
-      throw std::runtime_error("Search did not return the expected number of results. Expected " +
-                               std::to_string(K) + " but got " + std::to_string(top_k.size()) + ".");
-    }
-
-    label_t* labels = new label_t[K];
-    float* distances = new float[K];
-
-    size_t i = K - 1;
-    while (top_k.size() > 0) {
-      auto& result_tuple = top_k.top();
-      distances[i] = result_tuple.first;
-      labels[i] = result_tuple.second;
-      i--;
-      top_k.pop();
     }
 
     // Allows to transfer ownership to Python
@@ -215,7 +171,7 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     // No need to spawn any threads if we are in a single-threaded environment
     if (num_threads == 1) {
       for (size_t query_index = 0; query_index < num_queries; query_index++) {
-        std::priority_queue<std::pair<float, label_t>> top_k = this->_index->search(
+        std::vector<std::pair<float, label_t>> top_k = this->_index->search(
             /* query = */ (const void*)queries.data(query_index), /* K = */ K,
             /* ef_search = */ ef_search,
             /* num_initializations = */ num_initializations);
@@ -227,11 +183,9 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
               std::to_string(K) + " but got " + std::to_string(top_k.size()) + ".");
         }
 
-        for (size_t i = K - 1; i >= 0; i--) {
-          auto& result_tuple = top_k.top();
-          distances[query_index * K + i] = result_tuple.first;
-          results[query_index * K + i] = result_tuple.second;
-          top_k.pop();
+        for (size_t i = 0; i < top_k.size(); i++) {
+          distances[query_index * K + i] = top_k[i].first;
+          results[query_index * K + i] = top_k[i].second;
         }
       }
     } else {
@@ -241,15 +195,13 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
           /* num_threads = */ num_threads,
           /* function = */ [&](uint32_t row_index) {
             auto* query = (const void*)queries.data(row_index);
-            auto top_k = this->_index->search(
+            std::vector<std::pair<float, label_t>> top_k = this->_index->search(
                 /* query = */ query, /* K = */ K, /* ef_search = */ ef_search,
                 /* num_initializations = */ num_initializations);
 
-            for (size_t i = K - 1; i >= 0; i--) {
-              auto [dist, lbl] = top_k.top();
-              distances[row_index * K + i] = dist;
-              results[row_index * K + i] = lbl;
-              top_k.pop();
+            for (uint32_t result_id = 0; result_id < K; result_id++) {
+              distances[(row_index * K) + result_id] = top_k[result_id].first;
+              results[(row_index * K) + result_id] = top_k[result_id].second;
             }
           });
     }
@@ -323,14 +275,6 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
 
   void setDataType(const DataType data_type) {
     _data_type = data_type;
-  }
-
-  std::vector<float> getNodeAtIndex(uint32_t index) const {
-    return _index->getNodeAtIndex(index);
-  }
-
-  void setEntryPointNodes(const std::vector<uint32_t>& entry_nodes) {
-    _index->setEntryPointNodes(entry_nodes);
   }
 
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() { return _index->getGraphOutdegreeTable(); }
@@ -412,37 +356,37 @@ struct IndexSpecialization;
 
 template <>
 struct IndexSpecialization<SquaredL2Distance<DataType::float32>> {
-  using type = PyIndex<SquaredL2Distance<DataType::float32>, size_t>;
+  using type = PyIndex<SquaredL2Distance<DataType::float32>, int>;
   static constexpr char* name = "IndexL2Float";
 };
 
 template <>
 struct IndexSpecialization<SquaredL2Distance<DataType::uint8>> {
-  using type = PyIndex<SquaredL2Distance<DataType::uint8>, size_t>;
+  using type = PyIndex<SquaredL2Distance<DataType::uint8>, int>;
   static constexpr char* name = "IndexL2Uint8";
 };
 
 template <>
 struct IndexSpecialization<SquaredL2Distance<DataType::int8>> {
-  using type = PyIndex<SquaredL2Distance<DataType::int8>, size_t>;
+  using type = PyIndex<SquaredL2Distance<DataType::int8>, int>;
   static constexpr char* name = "IndexL2Int8";
 };
 
 template <>
 struct IndexSpecialization<InnerProductDistance<DataType::float32>> {
-  using type = PyIndex<InnerProductDistance<DataType::float32>, size_t>;
+  using type = PyIndex<InnerProductDistance<DataType::float32>, int>;
   static constexpr char* name = "IndexIPFloat";
 };
 
 template <>
 struct IndexSpecialization<InnerProductDistance<DataType::uint8>> {
-  using type = PyIndex<InnerProductDistance<DataType::uint8>, size_t>;
+  using type = PyIndex<InnerProductDistance<DataType::uint8>, int>;
   static constexpr char* name = "IndexIPUint8";
 };
 
 template <>
 struct IndexSpecialization<InnerProductDistance<DataType::int8>> {
-  using type = PyIndex<InnerProductDistance<DataType::int8>, size_t>;
+  using type = PyIndex<InnerProductDistance<DataType::int8>, int>;
   static constexpr char* name = "IndexIPInt8";
 };
 
@@ -464,13 +408,13 @@ py::object createIndex(const std::string& distance_type, int dim, Args&&... args
 
   if (distance_type == "l2") {
     auto distance = SquaredL2Distance<data_type>::create(dim);
-    auto index = std::make_shared<PyIndex<SquaredL2Distance<data_type>, size_t>>(std::move(distance), data_type,
+    auto index = std::make_shared<PyIndex<SquaredL2Distance<data_type>, int>>(std::move(distance), data_type,
                                                                               std::forward<Args>(args)...);
     return py::cast(index);
   }
 
   auto distance = InnerProductDistance<data_type>::create(dim);
-  auto index = std::make_shared<PyIndex<InnerProductDistance<data_type>, size_t>>(std::move(distance), data_type,
+  auto index = std::make_shared<PyIndex<InnerProductDistance<data_type>, int>>(std::move(distance), data_type,
                                                                                std::forward<Args>(args)...);
   return py::cast(index);
 }
@@ -522,8 +466,6 @@ void bindSpecialization(py::module_& index_submodule) {
            GET_GRAPH_OUTDEGREE_TABLE_DOCSTRING)
       .def("reorder", &IndexType::reorder, py::arg("strategies"), REORDER_DOCSTRING)
       .def("set_num_threads", &IndexType::setNumThreads, py::arg("num_threads"), SET_NUM_THREADS_DOCSTRING)
-      .def("set_entry_point_nodes", &IndexType::setEntryPointNodes, py::arg("entry_nodes"), "")
-      .def("get_node_at", &IndexType::getNodeAtIndex, py::arg("index"), "")
       .def_static("load_index", &IndexType::loadIndex, py::arg("filename"), LOAD_INDEX_DOCSTRING)
       .def_property_readonly("max_edges_per_node", &IndexType::getMaxEdgesPerNode)
       .def_property_readonly("num_threads", &IndexType::getNumThreads, NUM_THREADS_DOCSTRING);
