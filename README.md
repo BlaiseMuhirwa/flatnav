@@ -233,13 +233,10 @@ The most notable on-going extension that's under development is product quantiza
 If you find this library useful, please consider citing our associated paper:
 
 ```
-@misc{munyampirwa2024hierarchyhhnswstands,
-      title={Down with the Hierarchy: The 'H' in HNSW Stands for "Hubs"}, 
-      author={Blaise Munyampirwa and Vihan Lakshman and Benjamin Coleman},
-      year={2024},
-      eprint={2412.01940},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2412.01940}, 
+@article{munyampirwa2024down,
+  title={Down with the Hierarchy: The'H'in HNSW Stands for" Hubs"},
+  author={Munyampirwa, Blaise and Lakshman, Vihan and Coleman, Benjamin},
+  journal={arXiv preprint arXiv:2412.01940},
+  year={2024}
 }
 ```
