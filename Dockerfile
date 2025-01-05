@@ -1,10 +1,8 @@
 # Build arguments 
-# This is a relatively large image, so we might want to use a smaller base image, such as
-# alpine in the future if image size becomes an issue.
-ARG BASE_IMAGE=ubuntu:22.04
+# debian:buster-slim is much smaller than ubuntu 22
+ARG BASE_IMAGE=debian:buster-slim
 
 FROM ${BASE_IMAGE} as base
-
 
 ARG POETRY_VERSION=1.8.2
 ARG PYTHON_VERSION=3.11.6
@@ -12,8 +10,8 @@ ARG POETRY_HOME="/opt/poetry"
 ARG ROOT_DIR="/root"
 ARG FLATNAV_PATH="${ROOT_DIR}/flatnavlib"
 
-
 ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
         # Need for python installation: 
@@ -43,7 +41,6 @@ RUN apt-get update -y \
         gcc \
         g++ \
         apt-utils \
-        wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/*

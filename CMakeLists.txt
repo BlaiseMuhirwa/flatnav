@@ -35,8 +35,12 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   # Add debug compile flags
   message(STATUS "Building in Debug mode")
   # Address sanitizer: https://clang.llvm.org/docs/AddressSanitizer.html
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fsanitize=address")
+  # For some reason, using -fsanitize=address,thread,undefined doesn't workt since it appears
+  # that Asan and thread sanitizer have conflicting behavior. To use thread sanitizer, remove 
+  # Asan first and vice-versa
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fsanitize=address,undefined")
 endif()
+
 
 include(FeatureSummary)
 # All options summary
@@ -93,6 +97,7 @@ set(HEADERS
 add_library(FLAT_NAV_LIB INTERFACE)
 target_sources(FLAT_NAV_LIB INTERFACE ${HEADERS})
 target_include_directories(FLAT_NAV_LIB INTERFACE ${PROJECT_SOURCE_DIR})
+
 
 target_link_libraries(FLAT_NAV_LIB INTERFACE OpenMP::OpenMP_CXX)
 

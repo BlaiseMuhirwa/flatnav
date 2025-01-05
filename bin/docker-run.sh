@@ -100,8 +100,6 @@ docker run \
         --name $CONTAINER_NAME \
         -it \
         -e MAKE_TARGET=$1 \
-        --env-file bin/.env-vars \
-        --volume ~/.aws:/root/.aws:ro \
         --volume ${DATA_DIR}:/root/data \
         --volume ${METRICS_DIR}:/root/metrics \
         --rm flatnav:$TAG_NAME \

@@ -21,6 +21,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include <optional>
 
 using flatnav::distances::DistanceInterface;
 using flatnav::util::VisitedSet;
@@ -40,7 +41,14 @@ class Index {
   // NOTE: by default this is a max-heap. We could make this a min-heap
   // by using std::greater, but we want to use the queue as both a max-heap and
   // min-heap depending on the context.
-  typedef std::priority_queue<dist_node_t, std::vector<dist_node_t>> PriorityQueue;
+
+  struct CompareByFirst {
+    constexpr bool operator()(dist_node_t const& a, dist_node_t const& b) const noexcept{
+      return a.first < b.first;
+    }
+  };
+
+  typedef std::priority_queue<dist_node_t, std::vector<dist_node_t>, CompareByFirst> PriorityQueue;
 
   // Large (several GB), pre-allocated block of memory.
   char* _index_memory;
@@ -122,7 +130,8 @@ class Index {
     archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count, _cur_num_nodes, *_distance);
 
     // Serialize the allocated memory for the index & query.
-    archive(cereal::binary_data(_index_memory, _node_size_bytes * _max_node_count));
+    uint64_t total_mem = static_cast<uint64_t>(_node_size_bytes) * static_cast<uint64_t>(_max_node_count);
+    archive(cereal::binary_data(_index_memory, total_mem));
   }
 
  public:
@@ -159,15 +168,15 @@ class Index {
 
     _data_size_bytes = _distance->dataSize();
     _node_size_bytes = _data_size_bytes + (sizeof(node_id_t) * _M) + sizeof(label_t);
-    size_t index_memory_size = _node_size_bytes * _max_node_count;
-
-    _index_memory = new char[index_memory_size];
+    uint64_t index_size = static_cast<uint64_t>(_node_size_bytes) * static_cast<uint64_t>(_max_node_count);
+    _index_memory = new char[index_size];
   }
 
   ~Index() {
     delete[] _index_memory;
     delete _visited_set_pool;
   }
+
 
   void buildGraphLinks(const std::string& mtx_filename) {
     std::ifstream input_file(mtx_filename);
@@ -245,13 +254,11 @@ class Index {
    * @param new_node_id The id of the new node.
    */
   void allocateNode(void* data, label_t& label, node_id_t& new_node_id) {
-
     new_node_id = _cur_num_nodes;
     _distance->transformData(
         /* destination = */ getNodeData(new_node_id),
         /* src = */ data);
     *(getNodeLabel(new_node_id)) = label;
-
     node_id_t* links = getNodeLinks(new_node_id);
     // Initialize all edges to self
     std::fill_n(links, _M, new_node_id);
@@ -287,30 +294,32 @@ class Index {
   template <typename data_type>
   void addBatch(void* data, std::vector<label_t>& labels, int ef_construction,
                 int num_initializations = 100) {
-    if (num_initializations <= 0) {
-      throw std::invalid_argument("num_initializations must be greater than 0.");
-    }
-    uint32_t total_num_nodes = labels.size();
-    uint32_t data_dimension = _distance->dimension();
-
-    // Don't spawn any threads if we are only using one.
-    if (_num_threads == 1) {
-      for (uint32_t row_id = 0; row_id < total_num_nodes; row_id++) {
-        void* vector = (data_type*)data + (row_id * data_dimension);
-        label_t label = labels[row_id];
-        this->add(vector, label, ef_construction, num_initializations);
+      if (num_initializations <= 0) {
+          throw std::invalid_argument("num_initializations must be greater than 0.");
       }
-      return;
-    }
+      uint32_t total_num_nodes = labels.size();
+      uint32_t data_dimension = _distance->dimension();
 
-    flatnav::executeInParallel(
-        /* start_index = */ 0, /* end_index = */ total_num_nodes,
-        /* num_threads = */ _num_threads, /* function = */
-        [&](uint32_t row_index) {
-          void* vector = (data_type*)data + (row_index * data_dimension);
-          label_t label = labels[row_index];
-          this->add(vector, label, ef_construction, num_initializations);
-        });
+      // Don't spawn any threads if we are only using one.
+      if (_num_threads == 1) {
+          for (uint32_t row_index = 0; row_index < total_num_nodes; row_index++) {
+              uint64_t offset = static_cast<uint64_t>(row_index) * static_cast<uint64_t>(data_dimension);
+              void* vector = (data_type*)data + offset;
+              label_t label = labels[row_index];
+              this->add(vector, label, ef_construction, num_initializations);
+          }
+          return;
+      }
+
+      flatnav::executeInParallel(
+          /* start_index = */ 0, /* end_index = */ total_num_nodes,
+          /* num_threads = */ _num_threads, /* function = */
+          [&](uint32_t row_index) {
+              uint64_t offset = static_cast<uint64_t>(row_index) * static_cast<uint64_t>(data_dimension);
+              void* vector = (data_type*)data + offset;
+              label_t label = labels[row_index];
+              this->add(vector, label, ef_construction, num_initializations);
+          });
   }
 
   /**
@@ -343,11 +352,11 @@ class Index {
           "increasing the `max_node_count` parameter to "
           "create a larger index.");
     }
-    _index_data_guard.lock();
+    std::unique_lock<std::mutex> global_lock(_index_data_guard);
     auto entry_node = initializeSearch(data, num_initializations);
     node_id_t new_node_id;
     allocateNode(data, label, new_node_id);
-    _index_data_guard.unlock();
+    global_lock.unlock();
 
     if (new_node_id == 0) {
       return;
@@ -379,7 +388,9 @@ class Index {
     std::vector<dist_label_t> results;
     results.reserve(size);
     while (!neighbors.empty()) {
-      results.emplace_back(neighbors.top().first, *getNodeLabel(neighbors.top().second));
+      auto [distance, node_id] = neighbors.top();
+      auto label = *getNodeLabel(node_id);
+      results.emplace_back(distance, label);
       neighbors.pop();
     }
     std::sort(results.begin(), results.end(),
@@ -390,6 +401,7 @@ class Index {
 
     return results;
   }
+
 
   void doGraphReordering(const std::vector<std::string>& reordering_methods) {
 
@@ -444,10 +456,12 @@ class Index {
     index->_node_links_mutexes = std::vector<std::mutex>(index->_max_node_count);
 
     // 2. Allocate memory using deserialized metadata
-    index->_index_memory = new char[index->_node_size_bytes * index->_max_node_count];
+    uint64_t mem_size = static_cast<uint64_t>(index->_node_size_bytes) * static_cast<uint64_t>(index->_max_node_count);
+
+    index->_index_memory = new char[mem_size];
 
     // 3. Deserialize content into allocated memory
-    archive(cereal::binary_data(index->_index_memory, index->_node_size_bytes * index->_max_node_count));
+    archive(cereal::binary_data(index->_index_memory, mem_size));
 
     return index;
   }
@@ -475,8 +489,9 @@ class Index {
     }
   }
 
+
   inline uint64_t getTotalIndexMemory() const {
-    return static_cast<uint64_t>(_node_size_bytes * _max_node_count);
+    return static_cast<uint64_t>(_node_size_bytes) * static_cast<uint64_t>(_max_node_count);
   }
   inline uint64_t mutexesAllocatedMemory() const {
     return static_cast<uint64_t>(_node_links_mutexes.size() * sizeof(std::mutex));
@@ -523,15 +538,23 @@ class Index {
   // Default constructor for cereal
   Index() = default;
 
-  char* getNodeData(const node_id_t& n) const { return _index_memory + (n * _node_size_bytes); }
+  char* getNodeData(const node_id_t& n) const {
+    uint64_t byte_offset = static_cast<uint64_t>(n) * static_cast<uint64_t>(_node_size_bytes);
+    return _index_memory + byte_offset;
+  }
 
   node_id_t* getNodeLinks(const node_id_t& n) const {
-    char* location = _index_memory + (n * _node_size_bytes) + _data_size_bytes;
+    uint64_t byte_offset = static_cast<uint64_t>(n) * static_cast<uint64_t>(_node_size_bytes);
+    byte_offset += _data_size_bytes;
+    char* location = _index_memory + byte_offset;
     return reinterpret_cast<node_id_t*>(location);
   }
 
   label_t* getNodeLabel(const node_id_t& n) const {
-    char* location = _index_memory + (n * _node_size_bytes) + _data_size_bytes + (_M * sizeof(node_id_t));
+    uint64_t byte_offset = static_cast<uint64_t>(n) * static_cast<uint64_t>(_node_size_bytes);
+    byte_offset += _data_size_bytes;
+    byte_offset += (_M * sizeof(node_id_t));
+    char* location = _index_memory + byte_offset;
     return reinterpret_cast<label_t*>(location);
   }
 
@@ -565,7 +588,9 @@ class Index {
    *
    * @return PriorityQueue
    */
-  PriorityQueue beamSearch(const void* query, const node_id_t entry_node, const int buffer_size) {
+
+  PriorityQueue beamSearch(const void* query, const node_id_t entry_node, 
+          const int buffer_size) {
     PriorityQueue neighbors;
     PriorityQueue candidates;
 
@@ -623,7 +648,6 @@ class Index {
                             VisitedSet* visited_set, PriorityQueue& neighbors, PriorityQueue& candidates) {
     // Lock all operations on this specific node
     std::unique_lock<std::mutex> lock(_node_links_mutexes[node]);
-    float dist = 0.f;
 
     node_id_t* neighbor_node_links = getNodeLinks(node);
     for (uint32_t i = 0; i < _M; i++) {
@@ -644,7 +668,7 @@ class Index {
         continue;
       }
       visited_set->insert(/* num = */ neighbor_node_id);
-      dist = _distance->distance(/* x = */ query,
+      float dist = _distance->distance(/* x = */ query,
                                  /* y = */ getNodeData(neighbor_node_id),
                                  /* asymmetric = */ true);
 
@@ -678,31 +702,32 @@ class Index {
       return;
     }
 
-    PriorityQueue candidates;
+    std::priority_queue<std::pair<float, node_id_t>> candidates;
     std::vector<dist_node_t> saved_candidates;
     saved_candidates.reserve(M);
 
     while (neighbors.size() > 0) {
-      candidates.emplace(-neighbors.top().first, neighbors.top().second);
+      auto [distance, id] = neighbors.top();
+
+      candidates.emplace(-distance, id);
       neighbors.pop();
     }
 
-    float cur_dist = 0.0;
     while (candidates.size() > 0) {
       if (saved_candidates.size() >= M) {
         break;
       }
       // Extract the closest element from candidates.
-      dist_node_t current_pair = candidates.top();
+      auto [distance_to_query, current_node_id] = candidates.top();
+      distance_to_query = -distance_to_query;
       candidates.pop();
 
       bool should_keep_candidate = true;
-      for (const dist_node_t& second_pair : saved_candidates) {
+      for (const auto& [_, second_pair_node_id] : saved_candidates) {
+        float cur_dist = _distance->distance(/* x = */ getNodeData(second_pair_node_id),
+                                       /* y = */ getNodeData(current_node_id));
 
-        cur_dist = _distance->distance(/* x = */ getNodeData(second_pair.second),
-                                       /* y = */ getNodeData(current_pair.second));
-
-        if (cur_dist < (-current_pair.first)) {
+        if (cur_dist < distance_to_query) {
           should_keep_candidate = false;
           break;
         }
@@ -711,6 +736,7 @@ class Index {
         // We could do neighbors.emplace except we have to iterate
         // through saved_candidates, and std::priority_queue doesn't
         // support iteration (there is no technical reason why not).
+        auto current_pair = std::make_pair(-distance_to_query, current_node_id);
         saved_candidates.push_back(current_pair);
       }
     }
@@ -719,6 +745,7 @@ class Index {
     for (const dist_node_t& current_pair : saved_candidates) {
       neighbors.emplace(-current_pair.first, current_pair.second);
     }
+
   }
 
   void connectNeighbors(PriorityQueue& neighbors, node_id_t new_node_id) {
@@ -788,9 +815,6 @@ class Index {
 
       // loop increments:
       i++;
-      if (i >= _M) {
-        i = _M;
-      }
       neighbors.pop();
     }
   }
