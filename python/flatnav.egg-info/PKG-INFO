@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: flatnav
+Version: 0.0.1
+Summary: Graph kNN with reordering.
+Home-page: https://randorithms.com
+Author: Benjamin Coleman
+Author-email: benjamin.ray.coleman@gmail.com
+Requires-Python: >=3.9

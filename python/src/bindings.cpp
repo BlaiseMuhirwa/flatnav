@@ -1,3 +1,4 @@
+
 #include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
@@ -19,9 +20,7 @@
 #include "docs.h"
 
 using flatnav::Index;
-using flatnav::distances::DistanceInterface;
-using flatnav::distances::InnerProductDistance;
-using flatnav::distances::SquaredL2Distance;
+using flatnav::distances;
 using flatnav::util::DataType;
 using flatnav::util::for_each_data_type;
 

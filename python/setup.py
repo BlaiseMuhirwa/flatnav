@@ -1,12 +1,17 @@
 import os
 from pybind11.setup_helpers import Pybind11Extension, build_ext
-from setuptools import setup
+# from setuptools import setup
+from skbuild import setup
 import sys, subprocess
 
 __version__ = "0.0.1"
 
 CURRENT_DIR = os.getcwd()
 SOURCE_PATH = os.path.join(CURRENT_DIR, "python_bindings.cpp")
+
+long_description_path = os.path.join(os.path.join(os.path.dirname(__file__), "..", "README.md"))
+with open(long_description_path, "r") as f:
+    long_description = f.read()
 
 
 class UnsupportedPlatformError(Exception):
@@ -94,11 +99,27 @@ ext_modules = [
 setup(
     name="flatnav",
     version=__version__,
-    author="Benjamin Coleman",
-    author_email="benjamin.ray.coleman@gmail.com",
+    author="Benjamin Coleman, Blaise Munyampirwa, Vihan Lakshman",
+    author_email="benjamin.ray.coleman@gmail.com, blaisemunyampirwa@gmail.com, vihan@mit.edu",
+    maintainer_email="blaisemunyampirwa@gmail.com",
     url="https://randorithms.com",
+    project_urls={
+        "Source Code": "https://github.com/BlaiseMuhirwa/flatnav",
+        "Documentation": "https://blaisemuhirwa.github.io/flatnav",
+        "Bug Tracker": "https://github.com/BlaiseMuhirwa/flatnav/issues",
+    },
     description="Graph kNN with reordering.",
-    long_description="",
+    description="A performant graph-based kNN search library with re-ordering.",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    packages=["flatnav"],
+    package_dir={"": "src"},
+    # TODO: Add CMake install dir and args
+    cmake_install_dir="src",
+    cmake_args=[],
+    install_reqquires=[
+        "numpy>=1.21.0,<2",
+    ]
     ext_modules=ext_modules,
     cmdclass={"build_ext": build_ext},
     zip_safe=False,
