@@ -1,0 +1,43 @@
+name: Publish Extension to PyPI
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true 
+
+env: 
+  POETRY_VERSION: "1.8.1"
+
+
+jobs:
+  build-python-wheel:
+    name: Build Python Wheel
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+
+      - name: Install Poetry 
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
+
+      - name: Install cibuildwheel
+        run: poetry run pip install cibuildwheel 
+      
+      - name: Build Python Wheel
+        run: poetry run cibuildwheel --output-dir dist
+
+      - name: Publish Python Wheel
+        run: poetry publish --build -u __token__ -p ${{ secrets.PYPI_API_TOKEN }} --username __token__

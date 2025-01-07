@@ -19,8 +19,15 @@
 #include <vector>
 #include "docs.h"
 
+
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
+
 using flatnav::Index;
-using flatnav::distances;
+using flatnav::distances::DistanceInterface;
+using flatnav::distances::InnerProductDistance;
+using flatnav::distances::SquaredL2Distance;
 using flatnav::util::DataType;
 using flatnav::util::for_each_data_type;
 
@@ -519,6 +526,12 @@ void defineDistanceEnums(py::module_& module) {
 }
 
 PYBIND11_MODULE(flatnav, module) {
+#ifdef VERSION_INFO
+  module.attr("__version__") = TOSTRING(VERSION_INFO);
+#else
+  module.attr("__version__") = "dev";
+#endif
+
   auto data_type_submodule = module.def_submodule("data_type");
   defineDatatypeEnums(data_type_submodule);
 

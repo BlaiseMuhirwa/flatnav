@@ -1,0 +1,39 @@
+
+[build-system]
+requires = [
+  "setuptools>=68", 
+  "scikit-build>=0.13",
+  "cmake>=3.21",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.cibuildwheel]
+build = "cp*-manylinux_x86_64"
+skip = "cp36-manylinux-x86_64"
+test-skip = ""
+
+archs = ["x86_64", "aarch64"]
+build-frontend = "pip"
+config-settings = {}
+dependency-versions = "pinned"
+environment-pass = []
+build-verbosity = "3"
+
+before-build = "pip install ninja"
+before-all = "yum --disablerepo=epel install -y devtoolset-11-gcc devtoolset-11-gcc-c++"
+repair-wheel-command = ""
+
+test-command = "pytest {project}/tests"
+before-test = "pip install pytest"
+test-requires = []
+test-extras = []
+
+container-engine = "docker"
+
+# Requires creation of the `flatnav-manylinux2014` image.
+# Execute the build script ROOT_DIR/docker/build.sh
+manylinux-x86_64-image = "flatnav-manylinux2014"
+manylinux-pypy_x86_64-image = "svs-manylinux2014"
+
+[tool.cibuildwheel.linux]
+repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"

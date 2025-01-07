@@ -1,9 +1,0 @@
-README.md
-pyproject.toml
-setup.py
-/Users/blaisem/Desktop/flatnav/flatnav_python/python_bindings.cpp
-flatnav.egg-info/PKG-INFO
-flatnav.egg-info/SOURCES.txt
-flatnav.egg-info/dependency_links.txt
-flatnav.egg-info/not-zip-safe
-flatnav.egg-info/top_level.txt
