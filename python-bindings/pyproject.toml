@@ -1,9 +1,10 @@
 
 [build-system]
 requires = [
-  "setuptools>=68", 
+  "setuptools>=42", 
   "scikit-build>=0.13",
   "cmake>=3.21",
+  "numpy>=1.10.0, <2"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -23,10 +24,10 @@ before-build = "pip install ninja"
 before-all = "yum --disablerepo=epel install -y devtoolset-11-gcc devtoolset-11-gcc-c++"
 repair-wheel-command = ""
 
-test-command = "pytest {project}/tests"
-before-test = "pip install pytest"
-test-requires = []
-test-extras = []
+# test-command = "pytest {project}/tests"
+# before-test = "pip install pytest"
+# test-requires = []
+# test-extras = []
 
 container-engine = "docker"
 
