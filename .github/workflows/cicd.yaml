@@ -67,7 +67,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest] 
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout Repository
@@ -85,21 +85,21 @@ jobs:
       run: |
         brew install libomp
 
-    - name: Set up Poetry
-      uses: snok/install-poetry@v1
-      with:
-        version: ${{ env.POETRY_VERSION }}
-
-    - name: Install dependencies
+    - name: Install Dependencies
       run: |
-        cd flatnav_python
-        poetry install 
+        python -m pip install --upgrade pip 
+        make install-cibuildwheel
+        pip install pytest black numpy<2.0 h5py requests
 
-    - name: Build flatnav 
+    - name: Set up Docker (Linux Only)
+      if: runner.os == 'Linux'
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build wheel
       run: |
-        cd flatnav_python
-        export NO_SIMD_VECTORIZATION=1
-        ./install_flatnav.sh
+        set -ex
+        ./cibuild.sh --current-version
+        pip install wheelhouse/flatnav-*.whl --force-reinstall
 
     - name: Run Unit Tests
       run: |
