@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 project(flatnav LANGUAGES CXX)
 
 # Keep this in sync with setup.py
-set(VERSION_INFO "0.1.1")
+set(VERSION_INFO "0.1.2")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

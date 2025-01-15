@@ -2,7 +2,7 @@ import os
 from skbuild import setup
 import sys, subprocess
 from typing import List
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 package_description_path = os.path.join(
     os.path.join(os.path.dirname(__file__), "..", "README.md")
