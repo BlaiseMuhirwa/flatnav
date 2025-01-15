@@ -52,6 +52,9 @@ jobs:
 
   publish:
     needs: build_wheels
+    # Run this even if the previous job failed. We want to do this since some wheels might have been built successfully.
+    # and we want to push them to PyPI right away. 
+    if: always()
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -76,12 +79,23 @@ jobs:
         with:
           path: python-bindings/dist/
 
-      - name: Move wheels to dist directory
+      - name: Prepare dist directory
         run: |
           find dist -name "*.whl" -exec mv {} dist/ \;
           rm -rf dist/wheels-*
 
+          # Verify we have wheels to publish
+          wheel_count=$(find dist -name "*.whl" | wc -l)
+          if [ "$wheel_count" -eq 0 ]; then
+            echo "No wheels found to publish"
+            exit 1
+          fi
+          
+          echo "Found $wheel_count wheels to publish:"
+          ls -la dist/*.whl
+
       - name: Upload to PyPI with twine
+        if: success() 
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
