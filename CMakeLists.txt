@@ -74,21 +74,21 @@ endif()
 # TODO: Using globbing or some other command that does not require writing down
 # every header file
 set(HEADERS
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/L2DistanceDispatcher.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/IPDistanceDispatcher.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/SquaredL2SimdExtensions.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/InnerProductSimdExtensions.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/VisitedSetPool.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Multithreading.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Datatype.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/SimdUtils.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/DistanceInterface.h
-    ${PROJECT_SOURCE_DIR}/flatnav/index/Index.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/distances/InnerProductDistance.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/distances/SquaredL2Distance.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/distances/L2DistanceDispatcher.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/distances/IPDistanceDispatcher.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/SquaredL2SimdExtensions.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/InnerProductSimdExtensions.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/VisitedSetPool.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/GorderPriorityQueue.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/Reordering.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/Multithreading.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/Macros.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/Datatype.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/SimdUtils.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/distances/DistanceInterface.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/index/Index.h
     ${PROJECT_SOURCE_DIR}/developmental-features/quantization/ProductQuantization.h
     ${PROJECT_SOURCE_DIR}/developmental-features/quantization/CentroidsGenerator.h
     ${PROJECT_SOURCE_DIR}/developmental-features/quantization/Utils.h)

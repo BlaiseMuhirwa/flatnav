@@ -2,3 +2,5 @@
 _skbuild
 build/
 *.egg-info
+MANIFEST.in 
+dist/*

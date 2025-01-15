@@ -34,3 +34,6 @@ docs/doxygen_output
 data/
 baselines/
 external/openmp
+
+# Python wheels 
+wheelhouse

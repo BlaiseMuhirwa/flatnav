@@ -13,5 +13,5 @@ Version: |release|
    :caption: Contents:
 
    include_readme
-   flatnav_python 
+   python-bindings 
    cpp_api

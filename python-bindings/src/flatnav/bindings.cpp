@@ -521,17 +521,19 @@ void defineDatatypeEnums(py::module_& module) {
 void defineDistanceEnums(py::module_& module) {
   py::enum_<flatnav::distances::MetricType>(module, "MetricType")
       .value("L2", flatnav::distances::MetricType::L2)
-      .value("IP", flatnav::distances::MetricType::IP)
-      .export_values();
+      .value("IP", flatnav::distances::MetricType::IP);
 }
 
-PYBIND11_MODULE(flatnav, module) {
+PYBIND11_MODULE(_core, module) {
 #ifdef VERSION_INFO
   module.attr("__version__") = TOSTRING(VERSION_INFO);
+  #pragma message("VERSION_INFO: " TOSTRING(VERSION_INFO))
 #else
   module.attr("__version__") = "dev";
+  #pragma message("VERSION_INFO is not defined")
 #endif
 
+  module.doc() = CXX_EXTENSION_MODULE_DOCSTRING;
   auto data_type_submodule = module.def_submodule("data_type");
   defineDatatypeEnums(data_type_submodule);
 

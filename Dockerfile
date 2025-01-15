@@ -80,7 +80,7 @@ WORKDIR ${FLATNAV_PATH}
 
 # Copy source code
 COPY flatnav/ ./flatnav/
-COPY flatnav_python/ ./flatnav_python/
+COPY python-bindings/ ./python-bindings/
 COPY experiments/ ./experiments/
 
 # Copy external dependencies (for now only cereal)
@@ -90,10 +90,6 @@ COPY external/ ./external/
 COPY bin/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Install needed dependencies including flatnav. 
-# This installs numpy as well, which is a large dependency. 
-WORKDIR ${FLATNAV_PATH}/flatnav_python
-RUN ./install_flatnav.sh 
-
 # Install hnwlib (from a forked repo that has extensions we need)
 WORKDIR ${FLATNAV_PATH}
 RUN git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git \
@@ -102,13 +98,8 @@ RUN git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git \
     && poetry run python setup.py bdist_wheel  
 
 # Get the wheel as an environment variable 
-# NOTE: This is not robust and will break if there are multiple wheels in the dist folder
-ENV FLATNAV_WHEEL=${FLATNAV_PATH}/flatnav_python/dist/*.whl
 ENV HNSWLIB_WHEEL=${FLATNAV_PATH}/hnswlib-original/python_bindings/dist/*.whl
 
-# Add flatnav and hnswlib to the experiment runner 
+# Add hnswlib to the experiment runner 
 WORKDIR ${FLATNAV_PATH}/experiments
-RUN poetry add ${FLATNAV_WHEEL} \
-    && poetry add ${HNSWLIB_WHEEL} \
-    && poetry install --no-root
-
+RUN poetry add ${HNSWLIB_WHEEL} && poetry install --no-root

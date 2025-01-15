@@ -9,7 +9,7 @@ import logging
 import platform, socket, psutil
 import argparse
 import flatnav
-from flatnav.data_type import DataType 
+from flatnav import DataType
 from data_loader import get_data_loader
 from plotting.plot import create_plot, create_linestyles
 from plotting.metrics import metric_manager
@@ -219,8 +219,8 @@ def train_index(
 
         if not os.path.exists(hnsw_base_layer_filename):
             raise ValueError(f"Failed to create {hnsw_base_layer_filename=}")
-.create(
-        index = flatnav.index
+
+        index = flatnav.index.create(
             distance_type=distance_type,
             index_data_type=FLATNAV_DATA_TYPES[data_type],
             dim=dim,

@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.21)
 
 project(flatnav LANGUAGES CXX)
 
+# Keep this in sync with setup.py
+set(VERSION_INFO "0.1.1")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -39,21 +42,19 @@ set(CPP_SOURCE
 )
 
 # Add library for the Python extension
-pybind11_add_module(flatnav MODULE ${CPP_SOURCE})
+pybind11_add_module(_core MODULE ${CPP_SOURCE})
+target_compile_definitions(_core PRIVATE VERSION_INFO=${VERSION_INFO})
+
 # Print include directories for the target
-get_property(INCLUDE_DIRS TARGET flatnav PROPERTY INCLUDE_DIRECTORIES)
-message(STATUS "Include directories for flatnav: ${INCLUDE_DIRS}")
+get_property(INCLUDE_DIRS TARGET _core PROPERTY INCLUDE_DIRECTORIES)
+message(STATUS "Include directories for core library: ${INCLUDE_DIRS}")
 
 
 # Add debug and release flags
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_options(flatnav PUBLIC -g)
-else()
-    target_compile_options(flatnav PUBLIC -O3 -ffast-math -funroll-loops)
+    target_compile_options(_core PUBLIC -g -Wall -fsanitize=address,undefined)
 endif()
 
-# Install the library
-# install(TARGETS flatnav LIBRARY DESTINATION flatnav)
-
 # Place the shared object file (.so) in the destination indicated by setup.py
-install(TARGETS flatnav LIBRARY DESTINATION flatnav)
+# install(TARGETS flatnav LIBRARY DESTINATION flatnav)
+install(TARGETS _core DESTINATION .)

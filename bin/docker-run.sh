@@ -89,7 +89,7 @@ then
 fi
 
 # Start memory profiler 
-./bin/memory-profiling/run-prometheus-grafana.sh
+# ./bin/memory-profiling/run-prometheus-grafana.sh
 
 
 # Run the container and mount the data/ directory as volume to /root/data
