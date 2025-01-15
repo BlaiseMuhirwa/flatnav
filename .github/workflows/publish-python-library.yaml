@@ -46,7 +46,7 @@ jobs:
           name: wheels-${{ runner.os }}-py${{ matrix.python }}
           path: wheelhouse/*.whl
 
-publish:
+  publish:
     needs: build_wheels
     runs-on: ubuntu-latest
     defaults:
