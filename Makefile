@@ -16,13 +16,8 @@ run-cpp-unit-tests: build-cpp
 	./build/test_serialization
 
 install-cibuildwheel:
-	pip install cibuildwheel==$(CIBUILDWHEEL_VERSION)
+	pip install "cibuildwheel==${CIBUILDWHEEL_VERSION}"
 
-cibuild-wheel:
-	cibuildwheel --only $$(python python-bindings/get-wheel-key.py) python-bindings
-	pip install ./wheelhouse/flatnav*.whl
-
-# cd flatnav_python && poetry run pytest -vs unit_tests
 run-python-unit-tests:
 	cd python-bindings && pytest -vs unit_tests
 
