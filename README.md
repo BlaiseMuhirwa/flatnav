@@ -43,8 +43,6 @@ Example Usage:
   ./build.sh -t -e -v
 ```
 
-To build the Python bindings, follow instructions [here](https://github.com/BlaiseMuhirwa/flatnav/blob/main/flatnav_python/README.md). There are also examples for how to use the library to build an index and run queries on top of it [here](https://github.com/BlaiseMuhirwa/flatnav/blob/main/flatnav_python/unit_tests/test_index.py).
-
 ### Support for SIMD Extensions 
 
 We currently support SIMD extensions for certain platforms as detailed below. 

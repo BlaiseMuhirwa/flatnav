@@ -79,7 +79,7 @@ ENV PATH="${POETRY_HOME}/bin:${PATH}"
 WORKDIR ${FLATNAV_PATH}
 
 # Copy source code
-COPY flatnav/ ./flatnav/
+COPY include/flatnav/ ./flatnav/
 COPY python-bindings/ ./python-bindings/
 COPY experiments/ ./experiments/
 
