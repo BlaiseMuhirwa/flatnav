@@ -35,4 +35,4 @@ test-command = "pytest -vs {package}/unit_tests"
 [tool.cibuildwheel.macos]
 before-all = "brew install libomp"
 before-test = "pip install 'pytest' 'black' 'numpy<2.0' 'h5py' 'requests'"
-test-command = "pytest -vs python-bindings/unit_tests"
+test-command = "pytest -vs {package}/unit_tests"
