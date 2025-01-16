@@ -62,10 +62,8 @@ jobs:
           name: wheels-${{ runner.os }}-py${{ matrix.python }}
           path: wheelhouse/*.whl
 
-  publish:
+publish:
     needs: build_wheels
-    # Run this even if the previous job failed. We want to do this since some wheels might have been built successfully.
-    # and we want to push them to PyPI right away. 
     if: always()
     runs-on: ubuntu-latest
     defaults:
@@ -91,8 +89,12 @@ jobs:
         with:
           path: python-bindings/dist/
 
-      - name: Prepare dist directory
+      - name: Prepare dist directory and upload wheels individually
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
+          # Move wheels to dist directory
           find dist -name "*.whl" -exec mv {} dist/ \;
           rm -rf dist/wheels-*
 
@@ -106,9 +108,30 @@ jobs:
           echo "Found $wheel_count wheels to publish:"
           ls -la dist/*.whl
 
-      - name: Upload to PyPI with twine
-        if: success() 
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: pipx run twine upload dist/*
+          # Upload each wheel individually
+          failed_uploads=0
+          for wheel in dist/*.whl; do
+            echo "Uploading $wheel..."
+            if ! pipx run twine upload "$wheel"; then
+              echo "Warning: Failed to upload $wheel"
+              failed_uploads=$((failed_uploads + 1))
+            fi
+          done
+
+          # Upload sdist last
+          echo "Uploading sdist..."
+          if ! pipx run twine upload dist/*.tar.gz; then
+            echo "Warning: Failed to upload sdist"
+            failed_uploads=$((failed_uploads + 1))
+          fi
+
+          # Report final status
+          echo "Upload complete. $failed_uploads files failed to upload."
+          if [ "$failed_uploads" -eq "$((wheel_count + 1))" ]; then
+            echo "All uploads failed"
+            exit 1
+          fi
+          if [ "$failed_uploads" -gt 0 ]; then
+            echo "Some uploads failed but others succeeded"
+            exit 0
+          fi
