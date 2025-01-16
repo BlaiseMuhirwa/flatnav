@@ -38,8 +38,6 @@ def simd_extension_supported(extension: str) -> bool:
 def construct_cmake_args() -> List[str]:
     """
     Construct CMake arguments based on the platform.
-    Env vars to set up:
-    1. -DCMAKE_BUILD_TYPE:STRING=Release
     """
     current_wdir = os.getcwd()
     cmake_include_directories = [
@@ -49,63 +47,72 @@ def construct_cmake_args() -> List[str]:
     cmake_linker_args = []
 
     if sys.platform == "darwin":
-        omp_flag = "-Xclang -fopenmp"
+        omp_flag = "-Xpreprocessor -fopenmp"
         cmake_include_directories.extend(["/opt/homebrew/opt/libomp/include"])
         cmake_linker_args.extend(["-lomp", "-L/opt/homebrew/opt/libomp/lib"])
-
+        
+        # Base compile args for all platforms
+        compile_args = [
+            omp_flag,
+            "-Ofast",
+            "-fpic",
+            "-w",
+            "-ffast-math",
+            "-funroll-loops",
+        ]
+        
+        # Add x86_64 specific flags for macOS
+        compile_args.extend([
+            "-arch", "x86_64",
+            "-mmacosx-version-min=10.14",
+            "-stdlib=libc++"
+        ])
+        
     elif sys.platform in ["linux", "linux2"]:
         omp_flag = "-fopenmp"
         cmake_linker_args.extend(["-fopenmp"])
-
-    cmake_args = []
-    cmake_args.append(f"-DCMAKE_INCLUDE_PATH={';'.join(cmake_include_directories)}")
-
-    # Here is what each of the following flags do:
-    # - OpenMP: Enable OpenMP
-    # - Ofast: Use the fastest optimization
-    # - fpic: Position-independent code
-    # - w: Suppress all warnings (note: this overrides -Wall)
-    # - ffast-math: Enable fast math optimizations
-    # - funroll-loops: Unroll loops
-    # - march=native: Use the native architecture
-    compile_args = [
-        omp_flag,
-        "-Ofast",
-        "-fpic",
-        "-w",
-        "-ffast-math",
-        "-funroll-loops",
-        "-march=native",
-    ]
+        
+        compile_args = [
+            omp_flag,
+            "-Ofast",
+            "-fpic",
+            "-w",
+            "-ffast-math",
+            "-funroll-loops",
+            # Keep native architecture only for Linux
+            "-march=native"  
+        ]
 
     # Add SIMD flags if SIMD vectorization is enabled
     if not int(os.environ.get("NO_SIMD_VECTORIZATION", "0")):
-        supported_simd_flags = [
-            "sse",
-            "sse2",
-            "sse3",
-            "avx",
-            "avx512f",
-            "avx512bw",
-        ]
-        simd_flags = [
-            f"-m{flag}"
-            for flag in supported_simd_flags
-            if simd_extension_supported(extension=flag)
-        ]
-        if simd_flags:
-            compile_args.extend(simd_flags)
-        else:
-            compile_args.append("-ftree-vectorize")
+        if sys.platform in ["linux", "linux2"]:
+            # Only add SIMD flags on Linux
+            supported_simd_flags = [
+                "sse",
+                "sse2",
+                "sse3",
+                "avx",
+                "avx512f",
+                "avx512bw",
+            ]
+            simd_flags = [
+                f"-m{flag}"
+                for flag in supported_simd_flags
+                if simd_extension_supported(extension=flag)
+            ]
+            if simd_flags:
+                compile_args.extend(simd_flags)
+            else:
+                compile_args.append("-ftree-vectorize")
 
-    # Add compile arguments to cmake_args
+    cmake_args = []
+    cmake_args.append(f"-DCMAKE_INCLUDE_PATH={';'.join(cmake_include_directories)}")
     cmake_args.append(f"-DCMAKE_CXX_FLAGS={' '.join(compile_args)}")
 
     if cmake_linker_args:
         cmake_args.append(f"-DCMAKE_EXE_LINKER_FLAGS={' '.join(cmake_linker_args)}")
 
     return cmake_args
-
 
 setup(
     name="flatnav",
