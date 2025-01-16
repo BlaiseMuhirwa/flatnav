@@ -8,6 +8,10 @@ We hope to maintain this open source library as a resource for broader community
 ### Installation 
 FlatNav is implemented in C++ with a complete Python extension with [cereal](https://uscilab.github.io/cereal/) as the only external dependency. This is a header-only library, so there is nothing to build. You can just include the necessary headers in your existing code. 
 
+#### Python Installation
+
+
+
 FlatNav is supported on x86-64 machines on linux and MacOS (we can extend this to windows if there is sufficient interest). To get the C++ library working and run examples under the [tools](https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools) directory, you will need
 
 * C++17 compiler with OpenMP support (version >= 2.0)
