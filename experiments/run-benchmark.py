@@ -9,7 +9,7 @@ import logging
 import platform, socket, psutil
 import argparse
 import flatnav
-from flatnav import DataType
+from flatnav.data_type import DataType
 from data_loader import get_data_loader
 from plotting.plot import create_plot, create_linestyles
 from plotting.metrics import metric_manager
