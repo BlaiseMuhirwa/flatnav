@@ -12,6 +12,7 @@ numpy = "^1.26.1, <2.0"
 matplotlib = "^3.8.2"
 psutil = "^5.9.8"
 pydantic = "^2.6.4"
+flatnav = "^0.1.0"
 
 [build-system]
 requires = ["poetry-core"]

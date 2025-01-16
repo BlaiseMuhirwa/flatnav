@@ -140,3 +140,53 @@ Args:
 Returns:
     Union[IndexL2Float, IndexIPFloat]: The constructed index.
 )pbdoc";
+
+
+static const char* CXX_EXTENSION_MODULE_DOCSTRING = R"pbdoc(
+Flatnav: A performant graph-based kNN search library with re-ordering
+======================================================================
+
+Provides:
+    - An efficient graph-based approach to kNN search.
+    - Re-ordering capabilities for cache efficiency.
+    - Comprehensive utilities for index construction and query.
+
+Documentation:
+    https://flatnav.net
+
+Source Code:
+    https://github.com/BlaiseMuhirwa/flatnav
+
+Submodules:
+    data_type:
+        Definitions of supported data types for the index (e.g., float32, int8).
+    index:
+        Methods and classes for constructing, querying, and managing indices.
+
+Example:
+    ```python
+    import flatnav
+    from flatnav import DataType
+
+    # Create an index
+    index = flatnav.index.create(
+        distance_type='l2',
+        dim=128,
+        dataset_size=10000,
+        max_edges_per_node=32,
+    )
+
+    # Add data to the index
+    data = np.random.rand(100, 128).astype(np.float32)
+    index.add(data, ef_construction=100)
+
+    # Perform a search
+    query = np.random.rand(128).astype(np.float32)
+    distances, labels = index.search_single(query, K=10, ef_search=50)
+    print("Nearest neighbors:", labels)
+    ```
+
+Utilities:
+    - DataType: Supported data types for the index.
+    - MetricType: Supported distance metrics (L2, Inner Product).
+    )pbdoc";

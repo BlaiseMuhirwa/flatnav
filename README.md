@@ -59,7 +59,30 @@ We currently support SIMD extensions for certain platforms as detailed below.
 
 ### Getting Started in Python
 
-Once you've built the python bindings and you have a dataset you want to index as a numpy array, you can construct the index as shown below. This will allocate memory and create a directed graph with vectors as nodes.
+Currently, we support Python wheels for versions 3.8 through 3.12 on x86_64 architectures (Intel, AMD and MacOS). Support for 
+ARM wheels is a future improvement. 
+
+The python library can be installed from PyPI by using 
+```shell
+$ pip install flatnav
+```
+
+Similarly, `flatnav` can be installed from source via [cibuildwheel](https://cibuildwheel.pypa.io/en/stable/), which 
+builds cross-platform wheels. Follow the following steps
+
+```shell
+$ git clone https://github.com/BlaiseMuhirwa/flatnav.git --recurse-submodules
+$ cd flatnav
+$ make install-cibuildwheel
+
+# This will build flatnav for the current version in your environment. If you want to build wheels 
+# for all supported python versions (3.8 to 3.12), remove the --current-version flag.
+$ ./cibuild.sh --current-version
+
+$ pip install wheelhouse/flatnav*.whl --force-reinstall
+```
+
+Once you have the python library installed and you have a dataset you want to index as a numpy array, you can construct the index as shown below. This will allocate memory and create a directed graph with vectors as nodes.
 
 ```python
 import numpy as np
@@ -81,7 +104,7 @@ num_build_threads = 16
 index = flatnav.index.create(
     distance_type=distance_type,
     index_data_type=DataType.float32,
-    dim=dim,
+    dim=dataset_dimension,
     dataset_size=dataset_size,
     max_edges_per_node=max_edges_per_node,
     verbose=True,

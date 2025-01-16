@@ -1,0 +1,137 @@
+name: Build and Publish Wheels
+
+on:
+  push:
+    tags:
+      # Trigger on version tags (e.g., v1.0.0)
+      - 'v*'
+
+env:
+  PYTHON_VERSION: 3.11
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }} for Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ['3.8', '3.9', '3.10', '3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+      
+      # Set up Python 3.11 specifically for running cibuildwheel
+      - name: Set up global python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          xcode-select --install || true
+          brew install cmake libomp
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "cibuildwheel==2.22.0"
+
+      - name: Set up Docker (Linux only)
+        if: runner.os == 'Linux'
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+
+      - name: Build wheel
+        env:
+          MACOSX_DEPLOYMENT_TARGET: '10.14'
+        run: |
+          set -ex
+          ./cibuild.sh --current-version ${{ matrix.python }}
+
+      - name: Upload wheels as artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: wheels-${{ runner.os }}-py${{ matrix.python }}
+          path: wheelhouse/*.whl
+
+  publish:
+    needs: build_wheels
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python-bindings
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+      
+      - name: Install pipx
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pipx
+
+      - name: Clear dist folder and build SDist
+        run: |
+          rm -rf dist/
+          pipx run build --sdist
+
+      - name: Download wheels
+        uses: actions/download-artifact@v3
+        with:
+          path: python-bindings/dist/
+
+      - name: Prepare dist directory and upload wheels individually
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          # Move wheels to dist directory
+          find dist -name "*.whl" -exec mv {} dist/ \;
+          rm -rf dist/wheels-*
+
+          # Verify we have wheels to publish
+          wheel_count=$(find dist -name "*.whl" | wc -l)
+          if [ "$wheel_count" -eq 0 ]; then
+            echo "No wheels found to publish"
+            exit 1
+          fi
+          
+          echo "Found $wheel_count wheels to publish:"
+          ls -la dist/*.whl
+
+          # Upload each wheel individually
+          failed_uploads=0
+          for wheel in dist/*.whl; do
+            echo "Uploading $wheel..."
+            if ! pipx run twine upload "$wheel"; then
+              echo "Warning: Failed to upload $wheel"
+              failed_uploads=$((failed_uploads + 1))
+            fi
+          done
+
+          # Upload sdist last
+          echo "Uploading sdist..."
+          if ! pipx run twine upload dist/*.tar.gz; then
+            echo "Warning: Failed to upload sdist"
+            failed_uploads=$((failed_uploads + 1))
+          fi
+
+          # Report final status
+          echo "Upload complete. $failed_uploads files failed to upload."
+          if [ "$failed_uploads" -eq "$((wheel_count + 1))" ]; then
+            echo "All uploads failed"
+            exit 1
+          fi
+          if [ "$failed_uploads" -gt 0 ]; then
+            echo "Some uploads failed but others succeeded"
+            exit 0
+          fi

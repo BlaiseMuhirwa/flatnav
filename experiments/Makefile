@@ -594,17 +594,6 @@ nytimes-bench-hnsw:
 
 setup: install-flatnav install-hnswlib
 
-# Install all dependencies including flatnav
-install-flatnav: generate-wheel 
-	poetry add ../flatnav_python/dist/*.whl 
-	rm poetry.lock && poetry install --no-root
-
-# This will generate the wheel for flatnav and put it in
-# ../flatnav_python/dist
-generate-wheel:
-	poetry remove flatnav &> /dev/null 
-	cd .. && cd flatnav_python && ./install_flatnav.sh 
-
 install-hnswlib:
 	if [ ! -d "hnswlib-original" ]; then \
 		git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git; \
