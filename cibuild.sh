@@ -3,18 +3,26 @@
 set -e
 
 show_usage() {
-    echo "Usage: $0 [--current-version]"
-    echo "  --current-version    Build wheel only for current Python version"
+    echo "Usage: $0 [--current-version PYTHON_VERSION]"
+    echo "  --current-version PYTHON_VERSION    Build wheel only for specified Python version (e.g., 3.8)"
     echo "  Without arguments, builds wheels for all supported Python versions"
     exit 1
 }
 
-
 BUILD_CURRENT=0
+PYTHON_VERSION=""
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         --current-version)
             BUILD_CURRENT=1
+            if [ -n "$2" ]; then
+                PYTHON_VERSION=$2
+                shift
+            else
+                echo "Error: Python version argument missing"
+                show_usage
+            fi
             shift
             ;;
         -h|--help)
@@ -27,10 +35,19 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-
 if [ $BUILD_CURRENT -eq 1 ]; then
-    WHEEL_KEY=$(python python-bindings/get-wheel-key.py)
-    echo "Building wheel for current Python version: $WHEEL_KEY"
+    # Convert version format (e.g., 3.8 -> 38)
+    PYVER=$(echo $PYTHON_VERSION | tr -d '.')
+    
+    # Determine platform
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        PLATFORM_TAG="macosx_x86_64"
+    else
+        PLATFORM_TAG="manylinux_x86_64"
+    fi
+    
+    WHEEL_KEY="cp${PYVER}-${PLATFORM_TAG}"
+    echo "Building wheel for Python version: $WHEEL_KEY"
     export CIBW_BUILD="$WHEEL_KEY"
 else
     echo "Building wheels for all supported Python versions"
@@ -39,7 +56,6 @@ fi
 
 # Skip Windows builds
 export CIBW_SKIP="*win*"
-
 
 # Run cibuildwheel with appropriate configuration
 echo "Starting wheel build..."
