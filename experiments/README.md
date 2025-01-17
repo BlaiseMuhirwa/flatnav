@@ -19,7 +19,7 @@ Assuming you have docker installed and have prepared a benchmark dataset into th
 ./bin/docker-run.sh gist-bench-flatnav
 ```
 
-The analogous `hnswlib` benchmarking job on `gist` can be executed with a similar command. Again, the details of this make target are specified in `experiments/Makefile`
+The analogous `hnswlib` benchmarking job on `gist` can be executed with a similar command. Again, the details of this make target are specified in the [Makefile](/experiments/Makefile). 
 
 ```shell
 ./bin/docker-run.sh gist-bench-hnsw
