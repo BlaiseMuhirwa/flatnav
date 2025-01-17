@@ -9,7 +9,7 @@ To enable relatively seamless reproducibility, we require the users to do the fo
 
 * Download and preprocess the benchmark datasets into a certain folder named as `data` in the top-level directory of the `flatnav` repository. We provide more detailed instructions for this step in the next sections. 
 
-* Executing the command `./bin/docker-run.sh <make-target>` from top-level directory of the flatnav repository. The `<make-target>` argument specifies the parameters of the benchmarking job to execute. We specify the make targets in the file `experiments/Makefile`.
+* Executing the command `./bin/docker-run.sh <make-target>` from top-level directory of the flatnav repository. The `<make-target>` argument specifies the parameters of the benchmarking job to execute. We specify the make targets in the file [Makefile](/experiments/Makefile).
 
 ## Example Commands
 
