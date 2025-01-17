@@ -26,7 +26,7 @@ $ make install-cibuildwheel
 
 # This will build flatnav for the current version in your environment. If you want to build wheels 
 # for all supported python versions (3.8 to 3.12), remove the --current-version flag.
-$ ./cibuild.sh --current-version
+$ ./cibuild.sh --current-version 3.12
 
 $ pip install wheelhouse/flatnav*.whl --force-reinstall
 ```
