@@ -1,3 +1,28 @@
+## Datasets from ANN-Benchmarks
+
+ANN-Benchmarks provide HDF5 files for a standard benchmark of near-neighbor datasets, queries and ground-truth results. To index any of these datasets you can use the `construct_npy.cpp` and `query_npy.cpp` files linked above.
+
+To generate the [ANNS benchmark datasets](https://github.com/erikbern/ann-benchmarks?tab=readme-ov-file#data-sets), run the following script
+
+```shell
+$ ./bin/download_anns_datasets.sh <dataset-name> [--normalize]
+```
+
+For datasets that use the angular/cosine similarity, you will need to use `--normalize` option so that the distances are computed correctly. 
+
+Available dataset names include:
+
+```shell
+_ mnist-784-euclidean
+_ sift-128-euclidean
+_ glove-25-angular
+_ glove-50-angular
+_ glove-100-angular
+_ glove-200-angular
+_ deep-image-96-angular
+_ gist-960-euclidean
+_ nytimes-256-angular
+```
 
 ## Instructions for using the Experiment Runner
 

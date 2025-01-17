@@ -6,9 +6,34 @@ We hope to maintain this open source library as a resource for broader community
 
 
 ### Installation 
-FlatNav is implemented in C++ with a complete Python extension with [cereal](https://uscilab.github.io/cereal/) as the only external dependency. This is a header-only library, so there is nothing to build. You can just include the necessary headers in your existing code. 
+FlatNav is implemented in C++ with a complete Python extension with [cereal](https://uscilab.github.io/cereal/) as the only external dependency. This is a header-only library, so there is nothing to build. Currently, FlatNav is supported on x86-64 machines on Linux and MacOS (we can extend this to Windows and ARM platforms if there is sufficient interest).
 
-FlatNav is supported on x86-64 machines on linux and MacOS (we can extend this to windows if there is sufficient interest). To get the C++ library working and run examples under the [tools](https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools) directory, you will need
+#### Python Installation
+
+For Python users, we recommend installing FlatNav via [pip](https://pypi.org/project/flatnav/)
+
+```shell
+pip install flatnav
+```
+
+Similarly, `flatnav` can be installed from source via [cibuildwheel](https://cibuildwheel.pypa.io/en/stable/), which 
+builds cross-platform wheels. Follow the following steps
+
+```shell
+$ git clone https://github.com/BlaiseMuhirwa/flatnav.git --recurse-submodules
+$ cd flatnav
+$ make install-cibuildwheel
+
+# This will build flatnav for the current version in your environment. If you want to build wheels 
+# for all supported python versions (3.8 to 3.12), remove the --current-version flag.
+$ ./cibuild.sh --current-version 3.12
+
+$ pip install wheelhouse/flatnav*.whl --force-reinstall
+```
+
+#### C++ Installation
+
+To get the C++ library working and run examples under the [tools](https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools) directory, you will need
 
 * C++17 compiler with OpenMP support (version >= 2.0)
 * CMake (version >= 3.14)
@@ -43,42 +68,9 @@ Example Usage:
   ./build.sh -t -e -v
 ```
 
-### Support for SIMD Extensions 
-
-We currently support SIMD extensions for certain platforms as detailed below. 
-
-| Operation | x86_64 | arm64v8 | Apple silicon |
-|-----------|--------|---------|-----------------|
-| FP32 Inner product |SSE, AVX, AVX512 | No SIMD support | No SIMD support |
-| FP32 L2 distance |SSE, AVX, AVX512| No SIMD support | No SIMD support |
-| UINT8 L2 distance |AVX512 | No SIMD support | No SIMD support |
-| INT8 L2 distance | SSE | No SIMD support | No SIMD support |
-
-
 ### Getting Started in Python
 
-Currently, we support Python wheels for versions 3.8 through 3.12 on x86_64 architectures (Intel, AMD and MacOS). Support for 
-ARM wheels is a future improvement. 
-
-The python library can be installed from PyPI by using 
-```shell
-$ pip install flatnav
-```
-
-Similarly, `flatnav` can be installed from source via [cibuildwheel](https://cibuildwheel.pypa.io/en/stable/), which 
-builds cross-platform wheels. Follow the following steps
-
-```shell
-$ git clone https://github.com/BlaiseMuhirwa/flatnav.git --recurse-submodules
-$ cd flatnav
-$ make install-cibuildwheel
-
-# This will build flatnav for the current version in your environment. If you want to build wheels 
-# for all supported python versions (3.8 to 3.12), remove the --current-version flag.
-$ ./cibuild.sh --current-version
-
-$ pip install wheelhouse/flatnav*.whl --force-reinstall
-```
+Currently, we support Python wheels for versions 3.8 through 3.12 on x86_64 architectures (Intel, AMD and MacOS).
 
 Once you have the python library installed and you have a dataset you want to index as a numpy array, you can construct the index as shown below. This will allocate memory and create a directed graph with vectors as nodes.
 
@@ -218,31 +210,11 @@ int main(int argc, char** argv) {
 
 ```
 
-### Datasets from ANN-Benchmarks
+### Reproducing Experimental Results from the Research Paper
 
-ANN-Benchmarks provide HDF5 files for a standard benchmark of near-neighbor datasets, queries and ground-truth results. To index any of these datasets you can use the `construct_npy.cpp` and `query_npy.cpp` files linked above.
+In our associated [research paper](https://arxiv.org/pdf/2412.01940), we conduct a series of benchmarking experiments comparing FlatNav's non-hierarchical navigable small world graph index with HNSW. Ultimately, we find that in high-dimensional vector spaces, the hierarchical component of HNSW provides no discernible benefit in terms of search quality and performance compared to simply using a non-hierarchical NSW graph. To reproduce the benchmarking results reported in the paper, please see the [README file](https://github.com/BlaiseMuhirwa/flatnav/blob/main/experiments/README.md) located within the `experiments` directory of this repository. 
 
-To generate the [ANNS benchmark datasets](https://github.com/erikbern/ann-benchmarks?tab=readme-ov-file#data-sets), run the following script
-
-```shell
-$ ./bin/download_anns_datasets.sh <dataset-name> [--normalize]
-```
-
-For datasets that use the angular/cosine similarity, you will need to use `--normalize` option so that the distances are computed correctly. 
-
-Available dataset names include:
-
-```shell
-_ mnist-784-euclidean
-_ sift-128-euclidean
-_ glove-25-angular
-_ glove-50-angular
-_ glove-100-angular
-_ glove-200-angular
-_ deep-image-96-angular
-_ gist-960-euclidean
-_ nytimes-256-angular
-```
+In addition to our benchmarking experiments, we also investigate *why* the hierarchical component of HNSW seems to not provide additional value on high-dimensional vector search workloads. In particular, we hypothesize that navigable small world graphs over high-dimensional metric spaces naturally form hubs. These hubs consist of a small subset of nodes that are highly connected to other points in the graph and thus facilitate fast traversal without the need for an explicit hierarchy. In our paper, we also perform a series of statistical tests to provide compelling evidence that our Hub Highway Hypothesis holds in practice. We will add reproduction steps for these experiments shortly. 
 
 ### Experimental API and Future Extensions 
 
