@@ -9,7 +9,7 @@ message(STATUS "CMake CXX Compiler: ${CMAKE_CXX_COMPILER}")
 
 # Add the parent directory to the include path This allows us to write #include
 # <flatnav/...> instead of #include "../flatnav/..."
-include_directories(${CMAKE_SOURCE_DIR})
+include_directories(${CMAKE_SOURCE_DIR}/include)
 
 # Include cereal
 include_directories(${CMAKE_SOURCE_DIR}/external/cereal/include/)
@@ -111,6 +111,5 @@ endif()
 if(BUILD_TESTS)
   message(STATUS "Building flatnav + quantization unit tests using gtest")
   include(cmake/FindGoogleTest.cmake)
-  add_subdirectory(${PROJECT_SOURCE_DIR}/flatnav/tests)
-  # add_subdirectory(${PROJECT_SOURCE_DIR}/quantization/tests)
+  add_subdirectory(${PROJECT_SOURCE_DIR}/include/flatnav/tests)
 endif()
