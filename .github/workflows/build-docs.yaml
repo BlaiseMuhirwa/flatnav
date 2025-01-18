@@ -35,6 +35,8 @@ jobs:
 
       - name: Generate Doxygen & Sphinx documentation
         run: |
+          # Update the lock file if necessary
+          poetry lock 
           ./generate_docs.sh
 
       - name: Create .nojekyll file
