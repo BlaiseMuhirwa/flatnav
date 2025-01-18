@@ -5,7 +5,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FlatNav &mdash; FlatNav 0.0.1 documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
 
   
@@ -16,12 +16,12 @@
         <script src="_static/jquery.js?v=5d32c60e"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
         <script src="_static/documentation_options.js?v=d45e8c67"></script>
-        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/doctools.js?v=9a2dae69"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="FlatNav Index Module" href="flatnav_python.html" />
+    <link rel="next" title="C++ API Documentation" href="cpp_api.html" />
     <link rel="prev" title="Welcome to FlatNav’s documentation!" href="index.html" /> 
 </head>
 
@@ -47,16 +47,18 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">FlatNav</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#support-for-simd-extensions">Support for SIMD Extensions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#python-installation">Python Installation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c-installation">C++ Installation</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#getting-started-in-python">Getting Started in Python</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#getting-started-in-c">Getting Started in C++</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#datasets-from-ann-benchmarks">Datasets from ANN-Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reproducing-experimental-results-from-the-research-paper">Reproducing Experimental Results from the Research Paper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#experimental-api-and-future-extensions">Experimental API and Future Extensions</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="#citation">Citation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="flatnav_python.html">FlatNav Index Module</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cpp_api.html">C++ API Documentation</a></li>
 </ul>
 
@@ -90,8 +92,30 @@
 <p>We hope to maintain this open source library as a resource for broader community. Please consider opening a Github Issue for bugs and feature requests, or get in touch with us directly for discussions.</p>
 <section id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
-<p>FlatNav is implemented in C++ with a complete Python extension with <a class="reference external" href="https://uscilab.github.io/cereal/">cereal</a> as the only external dependency. This is a header-only library, so there is nothing to build. You can just include the necessary headers in your existing code.</p>
-<p>FlatNav is supported on x86-64 machines on linux and MacOS (we can extend this to windows if there is sufficient interest). To get the C++ library working and run examples under the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools">tools</a> directory, you will need</p>
+<p>FlatNav is implemented in C++ with a complete Python extension with <a class="reference external" href="https://uscilab.github.io/cereal/">cereal</a> as the only external dependency. This is a header-only library, so there is nothing to build. Currently, FlatNav is supported on x86-64 machines on Linux and MacOS (we can extend this to Windows and ARM platforms if there is sufficient interest).</p>
+<section id="python-installation">
+<h3>Python Installation<a class="headerlink" href="#python-installation" title="Link to this heading"></a></h3>
+<p>For Python users, we recommend installing FlatNav via <a class="reference external" href="https://pypi.org/project/flatnav/">pip</a></p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>flatnav
+</pre></div>
+</div>
+<p>Similarly, <code class="docutils literal notranslate"><span class="pre">flatnav</span></code> can be installed from source via <a class="reference external" href="https://cibuildwheel.pypa.io/en/stable/">cibuildwheel</a>, which
+builds cross-platform wheels. Follow the following steps</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/BlaiseMuhirwa/flatnav.git<span class="w"> </span>--recurse-submodules
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>flatnav
+$<span class="w"> </span>make<span class="w"> </span>install-cibuildwheel
+
+<span class="c1"># This will build flatnav for the current version in your environment. If you want to build wheels</span>
+<span class="c1"># for all supported python versions (3.8 to 3.12), remove the --current-version flag.</span>
+$<span class="w"> </span>./cibuild.sh<span class="w"> </span>--current-version<span class="w"> </span><span class="m">3</span>.12
+
+$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>wheelhouse/flatnav*.whl<span class="w"> </span>--force-reinstall
+</pre></div>
+</div>
+</section>
+<section id="c-installation">
+<h3>C++ Installation<a class="headerlink" href="#c-installation" title="Link to this heading"></a></h3>
+<p>To get the C++ library working and run examples under the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools">tools</a> directory, you will need</p>
 <ul class="simple">
 <li><p>C++17 compiler with OpenMP support (version &gt;= 2.0)</p></li>
 <li><p>CMake (version &gt;= 3.14)</p></li>
@@ -120,49 +144,15 @@ Example<span class="w"> </span>Usage:
 <span class="w">  </span>./build.sh<span class="w"> </span>-t<span class="w"> </span>-e<span class="w"> </span>-v
 </pre></div>
 </div>
-<p>To build the Python bindings, follow instructions <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/flatnav_python/README.md">here</a>. There are also examples for how to use the library to build an index and run queries on top of it <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/flatnav_python/unit_tests/test_index.py">here</a>.</p>
 </section>
-<section id="support-for-simd-extensions">
-<h2>Support for SIMD Extensions<a class="headerlink" href="#support-for-simd-extensions" title="Link to this heading"></a></h2>
-<p>We currently support SIMD extensions for certain platforms as detailed below.</p>
-<table class="docutils align-default">
-<thead>
-<tr class="row-odd"><th class="head"><p>Operation</p></th>
-<th class="head"><p>x86_64</p></th>
-<th class="head"><p>arm64v8</p></th>
-<th class="head"><p>Apple silicon</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>FP32 Inner product</p></td>
-<td><p>SSE, AVX, AVX512</p></td>
-<td><p>No SIMD support</p></td>
-<td><p>No SIMD support</p></td>
-</tr>
-<tr class="row-odd"><td><p>FP32 L2 distance</p></td>
-<td><p>SSE, AVX, AVX512</p></td>
-<td><p>No SIMD support</p></td>
-<td><p>No SIMD support</p></td>
-</tr>
-<tr class="row-even"><td><p>UINT8 L2 distance</p></td>
-<td><p>AVX512</p></td>
-<td><p>No SIMD support</p></td>
-<td><p>No SIMD support</p></td>
-</tr>
-<tr class="row-odd"><td><p>INT8 L2 distance</p></td>
-<td><p>SSE</p></td>
-<td><p>No SIMD support</p></td>
-<td><p>No SIMD support</p></td>
-</tr>
-</tbody>
-</table>
 </section>
 <section id="getting-started-in-python">
 <h2>Getting Started in Python<a class="headerlink" href="#getting-started-in-python" title="Link to this heading"></a></h2>
-<p>Once you’ve built the python bindings and you have a dataset you want to index as a numpy array, you can construct the index as shown below. This will allocate memory and create a directed graph with vectors as nodes.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">flatnav</span>
-<span class="kn">from</span> <span class="nn">flatnav.data_type</span> <span class="kn">import</span> <span class="n">DataType</span>
+<p>Currently, we support Python wheels for versions 3.8 through 3.12 on x86_64 architectures (Intel, AMD and MacOS).</p>
+<p>Once you have the python library installed and you have a dataset you want to index as a numpy array, you can construct the index as shown below. This will allocate memory and create a directed graph with vectors as nodes.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">flatnav</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">flatnav.data_type</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataType</span>
 
 <span class="c1"># Get your numpy-formatted dataset.</span>
 <span class="n">dataset_size</span> <span class="o">=</span> <span class="mi">1_000_000</span>
@@ -179,7 +169,7 @@ Example<span class="w"> </span>Usage:
 <span class="n">index</span> <span class="o">=</span> <span class="n">flatnav</span><span class="o">.</span><span class="n">index</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
     <span class="n">distance_type</span><span class="o">=</span><span class="n">distance_type</span><span class="p">,</span>
     <span class="n">index_data_type</span><span class="o">=</span><span class="n">DataType</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
-    <span class="n">dim</span><span class="o">=</span><span class="n">dim</span><span class="p">,</span>
+    <span class="n">dim</span><span class="o">=</span><span class="n">dataset_dimension</span><span class="p">,</span>
     <span class="n">dataset_size</span><span class="o">=</span><span class="n">dataset_size</span><span class="p">,</span>
     <span class="n">max_edges_per_node</span><span class="o">=</span><span class="n">max_edges_per_node</span><span class="p">,</span>
     <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -289,26 +279,10 @@ The distance type can either be <code class="docutils literal notranslate"><span
 </pre></div>
 </div>
 </section>
-<section id="datasets-from-ann-benchmarks">
-<h2>Datasets from ANN-Benchmarks<a class="headerlink" href="#datasets-from-ann-benchmarks" title="Link to this heading"></a></h2>
-<p>ANN-Benchmarks provide HDF5 files for a standard benchmark of near-neighbor datasets, queries and ground-truth results. To index any of these datasets you can use the <code class="docutils literal notranslate"><span class="pre">construct_npy.cpp</span></code> and <code class="docutils literal notranslate"><span class="pre">query_npy.cpp</span></code> files linked above.</p>
-<p>To generate the <a class="reference external" href="https://github.com/erikbern/ann-benchmarks?tab=readme-ov-file#data-sets">ANNS benchmark datasets</a>, run the following script</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./bin/download_anns_datasets.sh<span class="w"> </span>&lt;dataset-name&gt;<span class="w"> </span><span class="o">[</span>--normalize<span class="o">]</span>
-</pre></div>
-</div>
-<p>For datasets that use the angular/cosine similarity, you will need to use <code class="docutils literal notranslate"><span class="pre">--normalize</span></code> option so that the distances are computed correctly.</p>
-<p>Available dataset names include:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>_<span class="w"> </span>mnist-784-euclidean
-_<span class="w"> </span>sift-128-euclidean
-_<span class="w"> </span>glove-25-angular
-_<span class="w"> </span>glove-50-angular
-_<span class="w"> </span>glove-100-angular
-_<span class="w"> </span>glove-200-angular
-_<span class="w"> </span>deep-image-96-angular
-_<span class="w"> </span>gist-960-euclidean
-_<span class="w"> </span>nytimes-256-angular
-</pre></div>
-</div>
+<section id="reproducing-experimental-results-from-the-research-paper">
+<h2>Reproducing Experimental Results from the Research Paper<a class="headerlink" href="#reproducing-experimental-results-from-the-research-paper" title="Link to this heading"></a></h2>
+<p>In our associated <a class="reference external" href="https://arxiv.org/pdf/2412.01940">research paper</a>, we conduct a series of benchmarking experiments comparing FlatNav’s non-hierarchical navigable small world graph index with HNSW. Ultimately, we find that in high-dimensional vector spaces, the hierarchical component of HNSW provides no discernible benefit in terms of search quality and performance compared to simply using a non-hierarchical NSW graph. To reproduce the benchmarking results reported in the paper, please see the <a class="reference external" href="https://github.com/BlaiseMuhirwa/flatnav/blob/main/experiments/README.md">README file</a> located within the <code class="docutils literal notranslate"><span class="pre">experiments</span></code> directory of this repository.</p>
+<p>In addition to our benchmarking experiments, we also investigate <em>why</em> the hierarchical component of HNSW seems to not provide additional value on high-dimensional vector search workloads. In particular, we hypothesize that navigable small world graphs over high-dimensional metric spaces naturally form hubs. These hubs consist of a small subset of nodes that are highly connected to other points in the graph and thus facilitate fast traversal without the need for an explicit hierarchy. In our paper, we also perform a series of statistical tests to provide compelling evidence that our Hub Highway Hypothesis holds in practice. We will add reproduction steps for these experiments shortly.</p>
 </section>
 <section id="experimental-api-and-future-extensions">
 <h2>Experimental API and Future Extensions<a class="headerlink" href="#experimental-api-and-future-extensions" title="Link to this heading"></a></h2>
@@ -335,7 +309,7 @@ The most notable on-going extension that’s under development is product quanti
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="index.html" class="btn btn-neutral float-left" title="Welcome to FlatNav’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="flatnav_python.html" class="btn btn-neutral float-right" title="FlatNav Index Module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="cpp_api.html" class="btn btn-neutral float-right" title="C++ API Documentation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
