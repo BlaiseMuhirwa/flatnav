@@ -34,7 +34,7 @@ function download_dataset() {
     # Usage: ./download_dataset.sh <dataset_name> <normalize>
 
     local dataset=$1
-    local normalize=$2
+    local size=$2
 
     # Skip download if directory data/dataset_name already exists.
     if [ -d "data/${dataset}" ]; then
@@ -42,28 +42,56 @@ function download_dataset() {
         exit 0
     fi
 
-
-    echo "Downloading ${dataset}..."
-    axel -a -o bigann_base.1B.u8bin https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/bigann/base.1B.u8bin
-
-    axel -a -o bigann_query.public.10K.u8bin https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/bigann/query.public.10K.u8bin
-    
-    wget https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/GT_10M_v2.tgz && tar -xzvf GT_10M_v2.tgz
-
-    # Create directory and move dataset to data/dataset_name.
     mkdir -p data/${dataset}
-    mv bigann_base.1B.u8bin data/${dataset}/bigann_base.1B.u8bin
-    mv bigann_query.public.10K.u8bin data/${dataset}/bigann_query.public.10K.u8bin
+    echo "Downloading ${dataset}..."
     
-    mv GT_10M/bigann-10M data/${dataset}/ground_truth_bigann_10M
+    if [ ${dataset} == "bigann" ]; then
+        axel -a -o bigann_base.1B.u8bin https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/bigann/base.1B.u8bin
+        axel -a -o bigann_query.public.10K.u8bin https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/bigann/query.public.10K.u8bin
+   	mv bigann_base.1B.u8bin data/${dataset}/bigann_base.1B.u8bin
+        mv bigann_query.public.10K.u8bin data/${dataset}/bigann_query.public.10K.u8bin	
+    
+	$PYTHON convert_bigann_datasets.py data/${dataset}/bigann_query.public.10K.u8bin queries
+	$PYTHON convert_bigann_datasets.py data/${dataset}/bigann_base.1B.u8bin train
 
-    # Create a set of training, query and groundtruth files by running the python 
-    # script convert_ann_benchmark_datasets.py on the downloaded dataset. If normalize is set to 1, then pass 
-    # the --normalize flag to dump.py.
     
-    $PYTHON convert_bigann_datasets.py data/${dataset}/bigann_query.public.10K.u8bin queries
-    $PYTHON convert_bigann_datasets.py data/${dataset}/bigann_base.1B.u8bin train
-    $PYTHON convert_bigann_datasets.py data/${dataset}/ground_truth_bigann_10M gt
+    elif [ ${dataset} == "yandex-deep" ]; then
+	axel -a -o deep_base.1B.fbin https://storage.yandexcloud.net/yandex-research/ann-datasets/DEEP/base.1B.fbin
+        axel -a -o deep_query.public.10K.fbin https://storage.yandexcloud.net/yandex-research/ann-datasets/DEEP/query.public.10K.fbin
+
+        mv deep_base.1B.fbin data/${dataset}/deep_base.1B.fbin
+	mv deep_query.public.10K.fbin data/${dataset}/deep_query.public.10K.fbin
+
+        $PYTHON convert_bigann_datasets.py data/${dataset}/deep_query.public.10K.fbin queries
+	$PYTHON convert_bigann_datasets.py data/${dataset}/deep_base.1B.fbin train
+
+
+    elif [ ${dataset} == "yandex-tti" ]; then
+	axel -a -o tti_base.1B.fbin https://storage.yandexcloud.net/yandex-research/ann-datasets/T2I/base.1B.fbin
+	axel -a -o tti_query.learn.50M.fbin https://storage.yandexcloud.net/yandex-research/ann-datasets/T2I/query.learn.50M.fbin
+        
+        mv tti_base.1B.fbin data/${dataset}/tti_base.1B.fbin
+        mv tti_query.learn.50M.fbin data/${dataset}/tti_query.learn.50M.fbin
+
+        $PYTHON convert_bigann_datasets.py data/${dataset}/tti_query.learn.50M.fbin queries
+        $PYTHON convert_bigann_datasets.py data/${dataset}/tti_base.1B.fbin train 
+    else
+	echo "Invalid Choice!"
+
+    fi
+
+    if [ ${size} == "10M" ]; then
+    	wget https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/GT_10M_v2.tgz && tar -xzvf GT_10M_v2.tgz
+
+    elif [ ${size} == "100M" ]; then
+	wget https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/GT_100M_v2.tgz && tar -xzvf GT_100M_v2.tgz
+    else
+	echo "Invalid choice!"
+    fi
+
+    # mv GT_10M/bigann-10M data/${dataset}/ground_truth_bigann_10M
+
+    # $PYTHON convert_bigann_datasets.py data/${dataset}/ground_truth_bigann_10M gt
     
 }
 
@@ -74,9 +102,5 @@ if [[ $1 == "-h" || $1 == "--help" ]]; then
 fi
 
 
-# Check if a user ran the script like this: ./download_anns_datasets.sh <dataset> --normalize 
-# If so, then download only the specified dataset and normalize it.
-# If they just ran the script like this: ./download_anns_datasets.sh <dataset>, then 
-# download only the specified dataset and do not normalize it.
-download_dataset $1 0 
+download_dataset $1 $2 
 exit 0
