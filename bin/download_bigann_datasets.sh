@@ -11,18 +11,10 @@ fi
 
 
 # Create a list of ANNS benchmark datasets to download.
-ANN_BENCHMARK_DATASETS=("mnist-784-euclidean" 
-                        "sift-128-euclidean" 
-                        "glove-25-angular" 
-                        "glove-100-angular" 
-                        "glove-50-angular" 
-                        "glove-200-angular" 
-                        "deep-image-96-angular" 
-                        "gist-960-euclidean" 
-                        "nytimes-256-angular")
+ANN_BENCHMARK_DATASETS=("bigann")
 
 function print_help() {
-    echo "Usage: ./download_anns_datasets.sh <dataset> [--normalize]"
+    echo "Usage: ./download_big_ann_datasets.sh <dataset> [--normalize]"
     echo ""
     echo "Available datasets:"
     echo "${ANN_BENCHMARK_DATASETS[@]}"
@@ -52,21 +44,18 @@ function download_dataset() {
 
 
     echo "Downloading ${dataset}..."
-    curl -L -o ${dataset}.hdf5 http://ann-benchmarks.com/${dataset}.hdf5
+    axel -a -o bigann_query.public.10K.u8bin https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/bigann/query.public.10K.u8bin
 
     # Create directory and move dataset to data/dataset_name.
     mkdir -p data/${dataset}
-    mv ${dataset}.hdf5 data/${dataset}/${dataset}.hdf5
+    mv bigann_query.public.10K.u8bin data/bigann_query.public.10K.u8bin
 
     # Create a set of training, query and groundtruth files by running the python 
-    # script dump.py on the downloaded dataset. If normalize is set to 1, then pass 
+    # script convert_ann_benchmark_datasets.py on the downloaded dataset. If normalize is set to 1, then pass 
     # the --normalize flag to dump.py.
 
-    if [ ${normalize} -eq 1 ]; then
-        $PYTHON dump.py data/${dataset}/${dataset}.hdf5 --normalize
-    else
-        $PYTHON dump.py data/${dataset}/${dataset}.hdf5
-    fi
+    # $PYTHON convert_ann_benchmark_datasets.py data/${dataset}/${dataset}.hdf5
+    
 }
 
 
@@ -76,17 +65,9 @@ if [[ $1 == "-h" || $1 == "--help" ]]; then
 fi
 
 
-
 # Check if a user ran the script like this: ./download_anns_datasets.sh <dataset> --normalize 
 # If so, then download only the specified dataset and normalize it.
 # If they just ran the script like this: ./download_anns_datasets.sh <dataset>, then 
 # download only the specified dataset and do not normalize it.
-if [[ $# -eq 2 ]]; then
-    if [[ $2 == "--normalize" ]]; then
-        download_dataset $1 1
-        exit 0
-    fi
-elif [[ $# -eq 1 ]]; then 
-    download_dataset $1 0 
-    exit 0 
-fi
+download_dataset $1 0 
+exit 0
