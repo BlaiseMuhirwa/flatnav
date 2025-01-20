@@ -44,17 +44,26 @@ function download_dataset() {
 
 
     echo "Downloading ${dataset}..."
+    axel -a -o bigann_base.1B.u8bin https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/bigann/base.1B.u8bin
+
     axel -a -o bigann_query.public.10K.u8bin https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/bigann/query.public.10K.u8bin
+    
+    wget https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/GT_10M_v2.tgz && tar -xzvf GT_10M_v2.tgz
 
     # Create directory and move dataset to data/dataset_name.
     mkdir -p data/${dataset}
-    mv bigann_query.public.10K.u8bin data/bigann_query.public.10K.u8bin
+    mv bigann_base.1B.u8bin data/${dataset}/bigann_base.1B.u8bin
+    mv bigann_query.public.10K.u8bin data/${dataset}/bigann_query.public.10K.u8bin
+    
+    mv GT_10M/bigann-10M data/${dataset}/ground_truth_bigann_10M
 
     # Create a set of training, query and groundtruth files by running the python 
     # script convert_ann_benchmark_datasets.py on the downloaded dataset. If normalize is set to 1, then pass 
     # the --normalize flag to dump.py.
-
-    # $PYTHON convert_ann_benchmark_datasets.py data/${dataset}/${dataset}.hdf5
+    
+    $PYTHON convert_bigann_datasets.py data/${dataset}/bigann_query.public.10K.u8bin queries
+    $PYTHON convert_bigann_datasets.py data/${dataset}/bigann_base.1B.u8bin train
+    $PYTHON convert_bigann_datasets.py data/${dataset}/ground_truth_bigann_10M gt
     
 }
 
