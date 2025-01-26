@@ -80,18 +80,15 @@ function download_dataset() {
 
     fi
 
-    if [ ${size} == "10M" ]; then
-    	wget https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/GT_10M_v2.tgz && tar -xzvf GT_10M_v2.tgz
-
-    elif [ ${size} == "100M" ]; then
-	wget https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/GT_100M_v2.tgz && tar -xzvf GT_100M_v2.tgz
-    else
-	echo "Invalid choice!"
-    fi
-
-    # mv GT_10M/bigann-10M data/${dataset}/ground_truth_bigann_10M
-
-    # $PYTHON convert_bigann_datasets.py data/${dataset}/ground_truth_bigann_10M gt
+#    if [ ${size} == "10M" ]; then
+#    	wget https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/GT_10M_v2.tgz && tar -xzvf GT_10M_v2.tgz
+#
+#    elif [ ${size} == "100M" ]; then
+#	wget https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/GT_100M_v2.tgz && tar -xzvf GT_100M_v2.tgz
+#    else
+#	echo "Invalid choice!"
+#    fi
+#
     
 }
 

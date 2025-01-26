@@ -22,11 +22,18 @@ def load_bigann_vectors(path, queries=False):
 
     dataset = np.fromfile(path, dtype=dtype, offset=8)
     dataset = dataset.reshape((num_queries, num_dimensions))
+    
+    base_path, _ = os.path.split(path)
 
     if queries:
-        np.save(f'data/bigann/bigann_queries', dataset)
+        np.save(os.path.join(base_path, 'queries'), dataset)
     else:
-        np.save(f'data/bigann/bigann_train', dataset)
+        dataset_100m = dataset[:100000000]
+
+        dataset_10m = dataset[:10000000]
+
+        np.save(os.path.join(base_path, 'train_100m'), dataset_100m)
+        np.save(os.path.join(base_path, 'train_10m'), dataset_10m)
 
 
 path = sys.argv[1]
