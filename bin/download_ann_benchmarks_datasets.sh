@@ -60,7 +60,7 @@ function download_dataset() {
 
     # Create a set of training, query and groundtruth files by running the python 
     # script convert_ann_benchmark_datasets.py on the downloaded dataset. If normalize is set to 1, then pass 
-    # the --normalize flag to dump.py.
+    # the --normalize flag to convert_ann_benchmark_datasets.py.
 
     if [ ${normalize} -eq 1 ]; then
         $PYTHON convert_ann_benchmark_datasets.py data/${dataset}/${dataset}.hdf5 --normalize
