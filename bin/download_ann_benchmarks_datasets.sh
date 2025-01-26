@@ -28,8 +28,8 @@ function print_help() {
     echo "${ANN_BENCHMARK_DATASETS[@]}"
     echo ""
     echo "Example Usage:"
-    echo "  ./download_anns_datasets.sh mnist-784-euclidean"
-    echo "  ./download_anns_datasets.sh glove-25-angular --normalize"
+    echo "  ./download_ann_benchmark_datasets.sh mnist-784-euclidean"
+    echo "  ./download_ann_benchmark_datasets.sh glove-25-angular --normalize"
     exit 1
 }
 
@@ -59,13 +59,13 @@ function download_dataset() {
     mv ${dataset}.hdf5 data/${dataset}/${dataset}.hdf5
 
     # Create a set of training, query and groundtruth files by running the python 
-    # script dump.py on the downloaded dataset. If normalize is set to 1, then pass 
-    # the --normalize flag to dump.py.
+    # script convert_ann_benchmark_datasets.py on the downloaded dataset. If normalize is set to 1, then pass 
+    # the --normalize flag to convert_ann_benchmark_datasets.py.
 
     if [ ${normalize} -eq 1 ]; then
-        $PYTHON dump.py data/${dataset}/${dataset}.hdf5 --normalize
+        $PYTHON convert_ann_benchmark_datasets.py data/${dataset}/${dataset}.hdf5 --normalize
     else
-        $PYTHON dump.py data/${dataset}/${dataset}.hdf5
+        $PYTHON convert_ann_benchmark_datasets.py data/${dataset}/${dataset}.hdf5
     fi
 }
 
