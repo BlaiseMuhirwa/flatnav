@@ -8,8 +8,10 @@ def load_ground_truth(path):
         k = np.fromfile(f, dtype=np.uint32, count=1)[0]
 
     ground_truth_ids = np.memmap(path, dtype=np.uint32, mode="r", shape=(num_queries, k), offset=8,)
+    _, gt_filename = os.path.split(path)
     
-    np.save(f'data/bigann/bigann_ground_truth', ground_truth_ids)
+    save_dir = os.path.join("data", gt_filename.split('-')[0])
+    np.save(os.path.join(save_dir, 'ground_truth'), ground_truth_ids)
 
 
 def load_bigann_vectors(path, queries=False):
