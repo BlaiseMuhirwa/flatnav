@@ -10,8 +10,9 @@ def load_ground_truth(path):
     ground_truth_ids = np.memmap(path, dtype=np.uint32, mode="r", shape=(num_queries, k), offset=8,)
     _, gt_filename = os.path.split(path)
     
-    save_dir = os.path.join("data", gt_filename.split('-')[0])
-    np.save(os.path.join(save_dir, 'ground_truth'), ground_truth_ids)
+    dataset_name, size = gt_filename.split('-') 
+    save_dir = os.path.join("data", dataset_name)
+    np.save(os.path.join(save_dir, f'ground_truth_{size.lower()}'), ground_truth_ids)
 
 
 def load_bigann_vectors(path, queries=False):
@@ -31,7 +32,6 @@ def load_bigann_vectors(path, queries=False):
         np.save(os.path.join(base_path, 'queries'), dataset)
     else:
         dataset_100m = dataset[:100000000]
-
         dataset_10m = dataset[:10000000]
 
         np.save(os.path.join(base_path, 'train_100m'), dataset_100m)

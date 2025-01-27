@@ -89,4 +89,19 @@ _ nytimes-256-angular
 
 ## Preparing Datasets from Big-ANN Benchmarks
 
-Coming soon! 
+[Big-ANN Benchmarks](https://big-ann-benchmarks.com/neurips21.html) Is a more recent set of ANN benchmark datasets focused on extremely large scales. Specifically, Big-ANN Benchmarks provides access to embedding datasets and ground truth near neighbor sets for 10M, 100M, and 1B vectors. In our benchmarks, we focus on the 10M and 100M datasets due to computational resource constraints. To reproduce our results in the paper, we provide a helper script to download the 10M and 100M Big-ANN Benchmark datasets and convert them into the numpy format that `flatnav` expects. 
+
+To process a Big-ANN benchmark datasets, please run the following script. This script will download and process the 10M and 100M versions of the given dataset, including the ground truth file. Then, one can run a benchmarking job as described above (these Big-ANN dataset configurations are already specified in the Makefile)
+
+```shell
+$ ./bin/download_bigann_datasets.sh <dataset-name>
+```
+
+The available dataset names include:
+
+```shell
+- bigann
+- deep
+- text2image
+```
+These available datasets include three of the four Big-ANN Benchmark datasets we evaluate in our paper. The Microsoft SpaceV dataset is no longer available through the same public download link, so we do not include it here. We will provide instructions on how to access the SpaceV datasets shortly. 

@@ -50,9 +50,9 @@ space-v1b-bench-flatnav:
 bigann-100m-hnsw: 
 	poetry run python run-benchmark.py \
                 --dataset-name bigann-100m \
-                --dataset /root/data/bigann-100m-euclidean/bigann_train_100m.npy \
-                --queries /root/data/bigann-100m-euclidean/bigann_queries.npy \
-                --gtruth /root/data/bigann-100m-euclidean/bigann_ground_truth_100m.npy \
+                --dataset /root/data/bigann/train_100m.npy \
+                --queries /root/data/bigann/queries.npy \
+                --gtruth /root/data/bigann/ground_truth_100m.npy \
                 --index-type flatnav \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 \
@@ -65,9 +65,9 @@ bigann-100m-hnsw:
 bigann-100m-flatnav: 
 	poetry run python run-benchmark.py \
                 --dataset-name bigann-100m \
-                --dataset /root/data/bigann-100m-euclidean/bigann_train_100m.npy \
-                --queries /root/data/bigann-100m-euclidean/bigann_queries.npy \
-                --gtruth /root/data/bigann-100m-euclidean/bigann_ground_truth_100m.npy \
+                --dataset /root/data/bigann/train_100m.npy \
+                --queries /root/data/bigann/queries.npy \
+                --gtruth /root/data/bigann/ground_truth_100m.npy \
                 --index-type flatnav \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename bigann-100m.mtx \
@@ -182,9 +182,9 @@ tti-100m-hnsw:
 bigann-10m-flatnav: 
 	poetry run python run-benchmark.py \
                 --dataset-name bigann-10m \
-                --dataset /root/data/bigann-10m-euclidean/bigann_train_10m.npy \
-                --queries /root/data/bigann-10m-euclidean/bigann_queries.npy \
-                --gtruth /root/data/bigann-10m-euclidean/bigann_ground_truth_10m.npy \
+                --dataset /root/data/bigann/train_10m.npy \
+                --queries /root/data/bigann/queries.npy \
+                --gtruth /root/data/bigann/ground_truth_10m.npy \
                 --index-type flatnav \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename bigann-10m.mtx \
@@ -199,9 +199,9 @@ bigann-10m-flatnav:
 bigann-10m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name bigann-10m \
-                --dataset /root/data/bigann-10m-euclidean/bigann_train_10m.npy \
-                --queries /root/data/bigann-10m-euclidean/bigann_queries.npy \
-                --gtruth /root/data/bigann-10m-euclidean/bigann_ground_truth_10m.npy \
+                --dataset /root/data/bigann/train_10m.npy \
+                --queries /root/data/bigann/queries.npy \
+                --gtruth /root/data/bigann/ground_truth_10m.npy \
                 --index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 300 \
