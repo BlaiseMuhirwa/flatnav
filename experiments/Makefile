@@ -82,9 +82,9 @@ bigann-100m-flatnav:
 yandex-deep-100m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name yandex-deep-100m \
-                --dataset /root/data/yandex-deep-100m/yandex_train_100m.npy \
-                --queries /root/data/yandex-deep-100m/yandex_queries.npy \
-                --gtruth /root/data/yandex-deep-100m/yandex_ground_truth_100m.npy \
+                --dataset /root/data/deep/train_100m.npy \
+                --queries /root/data/deep/queries.npy \
+                --gtruth /root/data/deep/ground_truth_100m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 \
@@ -97,9 +97,9 @@ yandex-deep-100m-hnsw:
 yandex-deep-100m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name yandex-deep-100m \
-                --dataset /root/data/yandex-deep-100m/yandex_train_100m.npy \
-                --queries /root/data/yandex-deep-100m/yandex_queries.npy \
-                --gtruth /root/data/yandex-deep-100m/yandex_ground_truth_100m.npy \
+                --dataset /root/data/deep/train_100m.npy \
+                --queries /root/data/deep/queries.npy \
+                --gtruth /root/data/deep/ground_truth_100m.npy \
             	--index-type flatnav \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename yandex-deep-100m.mtx \
@@ -114,9 +114,9 @@ yandex-deep-100m-flatnav:
 spacev-100m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name spacev-100m \
-                --dataset /root/data/spacev-100m/spacev_train_100m.npy \
-                --queries /root/data/spacev-100m/spacev_queries.npy \
-                --gtruth /root/data/spacev-100m/spacev_ground_truth_100m.npy \
+                --dataset /root/data/msspacev/train_100m.npy \
+                --queries /root/data/msspacev/queries.npy \
+                --gtruth /root/data/msspacev/ground_truth_100m.npy \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename spacev-100m.mtx \
                 --index-type flatnav \
@@ -124,15 +124,15 @@ spacev-100m-flatnav:
                 --ef-construction 50 100 200 \
                 --ef-search 100 200 300 500 1000 3000 \
         	--metric l2 \
-        	--num-build-threads 16 \
+        	--num-build-threads 32 \
         	--num-search-threads 1
 
 spacev-100m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name spacev-100m \
-                --dataset /root/data/spacev-100m/spacev_train_100m.npy \
-                --queries /root/data/spacev-100m/spacev_queries.npy \
-                --gtruth /root/data/spacev-100m/spacev_ground_truth_100m.npy \
+                --dataset /root/data/msspacev/train_100m.npy \
+                --queries /root/data/msspacev/queries.npy \
+                --gtruth /root/data/msspacev/ground_truth_100m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 \
@@ -145,9 +145,9 @@ spacev-100m-hnsw:
 tti-100m-flatnav:
 	poetry run python run-benchmark.py \
         	--dataset-name tti-100m \
-        	--dataset /root/data/tti-100m/tti_train_100m.npy \
-        	--queries /root/data/tti-100m/tti_queries.npy \
-        	--gtruth /root/data/tti-100m/tti_ground_truth_100m.npy \
+        	--dataset /root/data/text2image/train_100m.npy \
+        	--queries /root/data/text2image/queries.npy \
+        	--gtruth /root/data/text2image/ground_truth_100m.npy \
         	--index-type flatnav \
         	--use-hnsw-base-layer \
         	--hnsw-base-layer-filename tti-100m.mtx \
@@ -161,9 +161,9 @@ tti-100m-flatnav:
 tti-100m-hnsw:
 	poetry run python run-benchmark.py \
 		--dataset-name tti-100m \
-                --dataset /root/data/tti-100m/tti_train_100m.npy \
-                --queries /root/data/tti-100m/tti_queries.npy \
-                --gtruth /root/data/tti-100m/tti_ground_truth_100m.npy \
+                --dataset /root/data/text2image/train_100m.npy \
+                --queries /root/data/text2image/queries.npy \
+                --gtruth /root/data/text2image/ground_truth_100m.npy \
                 --index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 \
@@ -214,9 +214,9 @@ bigann-10m-hnsw:
 yandex-deep-10m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name yandex-deep-10m \
-                --dataset /root/data/yandex-deep-10m/yandex_train_10m.npy \
-                --queries /root/data/yandex-deep-10m/yandex_queries.npy \
-                --gtruth /root/data/yandex-deep-10m/yandex_ground_truth_10m.npy \
+                --dataset /root/data/deep/train_10m.npy \
+                --queries /root/data/deep/queries.npy \
+                --gtruth /root/data/deep/ground_truth_10m.npy \
             	--index-type flatnav \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename yandex-deep-10m.mtx \
@@ -231,9 +231,9 @@ yandex-deep-10m-flatnav:
 yandex-deep-10m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name yandex-deep-10m \
-                --dataset /root/data/yandex-deep-10m/yandex_train_10m.npy \
-                --queries /root/data/yandex-deep-10m/yandex_queries.npy \
-                --gtruth /root/data/yandex-deep-10m/yandex_ground_truth_10m.npy \
+                --dataset /root/data/deep/train_10m.npy \
+                --queries /root/data/deep/queries.npy \
+                --gtruth /root/data/deep/ground_truth_10m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 300 \
@@ -246,9 +246,9 @@ yandex-deep-10m-hnsw:
 spacev-10m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name spacev-10m \
-                --dataset /root/data/spacev-10m/spacev_train_10m.npy \
-                --queries /root/data/spacev-10m/spacev_queries.npy \
-                --gtruth /root/data/spacev-10m/spacev_ground_truth_10m.npy \
+                --dataset /root/data/msspacev/train_10m.npy \
+                --queries /root/data/msspacev/queries.npy \
+                --gtruth /root/data/msspacev/ground_truth_10m.npy \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename spacev-10m.mtx \
                 --index-type flatnav \
@@ -263,9 +263,9 @@ spacev-10m-flatnav:
 spacev-10m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name spacev-10m \
-                --dataset /root/data/spacev-10m/spacev_train_10m.npy \
-                --queries /root/data/spacev-10m/spacev_queries.npy \
-                --gtruth /root/data/spacev-10m/spacev_ground_truth_10m.npy \
+                --dataset /root/data/msspacev/train_10m.npy \
+                --queries /root/data/msspacev/queries.npy \
+                --gtruth /root/data/msspacev/ground_truth_10m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 300 \
@@ -278,9 +278,9 @@ spacev-10m-hnsw:
 tti-10m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name tti-10m \
-                --dataset /root/data/tti_10m/tti_train_10m.npy \
-                --queries /root/data/tti_10m/tti_queries.npy \
-                --gtruth /root/data/tti_10m/tti_ground_truth_10m.npy \
+                --dataset /root/data/text2image/train_10m.npy \
+                --queries /root/data/text2image/queries.npy \
+                --gtruth /root/data/text2image/ground_truth_10m.npy \
             	--index-type flatnav \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename tti-10m.mtx \
@@ -294,9 +294,9 @@ tti-10m-flatnav:
 tti-10m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name tti-10m \
-                --dataset /root/data/tti_10m/tti_train_10m.npy \
-                --queries /root/data/tti_10m/tti_queries.npy \
-                --gtruth /root/data/tti_10m/tti_ground_truth_10m.npy \
+                --dataset /root/data/text2image/train_10m.npy \
+                --queries /root/data/text2image/queries.npy \
+                --gtruth /root/data/text2image/ground_truth_10m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 300 \
