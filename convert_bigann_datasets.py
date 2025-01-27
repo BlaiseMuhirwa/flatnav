@@ -20,11 +20,11 @@ def load_bigann_vectors(path, queries=False):
 
     # Read header information (num_points and num_dimensions)
     with open(path, "rb") as f:
-        num_queries = np.fromfile(f, dtype=np.uint32, count=1)[0]
+        num_items = np.fromfile(f, dtype=np.uint32, count=1)[0]
         num_dimensions = np.fromfile(f, dtype=np.uint32, count=1)[0]
 
     dataset = np.fromfile(path, dtype=dtype, offset=8)
-    dataset = dataset.reshape((num_queries, num_dimensions))
+    dataset = dataset.reshape((num_items, num_dimensions))
     
     base_path, _ = os.path.split(path)
 
@@ -41,12 +41,12 @@ def load_bigann_vectors(path, queries=False):
 path = sys.argv[1]
 mode = sys.argv[2]
 
+
 if mode == "train":
     load_bigann_vectors(path)
-
 elif mode == "queries":
     load_bigann_vectors(path, True)
-
 elif mode == "gt":
     load_ground_truth(path)
-
+else:
+    raise ValueError(f"Input mode: {mode} not recognized")

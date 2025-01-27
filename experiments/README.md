@@ -103,5 +103,6 @@ The available dataset names include:
 - bigann
 - deep
 - text2image
+- msspacev
 ```
-These available datasets include three of the four Big-ANN Benchmark datasets we evaluate in our paper. The Microsoft SpaceV dataset is no longer available through the same public download link, so we do not include it here. We will provide instructions on how to access the SpaceV datasets shortly. 
+Note that the Microsoft SpaceV Dataset is no longer available via the public link on the [Big-ANN Benchmarks](https://big-ann-benchmarks.com/neurips21.html) website. We instead access this dataset through the [SPTAG](https://github.com/microsoft/SPTAG) GitHub repository.

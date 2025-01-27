@@ -78,8 +78,19 @@ function download_dataset() {
 
         $PYTHON convert_bigann_datasets.py data/${dataset}/tti_query.learn.50M.fbin queries
         $PYTHON convert_bigann_datasets.py data/${dataset}/tti_base.1B.fbin train
+    
+    elif [ ${dataset} == "msspacev" ]; then
+       set GIT_LFS_SKIP_SMUDGE=1
+       git clone --recurse-submodules https://github.com/microsoft/SPTAG
+       
+       mv SPTAG/datasets/SPACEV1B/vectors.bin/ data/${dataset}/
+       mv SPTAG/datasets/SPACEV1B/query.bin data/${dataset}/
+
+       $PYTHON convert_spacev.py data/${dataset}/query.bin queries
+       $PYTHON convert_spacev.py data/${dataset}/vectors.bin train 
+
     else
-	echo "Invalid Choice!"
+	echo "Invalid Dataset Choice!"
 
     fi
 
