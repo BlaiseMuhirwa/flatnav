@@ -621,6 +621,9 @@ generate-distributions:
 kde-plots:
 	poetry run python kde_plots.py
 
+k-occurrences:
+	poetry run python compute-k-occurrence-dists.py
+
 # Run statistical tests for hub nodes connectivity. 
 run-hypothesis-test:
 	poetry run python statistical_test.py

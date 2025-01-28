@@ -114,8 +114,7 @@ docker run \
         -it \
         -e MAKE_TARGET=$1 \
         --env-file bin/.env-vars \
-        --volume $(pwd)/node-access-distributions:/root/node-access-distributions \
-        --volume $(pwd)/edge-lengths:/root/edge-lengths \
+        --volume $(pwd)/k-occurrence-dists:/root/k-occurrence-dists \
         --volume ~/.aws:/root/.aws:ro \
         --volume ${DATA_DIR}:/root/data \
         --volume ${METRICS_DIR}:/root/metrics \
