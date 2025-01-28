@@ -9,7 +9,7 @@ fi
 
 
 # Create a list of ANNS benchmark datasets to download.
-BIGANN_BENCHMARK_DATASETS=("bigann","deep","text2image")
+BIGANN_BENCHMARK_DATASETS=("bigann","deep","text2image", "msspacev")
 
 function print_help() {
     echo "Usage: ./download_bigann_datasets.sh <dataset>"
@@ -86,8 +86,8 @@ function download_dataset() {
        mv SPTAG/datasets/SPACEV1B/vectors.bin/ data/${dataset}/
        mv SPTAG/datasets/SPACEV1B/query.bin data/${dataset}/
 
-       $PYTHON convert_spacev.py data/${dataset}/query.bin queries
-       $PYTHON convert_spacev.py data/${dataset}/vectors.bin train 
+       $PYTHON convert_spacev_dataset.py data/${dataset}/query.bin queries
+       $PYTHON convert_spacev_dataset.py data/${dataset}/vectors.bin train 
 
     else
 	echo "Invalid Dataset Choice!"
