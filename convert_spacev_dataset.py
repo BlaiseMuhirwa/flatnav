@@ -1,3 +1,6 @@
+"""
+https://github.com/microsoft/SPTAG/blob/main/datasets/SPACEV1B/README.md
+"""
 import struct
 import numpy as np
 import os
