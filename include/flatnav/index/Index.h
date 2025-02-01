@@ -5,6 +5,7 @@
 #include <flatnav/util/Multithreading.h>
 #include <flatnav/util/Reordering.h>
 #include <flatnav/util/VisitedSetPool.h>
+#include <flatnav/util/Datatype.h>
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -26,6 +27,7 @@
 using flatnav::distances::DistanceInterface;
 using flatnav::util::VisitedSet;
 using flatnav::util::VisitedSetPool;
+using flatnav::util::DataType;
 
 namespace flatnav {
 
@@ -71,6 +73,7 @@ class Index {
   std::vector<std::mutex> _node_links_mutexes;
 
   bool _collect_stats = false;
+  DataType _data_type;
 
   // These are currently only supported for single-threaded search.
   // Trying to use them in multi-threaded setting will result in wird behavior.
@@ -127,7 +130,7 @@ class Index {
 
   template <typename Archive>
   void serialize(Archive& archive) {
-    archive(_M, _data_size_bytes, _node_size_bytes, _max_node_count, _cur_num_nodes, *_distance);
+    archive(_data_type, _M, _data_size_bytes, _node_size_bytes, _max_node_count, _cur_num_nodes, *_distance);
 
     // Serialize the allocated memory for the index & query.
     uint64_t total_mem = static_cast<uint64_t>(_node_size_bytes) * static_cast<uint64_t>(_max_node_count);
@@ -151,7 +154,7 @@ class Index {
    * the search process.
    */
   Index(std::unique_ptr<DistanceInterface<dist_t>> dist, int dataset_size, int max_edges_per_node,
-        bool collect_stats = false)
+        bool collect_stats = false, DataType data_type = DataType::float32)
       : _M(max_edges_per_node),
         _max_node_count(dataset_size),
         _cur_num_nodes(0),
@@ -161,7 +164,7 @@ class Index {
             /* initial_pool_size = */ 1,
             /* num_elements = */ dataset_size)),
         _node_links_mutexes(dataset_size),
-        _collect_stats(collect_stats) {
+        _collect_stats(collect_stats), _data_type(data_type) {
 
     // Get the size in bytes of the _node_links_mutexes vector.
     size_t mutexes_size_bytes = _node_links_mutexes.size() * sizeof(std::mutex);
@@ -446,8 +449,14 @@ class Index {
     std::unique_ptr<DistanceInterface<dist_t>> dist = std::make_unique<dist_t>();
 
     // 1. Deserialize metadata
-    archive(index->_M, index->_data_size_bytes, index->_node_size_bytes, index->_max_node_count,
-            index->_cur_num_nodes, *dist);
+    archive(index->_data_type, 
+            index->_M, 
+            index->_data_size_bytes, 
+            index->_node_size_bytes, 
+            index->_max_node_count,
+            index->_cur_num_nodes, 
+            *dist
+    );
     index->_visited_set_pool = new VisitedSetPool(
         /* initial_pool_size = */ 1,
         /* num_elements = */ index->_max_node_count);
@@ -515,6 +524,8 @@ class Index {
   inline size_t dataDimension() const { return _distance->dimension(); }
 
   inline uint64_t distanceComputations() const { return _distance_computations.load(); }
+
+  inline DataType getDataType() const { return _data_type; }
 
   void resetStats() {
     _distance_computations = 0;
