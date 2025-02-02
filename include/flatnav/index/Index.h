@@ -74,7 +74,7 @@ class Index {
 
   // NOTE: These metrics are meaningful the most with single-threaded search.
   // With multi-threaded search, for instance, the number of distance computations will 
-  // accumulatte across queries, which means at the end of the batched search, the number 
+  // accumulate across queries, which means at the end of the batched search, the number 
   // you get is the cumulative sum of all distance computations across all queries.
   // Maybe that's what you want, but it's worth noting
   mutable std::atomic<uint64_t> _distance_computations = 0;
