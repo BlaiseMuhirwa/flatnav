@@ -57,7 +57,6 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   label_t _label_id;
   bool _verbose;
   Index<dist_t, label_t>* _index;
-  DataType _data_type;
 
   typedef std::pair<py::array_t<float>, py::array_t<label_t>> DistancesLabelsPair;
 
@@ -246,9 +245,8 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
             /* dist = */ std::move(distance),
             /* dataset_size = */ dataset_size,
             /* max_edges_per_node = */ max_edges_per_node,
-            /* collect_stats = */ collect_stats)) {
-
-    _data_type = data_type;
+            /* collect_stats = */ collect_stats,
+            /* data_type = */ data_type)) {
 
     if (_verbose) {
       uint64_t total_index_memory = _index->getTotalIndexMemory();
@@ -279,9 +277,6 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     _index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
   }
 
-  void setDataType(const DataType data_type) {
-    _data_type = data_type;
-  }
 
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() { return _index->getGraphOutdegreeTable(); }
 
@@ -330,8 +325,9 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
 
   void add(const py::array& data, int ef_construction, int num_initializations,
            py::object labels = py::none()) {
+    auto data_type = _index->getDataType();
     cast_and_call(
-        _data_type, data,
+        data_type, data,
         [this](auto&& casted_data, int ef, int num_init, py::object lbls) {
           this->addImpl(std::forward<decltype(casted_data)>(casted_data), ef, num_init, lbls);
         },
@@ -339,8 +335,9 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   }
 
   DistancesLabelsPair search(const py::array& queries, int K, int ef_search, int num_initializations) {
+    auto data_type = _index->getDataType();
     return cast_and_call(
-        _data_type, queries,
+        data_type, queries,
         [this](auto&& casted_queries, int k, int ef, int num_init) {
           return this->searchImpl(std::forward<decltype(casted_queries)>(casted_queries), k, ef, num_init);
         },
@@ -348,8 +345,9 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   }
 
   DistancesLabelsPair searchSingle(const py::array& query, int K, int ef_search, int num_initializations) {
+    auto data_type = _index->getDataType();
     return cast_and_call(
-        _data_type, query,
+        data_type, query,
         [this](auto&& casted_query, int k, int ef, int num_init) {
           return this->searchSingleImpl(std::forward<decltype(casted_query)>(casted_query), k, ef, num_init);
         },
@@ -466,8 +464,6 @@ void bindSpecialization(py::module_& index_submodule) {
       .def("save", &IndexType::save, py::arg("filename"), SAVE_DOCSTRING)
       .def("build_graph_links", &IndexType::buildGraphLinks, py::arg("mtx_filename"),
            BUILD_GRAPH_LINKS_DOCSTRING)
-      .def("set_data_type", &IndexType::setDataType, py::arg("data_type"),
-           "")
       .def("get_graph_outdegree_table", &IndexType::getGraphOutdegreeTable,
            GET_GRAPH_OUTDEGREE_TABLE_DOCSTRING)
       .def("reorder", &IndexType::reorder, py::arg("strategies"), REORDER_DOCSTRING)
