@@ -75,8 +75,11 @@ class Index {
   bool _collect_stats = false;
   DataType _data_type;
 
-  // These are currently only supported for single-threaded search.
-  // Trying to use them in multi-threaded setting will result in wird behavior.
+  // NOTE: These metrics are meaningful the most with single-threaded search.
+  // With multi-threaded search, for instance, the number of distance computations will 
+  // accumulate across queries, which means at the end of the batched search, the number 
+  // you get is the cumulative sum of all distance computations across all queries.
+  // Maybe that's what you want, but it's worth noting
   mutable std::atomic<uint64_t> _distance_computations = 0;
   mutable std::atomic<uint64_t> _metric_hops = 0;
 
