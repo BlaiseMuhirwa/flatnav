@@ -2,7 +2,7 @@
 # debian:buster-slim is much smaller than ubuntu 22
 ARG BASE_IMAGE=debian:buster-slim
 
-FROM ${BASE_IMAGE} as base
+FROM ${BASE_IMAGE} AS base
 
 ARG POETRY_VERSION=1.8.2
 ARG PYTHON_VERSION=3.11.6
@@ -34,8 +34,6 @@ RUN apt-get update -y \
         libxmlsec1-dev \
         libffi-dev \
         liblzma-dev \
-        # Multi-process manager inside docker 
-        supervisor \
         # Install the rest
         git \
         gcc \
@@ -85,9 +83,6 @@ COPY experiments/ ./experiments/
 
 # Copy external dependencies (for now only cereal)
 COPY external/ ./external/
-
-# Copy the configuration for supervisor 
-COPY bin/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Install needed dependencies including flatnav. 
 # Install hnwlib (from a forked repo that has extensions we need)

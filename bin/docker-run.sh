@@ -95,8 +95,7 @@ fi
 docker run \
         --name $CONTAINER_NAME \
         -it \
-        -e MAKE_TARGET=$1 \
         --volume ${DATA_DIR}:/root/data \
         --volume ${METRICS_DIR}:/root/metrics \
         --rm flatnav:$TAG_NAME \
-        /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+        make $1
