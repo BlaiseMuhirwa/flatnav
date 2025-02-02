@@ -68,7 +68,7 @@ Our experimental benchmark scripts require three input data arguments in numpy (
 To generate an [ANNS benchmark datasets](https://github.com/erikbern/ann-benchmarks?tab=readme-ov-file#data-sets), run the following script
 
 ```shell
-$ ./bin/download_anns_datasets.sh <dataset-name> [--normalize]
+./bin/download_ann_benchmarks_datasets.sh <dataset-name> [--normalize]
 ```
 
 __IMPORTANT:__ For datasets that use the angular/cosine similarity, you will need to use `--normalize` option so that the distances are computed correctly. 
@@ -94,7 +94,7 @@ _ nytimes-256-angular
 To process a Big-ANN benchmark datasets, please run the following script. This script will download and process the 10M and 100M versions of the given dataset, including the ground truth file. Then, one can run a benchmarking job as described above (these Big-ANN dataset configurations are already specified in the Makefile)
 
 ```shell
-$ ./bin/download_bigann_datasets.sh <dataset-name>
+./bin/download_bigann_datasets.sh <dataset-name>
 ```
 
 The available dataset names include:
