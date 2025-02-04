@@ -4,6 +4,10 @@
 #include <cstddef>  // for size_t
 #include <fstream>  // for ifstream, ofstream
 #include <iostream>
+#include <flatnav/util/Datatype.h>
+
+
+using flatnav::util::DataType;
 
 namespace flatnav::distances {
 
@@ -35,6 +39,8 @@ class DistanceInterface {
 
   // Prints the parameters of the distance function.
   void getSummary() { static_cast<T*>(this)->getSummaryImpl(); }
+
+  DataType getDataType() { return static_cast<T*>(this)->getDataTypeImpl(); }
 
   // This transforms the data located at src into a form that is writeable
   // to disk / storable in RAM. For distance functions that don't

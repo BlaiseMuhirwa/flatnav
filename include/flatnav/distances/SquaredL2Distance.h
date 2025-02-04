@@ -43,6 +43,8 @@ class SquaredL2Distance : public DistanceInterface<SquaredL2Distance<data_type>>
                                           _dimension);
   }
 
+  inline DataType getDataTypeImpl() const { return data_type; }
+
  private:
   size_t _dimension;
   size_t _data_size_bytes;
