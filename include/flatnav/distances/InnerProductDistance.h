@@ -42,6 +42,8 @@ class InnerProductDistance : public DistanceInterface<InnerProductDistance<data_
                                           _dimension);
   }
 
+  DataType getDataTypeImpl() const { return data_type; }
+
  private:
   size_t _dimension;
   size_t _data_size_bytes;
