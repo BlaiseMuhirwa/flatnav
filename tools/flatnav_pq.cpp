@@ -1,10 +1,9 @@
-#include "cnpy.h"
-#include <algorithm>
-#include <chrono>
-#include <cmath>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/index/Index.h>
+#include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <random>
@@ -12,16 +11,15 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "cnpy.h"
 
 using flatnav::Index;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
 
 template <typename dist_t>
-void run(
-    float *data,
-    std::unique_ptr<flatnav::distances::DistanceInterface<dist_t>> &&distance,
-    int N, int M, int dim, int ef_construction, const std::string &save_file) {
+void run(float* data, std::unique_ptr<flatnav::distances::DistanceInterface<dist_t>>&& distance, int N, int M,
+         int dim, int ef_construction, const std::string& save_file) {
   auto index = new Index<dist_t, int>(
       /* dist = */ std::move(distance), /* dataset_size = */ N,
       /* max_edges = */ M);
@@ -29,8 +27,8 @@ void run(
   auto start = std::chrono::high_resolution_clock::now();
 
   for (int label = 0; label < N; label++) {
-    float *element = data + (dim * label);
-    index->add(/* data = */ (void *)element, /* label = */ label,
+    float* element = data + (dim * label);
+    index->add(/* data = */ (void*)element, /* label = */ label,
                /* ef_construction */ ef_construction);
     if (label % 100000 == 0)
       std::clog << "." << std::flush;
@@ -38,10 +36,8 @@ void run(
   std::clog << std::endl;
 
   auto stop = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-  std::clog << "Build time: " << (float)duration.count() << " milliseconds"
-            << std::endl;
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+  std::clog << "Build time: " << (float)duration.count() << " milliseconds" << std::endl;
 
   std::clog << "Saving index to: " << save_file << std::endl;
   index->saveIndex(/* filename = */ save_file);
@@ -49,8 +45,7 @@ void run(
   delete index;
 }
 
-std::vector<uint8_t> quantize(float *vectors, uint64_t vec_count, uint32_t dim,
-                              uint32_t M, uint32_t nbits) {
+std::vector<uint8_t> quantize(float* vectors, uint64_t vec_count, uint32_t dim, uint32_t M, uint32_t nbits) {
   auto distance = std::make_unique<SquaredL2Distance>(dim);
   ProductQuantizer<SquaredL2Distance> pq(/* dist = */ std::move(distance),
                                          /* dim = */ dim, /* M = */ M,
@@ -68,12 +63,12 @@ std::vector<uint8_t> quantize(float *vectors, uint64_t vec_count, uint32_t dim,
   std::cout << "[INFO] Saving codes to: "
             << "codes.bin" << std::endl;
   std::ofstream stream("codes.bin");
-  stream.write((char *)codes.data(), codes.size());
+  stream.write((char*)codes.data(), codes.size());
 
   return codes;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   // Quantize
   const bool quantize = false;
 
@@ -89,22 +84,20 @@ int main(int argc, char **argv) {
   const int dataset_size = 60000;
 
   // datafile
-  const char *filename = "mnnist-784-euclidean.train.npy";
+  const char* filename = "mnnist-784-euclidean.train.npy";
   cnpy::NpyArray datafile = cnpy::npy_load(filename);
 
   assert(datafile.shape.size() == 2);
   assert(datafile.shape[0] == dataset_size);
   assert(datafile.shape[1] == dim);
 
-  std::clog << "Loading " << dim
-            << "-dimensional dataset with N = " << dataset_size << std::endl;
-  float *data = datafile.data<float>();
+  std::clog << "Loading " << dim << "-dimensional dataset with N = " << dataset_size << std::endl;
+  float* data = datafile.data<float>();
 
   if (quantize) {
     // NOTE: M here is different from max_edges.
-    std::vector<uint8_t> codes =
-        quantize(/* vectors = */ data, /* vec_count = */ dataset_size,
-                 /* dim = */ dim, /* M = */ 8, /* nbits = */ 8);
+    std::vector<uint8_t> codes = quantize(/* vectors = */ data, /* vec_count = */ dataset_size,
+                                          /* dim = */ dim, /* M = */ 8, /* nbits = */ 8);
   }
 
   auto distance = std::make_unique<SquaredL2Distance>(dim);
@@ -114,8 +107,8 @@ int main(int argc, char **argv) {
 
   auto start = std::chrono::high_resolution_clock::now();
   for (int label = 0; label < N; label++) {
-    float *element = data + (dim * label);
-    index->add(/* data = */ (void *)element, /* label = */ label,
+    float* element = data + (dim * label);
+    index->add(/* data = */ (void*)element, /* label = */ label,
                /* ef_construction */ ef_construction);
     if (label % 100000 == 0)
       std::clog << "." << std::flush;
@@ -123,10 +116,8 @@ int main(int argc, char **argv) {
   std::clog << std::endl;
 
   auto stop = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-  std::clog << "Build time: " << (float)duration.count() << " milliseconds"
-            << std::endl;
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+  std::clog << "Build time: " << (float)duration.count() << " milliseconds" << std::endl;
 
   if (metric_id == 0) {
     auto distance = std::make_unique<SquaredL2Distance>(dim);
@@ -143,8 +134,7 @@ int main(int argc, char **argv) {
         /* N = */ N, /* M = */ M, dim,
         /* ef_construction = */ ef_construction, /* save_file = */ argv[5]);
   } else {
-    throw std::invalid_argument("Provided metric ID " +
-                                std::to_string(metric_id) + "is invalid.");
+    throw std::invalid_argument("Provided metric ID " + std::to_string(metric_id) + "is invalid.");
   }
 
   return 0;

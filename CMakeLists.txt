@@ -9,7 +9,7 @@ message(STATUS "CMake CXX Compiler: ${CMAKE_CXX_COMPILER}")
 
 # Add the parent directory to the include path This allows us to write #include
 # <flatnav/...> instead of #include "../flatnav/..."
-include_directories(${CMAKE_SOURCE_DIR})
+include_directories(${CMAKE_SOURCE_DIR}/include)
 
 # Include cereal
 include_directories(${CMAKE_SOURCE_DIR}/external/cereal/include/)
@@ -35,8 +35,12 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   # Add debug compile flags
   message(STATUS "Building in Debug mode")
   # Address sanitizer: https://clang.llvm.org/docs/AddressSanitizer.html
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fsanitize=address")
+  # For some reason, using -fsanitize=address,thread,undefined doesn't workt since it appears
+  # that Asan and thread sanitizer have conflicting behavior. To use thread sanitizer, remove 
+  # Asan first and vice-versa
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fsanitize=address,undefined")
 endif()
+
 
 include(FeatureSummary)
 # All options summary
@@ -70,29 +74,30 @@ endif()
 # TODO: Using globbing or some other command that does not require writing down
 # every header file
 set(HEADERS
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/InnerProductDistance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/SquaredL2Distance.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/L2DistanceDispatcher.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/IPDistanceDispatcher.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/SquaredL2SimdExtensions.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/InnerProductSimdExtensions.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/VisitedSetPool.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/GorderPriorityQueue.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Reordering.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Multithreading.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Macros.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/Datatype.h
-    ${PROJECT_SOURCE_DIR}/flatnav/util/SimdUtils.h
-    ${PROJECT_SOURCE_DIR}/flatnav/distances/DistanceInterface.h
-    ${PROJECT_SOURCE_DIR}/flatnav/index/Index.h
-    ${PROJECT_SOURCE_DIR}/quantization/ProductQuantization.h
-    ${PROJECT_SOURCE_DIR}/quantization/CentroidsGenerator.h
-    ${PROJECT_SOURCE_DIR}/quantization/Utils.h)
+    ${PROJECT_SOURCE_DIR}/include/flatnav/distances/InnerProductDistance.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/distances/SquaredL2Distance.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/distances/L2DistanceDispatcher.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/distances/IPDistanceDispatcher.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/SquaredL2SimdExtensions.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/InnerProductSimdExtensions.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/VisitedSetPool.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/GorderPriorityQueue.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/Reordering.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/Multithreading.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/Macros.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/Datatype.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/util/SimdUtils.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/distances/DistanceInterface.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/index/Index.h
+    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/ProductQuantization.h
+    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/CentroidsGenerator.h
+    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/Utils.h)
 
 # Interface here means that the library is header only
 add_library(FLAT_NAV_LIB INTERFACE)
 target_sources(FLAT_NAV_LIB INTERFACE ${HEADERS})
 target_include_directories(FLAT_NAV_LIB INTERFACE ${PROJECT_SOURCE_DIR})
+
 
 target_link_libraries(FLAT_NAV_LIB INTERFACE OpenMP::OpenMP_CXX)
 
@@ -106,6 +111,5 @@ endif()
 if(BUILD_TESTS)
   message(STATUS "Building flatnav + quantization unit tests using gtest")
   include(cmake/FindGoogleTest.cmake)
-  add_subdirectory(${PROJECT_SOURCE_DIR}/flatnav/tests)
-  # add_subdirectory(${PROJECT_SOURCE_DIR}/quantization/tests)
+  add_subdirectory(${PROJECT_SOURCE_DIR}/include/flatnav/tests)
 endif()

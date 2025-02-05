@@ -11,16 +11,12 @@ build
 # Virtual environments 
 .env 
 
-# Other large files/folders
-node-access-distributions/
+# Experimental assets 
 metrics
+node-access-distributions
 
-# Python wheel related folders/files
-flatnav_python/flatnav.egg-info/
-flatnav_python/poetry.lock
-flatnav_python/dist
-flatnav_python/__pycache__
-flatnav_python/unit_tests/__pycache__
+# PYcache
+**/__pycache__
 
 
 # Documentation related files
@@ -31,3 +27,6 @@ docs/doxygen_output
 data/
 baselines/
 external/openmp
+
+# Python wheels 
+wheelhouse

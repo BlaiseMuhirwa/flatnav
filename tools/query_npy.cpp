@@ -1,20 +1,20 @@
-#include <chrono>
-#include <cmath>
+#include <developmental-features/quantization/ProductQuantization.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/index/Index.h>
 #include <flatnav/util/Datatype.h>
+#include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iostream>
-#include <quantization/ProductQuantization.h>
 #include <random>
 #include <utility>
 #include <vector>
 
-#include "cnpy.h"
 #include <algorithm>
 #include <sstream>
 #include <string>
+#include "cnpy.h"
 
 using flatnav::Index;
 using flatnav::distances::InnerProductDistance;
@@ -23,12 +23,10 @@ using flatnav::quantization::ProductQuantizer;
 using flatnav::util::DataType;
 
 template <typename dist_t>
-void run(float *queries, int *gtruth, const std::string &index_filename,
-         const std::vector<int> &ef_searches, int K, int num_queries,
-         int num_gtruth, int dim, bool reorder = true) {
+void run(float* queries, int* gtruth, const std::string& index_filename, const std::vector<int>& ef_searches,
+         int K, int num_queries, int num_gtruth, int dim, bool reorder = true) {
 
-  std::unique_ptr<Index<dist_t, int>> index =
-      Index<dist_t, int>::loadIndex(index_filename);
+  std::unique_ptr<Index<dist_t, int>> index = Index<dist_t, int>::loadIndex(index_filename);
 
   std::cout << "[INFO] Index loaded" << std::endl;
   index->getIndexSummary();
@@ -38,22 +36,19 @@ void run(float *queries, int *gtruth, const std::string &index_filename,
     auto start_r = std::chrono::high_resolution_clock::now();
     index->reorderGOrder();
     auto stop_r = std::chrono::high_resolution_clock::now();
-    auto duration_r =
-        std::chrono::duration_cast<std::chrono::milliseconds>(stop_r - start_r);
-    std::clog << "Reordering time: " << (float)(duration_r.count()) / (1000.0)
-              << " seconds" << std::endl;
+    auto duration_r = std::chrono::duration_cast<std::chrono::milliseconds>(stop_r - start_r);
+    std::clog << "Reordering time: " << (float)(duration_r.count()) / (1000.0) << " seconds" << std::endl;
   }
 
-  for (const auto &ef_search : ef_searches) {
+  for (const auto& ef_search : ef_searches) {
     double mean_recall = 0;
 
     auto start_q = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_queries; i++) {
-      float *q = queries + dim * i;
-      int *g = gtruth + num_gtruth * i;
+      float* q = queries + dim * i;
+      int* g = gtruth + num_gtruth * i;
 
-      std::vector<std::pair<float, int>> result =
-          index->search(q, K, ef_search);
+      std::vector<std::pair<float, int>> result = index->search(q, K, ef_search);
 
       double recall = 0;
       for (int j = 0; j < K; j++) {
@@ -67,15 +62,13 @@ void run(float *queries, int *gtruth, const std::string &index_filename,
       mean_recall = mean_recall + recall;
     }
     auto stop_q = std::chrono::high_resolution_clock::now();
-    auto duration_q =
-        std::chrono::duration_cast<std::chrono::milliseconds>(stop_q - start_q);
+    auto duration_q = std::chrono::duration_cast<std::chrono::milliseconds>(stop_q - start_q);
     std::cout << "[INFO] Mean Recall: " << mean_recall / num_queries
-              << ", Duration:" << (float)(duration_q.count()) / num_queries
-              << " milliseconds" << std::endl;
+              << ", Duration:" << (float)(duration_q.count()) / num_queries << " milliseconds" << std::endl;
   }
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
 
   if (argc < 9) {
     std::clog << "Usage: " << std::endl;
@@ -89,10 +82,8 @@ int main(int argc, char **argv) {
     std::clog << "\t <ef_construction>: int " << std::endl;
     std::clog << "\t <ef_search>: int,int,int,int...,int " << std::endl;
     std::clog << "\t <k>: number of neighbors " << std::endl;
-    std::clog << "\t <Reorder ID>: 0 for no reordering, 1 for reordering"
-              << std::endl;
-    std::clog << "\t <Quantized>: 0 for no quantization, 1 for quantization"
-              << std::endl;
+    std::clog << "\t <Reorder ID>: 0 for no reordering, 1 for reordering" << std::endl;
+    std::clog << "\t <Quantized>: 0 for no quantization, 1 for quantization" << std::endl;
     return -1;
   }
 
@@ -123,17 +114,14 @@ int main(int argc, char **argv) {
   int dim = queryfile.shape[1];
   int n_gt = truthfile.shape[1];
   if (k > n_gt) {
-    std::cerr
-        << "K is larger than the number of precomputed ground truth neighbors"
-        << std::endl;
+    std::cerr << "K is larger than the number of precomputed ground truth neighbors" << std::endl;
     return -1;
   }
 
   std::clog << "Loading " << num_queries << " queries" << std::endl;
-  float *queries = queryfile.data<float>();
-  std::clog << "Loading " << num_queries
-            << " ground truth results with k = " << k << std::endl;
-  int *gtruth = truthfile.data<int>();
+  float* queries = queryfile.data<float>();
+  std::clog << "Loading " << num_queries << " ground truth results with k = " << k << std::endl;
+  int* gtruth = truthfile.data<int>();
 
   if (quantized) {
     run<ProductQuantizer>(/* queries = */ queries, /* gtruth = */

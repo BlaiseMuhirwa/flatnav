@@ -1,53 +1,28 @@
+# Reproduction of FlatNav vs. HNSWLib Benchmarking Experiments
 
-## Instructions for using the Experiment Runner
+## Overview
+This document provides instructions for reproducing the experimental results comparing our non-hierarchical NSW implementation in FlatNav to the popular open source [HNSWLib](https://github.com/nmslib/hnswlib) library which utilizes a layered hierarchical graph. 
 
-We currently have two different ways to build the Python library and use the
-experiment runner:
+To enable relatively seamless reproducibility, we require the users to do the following:
 
-1. Building the python library directly from source and running the `run-benchmark.py`
-2. Using docker to build the library. 
+* A machine with [docker](https://www.docker.com/) installed (and sufficient RAM to build and query indexes for a given workload). If you prefer to run the experiments without docker, we will add additional instructions shortly (though we highly recommend using the docker approach for complete consistency with our reported results)
 
-We highly recommend using the second option since it's good for reproducibility and you 
-won't need to personally manage a poetry installation. If you do insist on not using docker
-for whatever reason, you will need to first install [poetry](https://python-poetry.org/) and follow [this](../flatnav_python/README.md) guide for building the library. 
+* Download and preprocess the benchmark datasets into a certain folder named as `data` in the top-level directory of the `flatnav` repository. We provide more detailed instructions for this step in the next sections. 
 
-### Running experiments from a docker image 
+* Executing the command `./bin/docker-run.sh <make-target>` from top-level directory of the flatnav repository. The `<make-target>` argument specifies the parameters of the benchmarking job to execute. We specify the make targets in the file [Makefile](/experiments/Makefile).
 
-Here is the workflow for running experiments: 
+## Example Commands
 
-1. Make changes to the run-benchmark.py script per your needs.
-2. Add a make target in the [Makefile](/experiments/Makefile) if needed or edit an existing target
-3. Build a docker image to reflect these changes
-
-The docker image that we provide packages the C++ source code and uses that to build the python library
-and the experiment runner script. 
-
-To build the docker image, run the following commands:
+Assuming you have docker installed and have prepared a benchmark dataset into the `data` directory, one can reproduce any one of our experiments specified in `experiments/Makefile`. For example, the following command will benchmark `flatnav` on the `gist` dataset. 
 
 ```shell
-# Go to the root level
-> cd ..
-> ./bin/docker-build.sh 
+./bin/docker-run.sh gist-bench-flatnav
 ```
 
-If you don't provide a target, this will build the image and print the available targets in the [Makefile](/experiments/Makefile) like so:
+The analogous `hnswlib` benchmarking job on `gist` can be executed with a similar command. Again, the details of this make target are specified in the [Makefile](/experiments/Makefile). 
 
-```
-Usage: make [target]
-Targets:
-  setup: install all dependencies including flatnav
-  install-flatnav: install flatnav
-  install-hnswlib: install hnswlib
-  cleanup: remove hnswlib-original
-  generate-wheel: generate wheel for flatnav
-  yandex-deep-bench: run yandex-deep benchmark
-  sift-bench: run sift benchmark
-```
-
-You can specify whatever target you want by running, for example
-
-```
-./bin/docker-test.sh sift-bench-flatnav
+```shell
+./bin/docker-run.sh gist-bench-hnsw
 ```
 
 **NOTE:** We currently mount the data as a volume so that the experiment runner script has access 
@@ -68,34 +43,66 @@ sift-bench:
 		--metric l2 
 ```
 
-You may want to log the experiment logs to a file on disk. You can do so by running 
+You may also want to save the experiment logs to a file on disk. You can do so by running 
 ```
 > ./bin/docker-test.sh sift-bench > logs.txt 2>& 1
 ```
+### Viewing Output Metrics
 
+Once you have run a benchmarking job to completion, the experiment runner will save a set of plots under the `metrics` directory in the top level of the `flatnav` repo. These plots include, amongst others, the latency vs. recall tradeoff curves that we report in the paper. We also save the raw data used to generate these plots in the file `metrics/metrics.json`. 
 
-### Pushing Index Snapshots to S3
+## Input Data Format
 
-This requires the following
+Our experimental benchmark scripts require three input data arguments in numpy (`.npy`) format. 
 
-* Saving the AWS credentials to a `~/.aws/credentials` file. Let's put these under the `s3-bucket-reader-writer` profile to 
-be consistent with what the [.env-vars](bin/.env-vars) file expects as environment variable. The `~/.aws` will be mounted as a volume 
-inside docker as a read-only directory. `boto3` will use these credentials to authenticate with AWS. 
-* Turn on S3 push feature. You can do this by setting `DISABLE_PUSH_TO_S3` to `0` in the [.env-vars](/bin/.env-vars) file. 
+* A `--train` file representing the vectors of each item in the data collection used to build the search index. This is expected to be a numpy array of dimension $N \times d$ where $N$ is the database size and $d$ is the vector dimension
 
-Then, run `./bin/docker-run.sh <make-target>` as usual. We run two processes concurrently using supervisor. One process
-will run the benchmark while the other one continuously looks for indexes inside the container, retrieves the most
-recent snapshot, and pushes it to the pre-defined S3 bucket defined in the .env file. 
+* A `--queries` file representing the query vectors to use to search against the index. This file is expected to be a numpy array of dimension $Q \times d$ where $Q$ is the number of queries. 
 
-To see the logs from this second process, run 
+* A `--gtruth` file consisting of the true $k$ nearest neighbors for each corresponding query vector. This file is expected to be an integer numpy array of dimension $Q \times k$ where $k$ is the number of near neighbors to return (we default to 100 in our experiments). Each element of this array is expected to be an integer in the range $[0, N-1]$ representing items in the index. 
+
+## Preparing Datasets from ANN-Benchmarks
+
+[ANN-Benchmarks](https://github.com/erikbern/ann-benchmarks) provide HDF5 files for a standard benchmark of near-neighbor datasets, queries and ground-truth results. Our experiment runner expects `.npy` files instead of HDF5 so we provide a helper script to download ANN-Benchmarks and prepare the necessary numpy files.
+
+To generate an [ANNS benchmark datasets](https://github.com/erikbern/ann-benchmarks?tab=readme-ov-file#data-sets), run the following script
 
 ```shell
-docker exec -it benchmark-runner tail -f /var/log/cron_stderr.log
+./bin/download_ann_benchmarks_datasets.sh <dataset-name> [--normalize]
 ```
 
-or replace `/var/log/cron_stderr.log` with `/var/log/cron_stdout.log`. 
+__IMPORTANT:__ For datasets that use the angular/cosine similarity, you will need to use `--normalize` option so that the distances are computed correctly. 
 
-This process runs like a "cronjob" that polls for HNSW indexes every 30 seconds. 
+Available dataset names include:
 
+```shell
+_ mnist-784-euclidean
+_ sift-128-euclidean
+_ glove-25-angular
+_ glove-50-angular
+_ glove-100-angular
+_ glove-200-angular
+_ deep-image-96-angular
+_ gist-960-euclidean
+_ nytimes-256-angular
+```
 
+## Preparing Datasets from Big-ANN Benchmarks
 
+[Big-ANN Benchmarks](https://big-ann-benchmarks.com/neurips21.html) Is a more recent set of ANN benchmark datasets focused on extremely large scales. Specifically, Big-ANN Benchmarks provides access to embedding datasets and ground truth near neighbor sets for 10M, 100M, and 1B vectors. In our benchmarks, we focus on the 10M and 100M datasets due to computational resource constraints. To reproduce our results in the paper, we provide a helper script to download the 10M and 100M Big-ANN Benchmark datasets and convert them into the numpy format that `flatnav` expects. 
+
+To process a Big-ANN benchmark datasets, please run the following script. This script will download and process the 10M and 100M versions of the given dataset, including the ground truth file. Then, one can run a benchmarking job as described above (these Big-ANN dataset configurations are already specified in the Makefile)
+
+```shell
+./bin/download_bigann_datasets.sh <dataset-name>
+```
+
+The available dataset names include:
+
+```shell
+- bigann
+- deep
+- text2image
+- msspacev
+```
+Note that the Microsoft SpaceV Dataset is no longer available via the public link on the [Big-ANN Benchmarks](https://big-ann-benchmarks.com/neurips21.html) website. We instead access this dataset through the [SPTAG](https://github.com/microsoft/SPTAG) GitHub repository.

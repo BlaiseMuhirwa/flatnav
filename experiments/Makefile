@@ -51,10 +51,10 @@ space-v1b-bench-flatnav:
 bigann-100m-hnsw: 
 	poetry run python run_benchmark.py \
                 --dataset-name bigann-100m \
-                --dataset /root/data/bigann-100m-euclidean/bigann_train_100m.npy \
-                --queries /root/data/bigann-100m-euclidean/bigann_queries.npy \
-                --gtruth /root/data/bigann-100m-euclidean/bigann_ground_truth_100m.npy \
-                --index-type hnsw \
+                --dataset /root/data/bigann/train_100m.npy \
+                --queries /root/data/bigann/queries.npy \
+                --gtruth /root/data/bigann/ground_truth_100m.npy \
+                --index-type flatnav \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 \
                 --ef-search 100 200 300 500 1000 3000 \
@@ -66,9 +66,9 @@ bigann-100m-hnsw:
 bigann-100m-flatnav: 
 	poetry run python run-benchmark.py \
                 --dataset-name bigann-100m \
-                --dataset /root/data/bigann-100m-euclidean/bigann_train_100m.npy \
-                --queries /root/data/bigann-100m-euclidean/bigann_queries.npy \
-                --gtruth /root/data/bigann-100m-euclidean/bigann_ground_truth_100m.npy \
+                --dataset /root/data/bigann/train_100m.npy \
+                --queries /root/data/bigann/queries.npy \
+                --gtruth /root/data/bigann/ground_truth_100m.npy \
                 --index-type flatnav \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename bigann-100m.mtx \
@@ -83,9 +83,9 @@ bigann-100m-flatnav:
 yandex-deep-100m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name yandex-deep-100m \
-                --dataset /root/data/yandex-deep-100m/yandex_train_100m.npy \
-                --queries /root/data/yandex-deep-100m/yandex_queries.npy \
-                --gtruth /root/data/yandex-deep-100m/yandex_ground_truth_100m.npy \
+                --dataset /root/data/deep/train_100m.npy \
+                --queries /root/data/deep/queries.npy \
+                --gtruth /root/data/deep/ground_truth_100m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 \
@@ -98,9 +98,9 @@ yandex-deep-100m-hnsw:
 yandex-deep-100m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name yandex-deep-100m \
-                --dataset /root/data/yandex-deep-100m/yandex_train_100m.npy \
-                --queries /root/data/yandex-deep-100m/yandex_queries.npy \
-                --gtruth /root/data/yandex-deep-100m/yandex_ground_truth_100m.npy \
+                --dataset /root/data/deep/train_100m.npy \
+                --queries /root/data/deep/queries.npy \
+                --gtruth /root/data/deep/ground_truth_100m.npy \
             	--index-type flatnav \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename yandex-deep-100m.mtx \
@@ -115,9 +115,9 @@ yandex-deep-100m-flatnav:
 spacev-100m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name spacev-100m \
-                --dataset /root/data/spacev-100m/spacev_train_100m.npy \
-                --queries /root/data/spacev-100m/spacev_queries.npy \
-                --gtruth /root/data/spacev-100m/spacev_ground_truth_100m.npy \
+                --dataset /root/data/msspacev/train_100m.npy \
+                --queries /root/data/msspacev/queries.npy \
+                --gtruth /root/data/msspacev/ground_truth_100m.npy \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename spacev-100m.mtx \
                 --index-type flatnav \
@@ -125,15 +125,15 @@ spacev-100m-flatnav:
                 --ef-construction 50 100 200 \
                 --ef-search 100 200 300 500 1000 3000 \
         	--metric l2 \
-        	--num-build-threads 16 \
+        	--num-build-threads 32 \
         	--num-search-threads 1
 
 spacev-100m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name spacev-100m \
-                --dataset /root/data/spacev-100m/spacev_train_100m.npy \
-                --queries /root/data/spacev-100m/spacev_queries.npy \
-                --gtruth /root/data/spacev-100m/spacev_ground_truth_100m.npy \
+                --dataset /root/data/msspacev/train_100m.npy \
+                --queries /root/data/msspacev/queries.npy \
+                --gtruth /root/data/msspacev/ground_truth_100m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 \
@@ -146,9 +146,9 @@ spacev-100m-hnsw:
 tti-100m-flatnav:
 	poetry run python run-benchmark.py \
         	--dataset-name tti-100m \
-        	--dataset /root/data/tti-100m/tti_train_100m.npy \
-        	--queries /root/data/tti-100m/tti_queries.npy \
-        	--gtruth /root/data/tti-100m/tti_ground_truth_100m.npy \
+        	--dataset /root/data/text2image/train_100m.npy \
+        	--queries /root/data/text2image/queries.npy \
+        	--gtruth /root/data/text2image/ground_truth_100m.npy \
         	--index-type flatnav \
         	--use-hnsw-base-layer \
         	--hnsw-base-layer-filename tti-100m.mtx \
@@ -162,9 +162,9 @@ tti-100m-flatnav:
 tti-100m-hnsw:
 	poetry run python run-benchmark.py \
 		--dataset-name tti-100m \
-                --dataset /root/data/tti-100m/tti_train_100m.npy \
-                --queries /root/data/tti-100m/tti_queries.npy \
-                --gtruth /root/data/tti-100m/tti_ground_truth_100m.npy \
+                --dataset /root/data/text2image/train_100m.npy \
+                --queries /root/data/text2image/queries.npy \
+                --gtruth /root/data/text2image/ground_truth_100m.npy \
                 --index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 \
@@ -183,9 +183,9 @@ tti-100m-hnsw:
 bigann-10m-flatnav: 
 	poetry run python run-benchmark.py \
                 --dataset-name bigann-10m \
-                --dataset /root/data/bigann-10m-euclidean/bigann_train_10m.npy \
-                --queries /root/data/bigann-10m-euclidean/bigann_queries.npy \
-                --gtruth /root/data/bigann-10m-euclidean/bigann_ground_truth_10m.npy \
+                --dataset /root/data/bigann/train_10m.npy \
+                --queries /root/data/bigann/queries.npy \
+                --gtruth /root/data/bigann/ground_truth_10m.npy \
                 --index-type flatnav \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename bigann-10m.mtx \
@@ -200,9 +200,9 @@ bigann-10m-flatnav:
 bigann-10m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name bigann-10m \
-                --dataset /root/data/bigann-10m-euclidean/bigann_train_10m.npy \
-                --queries /root/data/bigann-10m-euclidean/bigann_queries.npy \
-                --gtruth /root/data/bigann-10m-euclidean/bigann_ground_truth_10m.npy \
+                --dataset /root/data/bigann/train_10m.npy \
+                --queries /root/data/bigann/queries.npy \
+                --gtruth /root/data/bigann/ground_truth_10m.npy \
                 --index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 300 \
@@ -215,9 +215,9 @@ bigann-10m-hnsw:
 yandex-deep-10m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name yandex-deep-10m \
-                --dataset /root/data/yandex-deep-10m/yandex_train_10m.npy \
-                --queries /root/data/yandex-deep-10m/yandex_queries.npy \
-                --gtruth /root/data/yandex-deep-10m/yandex_ground_truth_10m.npy \
+                --dataset /root/data/deep/train_10m.npy \
+                --queries /root/data/deep/queries.npy \
+                --gtruth /root/data/deep/ground_truth_10m.npy \
             	--index-type flatnav \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename yandex-deep-10m.mtx \
@@ -232,9 +232,9 @@ yandex-deep-10m-flatnav:
 yandex-deep-10m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name yandex-deep-10m \
-                --dataset /root/data/yandex-deep-10m/yandex_train_10m.npy \
-                --queries /root/data/yandex-deep-10m/yandex_queries.npy \
-                --gtruth /root/data/yandex-deep-10m/yandex_ground_truth_10m.npy \
+                --dataset /root/data/deep/train_10m.npy \
+                --queries /root/data/deep/queries.npy \
+                --gtruth /root/data/deep/ground_truth_10m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 300 \
@@ -247,9 +247,9 @@ yandex-deep-10m-hnsw:
 spacev-10m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name spacev-10m \
-                --dataset /root/data/spacev-10m/spacev_train_10m.npy \
-                --queries /root/data/spacev-10m/spacev_queries.npy \
-                --gtruth /root/data/spacev-10m/spacev_ground_truth_10m.npy \
+                --dataset /root/data/msspacev/train_10m.npy \
+                --queries /root/data/msspacev/queries.npy \
+                --gtruth /root/data/msspacev/ground_truth_10m.npy \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename spacev-10m.mtx \
                 --index-type flatnav \
@@ -264,9 +264,9 @@ spacev-10m-flatnav:
 spacev-10m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name spacev-10m \
-                --dataset /root/data/spacev-10m/spacev_train_10m.npy \
-                --queries /root/data/spacev-10m/spacev_queries.npy \
-                --gtruth /root/data/spacev-10m/spacev_ground_truth_10m.npy \
+                --dataset /root/data/msspacev/train_10m.npy \
+                --queries /root/data/msspacev/queries.npy \
+                --gtruth /root/data/msspacev/ground_truth_10m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 300 \
@@ -279,9 +279,9 @@ spacev-10m-hnsw:
 tti-10m-flatnav:
 	poetry run python run-benchmark.py \
                 --dataset-name tti-10m \
-                --dataset /root/data/tti_10m/tti_train_10m.npy \
-                --queries /root/data/tti_10m/tti_queries.npy \
-                --gtruth /root/data/tti_10m/tti_ground_truth_10m.npy \
+                --dataset /root/data/text2image/train_10m.npy \
+                --queries /root/data/text2image/queries.npy \
+                --gtruth /root/data/text2image/ground_truth_10m.npy \
             	--index-type flatnav \
                 --use-hnsw-base-layer \
                 --hnsw-base-layer-filename tti-10m.mtx \
@@ -295,9 +295,9 @@ tti-10m-flatnav:
 tti-10m-hnsw:
 	poetry run python run-benchmark.py \
                 --dataset-name tti-10m \
-                --dataset /root/data/tti_10m/tti_train_10m.npy \
-                --queries /root/data/tti_10m/tti_queries.npy \
-                --gtruth /root/data/tti_10m/tti_ground_truth_10m.npy \
+                --dataset /root/data/text2image/train_10m.npy \
+                --queries /root/data/text2image/queries.npy \
+                --gtruth /root/data/text2image/ground_truth_10m.npy \
             	--index-type hnsw \
                 --num-node-links 32 \
                 --ef-construction 50 100 200 300 \
@@ -414,7 +414,6 @@ sift-bench-flatnav:
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
 		--index-type flatnav \
-		--data-type uint8 \
 		--num-node-links 32 \
 		--ef-construction 30 40 50 100 200 300 \
 		--ef-search 100 200 300 500 1000 3000 \
@@ -572,7 +571,6 @@ nytimes-bench-flatnav:
 		--num-search-threads 1 \
 		--metric angular
 
-
 nytimes-bench-hnsw:
 	poetry run python run_benchmark.py \
 		--dataset /root/data/nytimes-256-angular/nytimes-256-angular.train.npy \
@@ -636,23 +634,6 @@ plot-results:
 
 setup: install-flatnav install-hnswlib
 
-build-and-push-to-s3:
-	poetry run python build-index.py \
-		--dataset-names normal-1-euclidean normal-1-angular normal-2-euclidean normal-2-angular normal-4-euclidean normal-4-angular normal-8-euclidean normal-8-angular normal-16-euclidean normal-16-angular normal-32-euclidean normal-32-angular normal-64-euclidean normal-64-angular normal-128-euclidean normal-128-angular normal-256-euclidean normal-256-angular normal-1024-euclidean normal-1024-angular normal-1536-euclidean normal-1536-angular \
-		--ef-construction 100 \
-		--bucket-name hnsw-index-snapshots
-
-# Install all dependencies including flatnav
-install-flatnav: generate-wheel 
-	poetry add ../flatnav_python/dist/*.whl 
-	rm poetry.lock && poetry install --no-root
-
-# This will generate the wheel for flatnav and put it in
-# ../flatnav_python/dist
-generate-wheel:
-	poetry remove flatnav &> /dev/null 
-	cd .. && cd flatnav_python && ./install_flatnav.sh 
-
 install-hnswlib:
 	if [ ! -d "hnswlib-original" ]; then \
 		git clone https://github.com/BlaiseMuhirwa/hnswlib-original.git; \
@@ -661,12 +642,6 @@ install-hnswlib:
 	poetry install --no-root && \
 	poetry run python setup.py bdist_wheel 
 	poetry add hnswlib-original/python_bindings/dist/*.whl
-
-s3-push:
-	poetry run python push-snapshot-to-s3.py
-
-format:
-	poetry run black . 
 
 cleanup:
 	rm -rf hnswlib-original 

@@ -4,6 +4,49 @@ import os
 from typing import Tuple, List, Optional, Union
 
 
+def read_ivecs_file(filename: str, range: Optional[tuple[int, int]] = None) -> np.ndarray:
+    with open(filename, "rb") as f:
+        dimension = np.fromfile(f, dtype=np.int32, count=1)[0]
+        vec_size = 4 + dimension * 4
+
+        f.seek(0, 2)
+        total_vectors = f.tell() // vec_size
+        start, end = 1, total_vectors
+
+        if range:
+            start, end = range
+            end = min(end, total_vectors)
+
+        assert 1 <= start <= end <= total_vectors, "Invalid range specified."
+
+        f.seek((start - 1) * vec_size, 0)
+        v = np.fromfile(
+            f, dtype=np.int32, count=(dimension + 1) * (end - start + 1)
+        )
+        return v.reshape((end - start + 1, dimension + 1))[:, 1:]
+
+def read_bvecs_file(filename: str, range: Optional[tuple[int, int]] = None) -> np.ndarray:
+    with open(filename, "rb") as f:
+        dimension = np.fromfile(f, dtype=np.int32, count=1)[0]
+        vec_size = 4 + dimension
+
+        f.seek(0, 2)
+        total_vectors = f.tell() // vec_size
+
+        start, end = 1, total_vectors
+        if range:
+            start, end = range
+            end = min(end, total_vectors)
+
+        assert 1 <= start <= end <= total_vectors, "Invalid range specified."
+
+        f.seek((start - 1) * vec_size, 0)
+        v = np.fromfile(
+            f, dtype=np.uint8, count=(dimension + 4) * (end - start + 1)
+        )
+        return v.reshape((end - start + 1, dimension + 4))[:, 4:]
+
+
 class DatasetLoader(ABC):
     def __init__(
         self,
@@ -71,55 +114,13 @@ class BvecsDatasetLoader(DatasetLoader):
     NOTE: This is mostly for loading the SIFT1B dataset.
     """
 
-    def _read_ivecs_file(self, filename: str) -> np.ndarray:
-        with open(filename, "rb") as f:
-            dimension = np.fromfile(f, dtype=np.int32, count=1)[0]
-            vec_size = 4 + dimension * 4
-
-            f.seek(0, 2)
-            total_vectors = f.tell() // vec_size
-            start, end = 1, total_vectors
-
-            if self.range:
-                start, end = self.range
-                end = min(end, total_vectors)
-
-            assert 1 <= start <= end <= total_vectors, "Invalid range specified."
-
-            f.seek((start - 1) * vec_size, 0)
-            v = np.fromfile(
-                f, dtype=np.int32, count=(dimension + 1) * (end - start + 1)
-            )
-            return v.reshape((end - start + 1, dimension + 1))[:, 1:]
-
-    def _read_bvecs_file(self, filename: str) -> np.ndarray:
-        with open(filename, "rb") as f:
-            dimension = np.fromfile(f, dtype=np.int32, count=1)[0]
-            vec_size = 4 + dimension
-
-            f.seek(0, 2)
-            total_vectors = f.tell() // vec_size
-
-            start, end = 1, total_vectors
-            if self.range:
-                start, end = self.range
-                end = min(end, total_vectors)
-
-            assert 1 <= start <= end <= total_vectors, "Invalid range specified."
-
-            f.seek((start - 1) * vec_size, 0)
-            v = np.fromfile(
-                f, dtype=np.uint8, count=(dimension + 4) * (end - start + 1)
-            )
-            return v.reshape((end - start + 1, dimension + 4))[:, 4:]
-
     def load_data(self) -> Tuple[np.ndarray]:
-        ground_truth = self._read_ivecs_file(self.ground_truth_path)
+        ground_truth = read_ivecs_file(self.ground_truth_path, self.range)
         # Ground truth has shape (10000, 1000) but we only need the first 100 queries
         ground_truth = ground_truth[:, 0:100]
 
-        train_data = self._read_bvecs_file(self.train_dataset_path)
-        queries_data = self._read_bvecs_file(self.queries_path)
+        train_data = read_bvecs_file(self.train_dataset_path, self.range)
+        queries_data = read_bvecs_file(self.queries_path, self.range)
 
         return train_data, queries_data, ground_truth
 
@@ -145,6 +146,13 @@ class BinaryDatasetLoader(DatasetLoader):
             - Number of queries
             - K value
         """
+
+        if self.ground_truth_path.endswith(".ivecs"):
+            ground_truth = read_ivecs_file(self.ground_truth_path)
+            num_queries, K = ground_truth.shape
+            return ground_truth, None, num_queries, K
+
+
         with open(path, "rb") as f:
             num_queries = np.fromfile(f, dtype=np.uint32, count=1)[0]
             K = np.fromfile(f, dtype=np.uint32, count=1)[0]

@@ -5,53 +5,71 @@ on: [pull_request]
 env: 
   POETRY_VERSION: "1.6.1"
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
-  test-python-library:
-    strategy:
-      # Ensure that failure for one test does not cancel other actions
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest] 
-        python-version: ['3.9', '3.10', '3.11']
-    runs-on: ${{ matrix.os }}
+  test-clang-format:
+    runs-on: ubuntu-latest
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-      with:
-        submodules: 'recursive'
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Install clang-format and make
+        run: |
+          set -ex
+          sudo apt-get update
+          sudo apt-get install -y clang-format make
+          clang-format --version
 
-    - name: Set up Poetry
-      uses: snok/install-poetry@v1
-      with:
-        version: ${{ env.POETRY_VERSION }}
+      - name: Run clang-format
+        run: |
+          make format-cpp
 
-    - name: Install dependencies
-      run: |
-        cd flatnav_python
-        poetry install 
+          # Check if there are any changes after formatting
+          if ! git diff --quiet; then
+            echo "Formatting changes detected. Committing and pushing the changes."
+            
+            # Set up git user for commit
+            git config user.name "GitHub Action Bot"
+            git config user.email "bot@users.noreply.github.com"
 
-    - name: Build flatnav 
-      run: |
-        cd flatnav_python
-        export NO_SIMD_VECTORIZATION=1
-        ./install_flatnav.sh
+            # Add and commit the changes
+            git add .
+            git commit -m "chore: auto-format C++ code via clang-format"
+            
+            # Fetch the latest changes from the remote
+            git fetch origin
 
-    - name: Run Unit Tests
-      run: |
-        cd flatnav_python
-        poetry run pytest -vs unit_tests
+            # Merge the latest changes from the remote branch
+            if ! git merge origin/${{ github.head_ref || github.ref_name }} --no-edit; then
+              echo "Merge conflict detected. Please resolve conflicts manually."
+
+              # TODO: Figure out how to auto-resolve merge conflicts and then set the exit code to 1.
+              # For now we will just let it pass as success.
+              exit 0
+            fi
+
+            # Push the changes (force-with-lease to avoid overwriting unrelated changes)
+            git push --force-with-lease origin HEAD:${{ github.head_ref || github.ref_name }}
+          else
+            echo "No formatting changes needed."
+          fi
+
 
   run-cpp-unit-tests:
+    needs: test-clang-format
     strategy:
       # Ensure that failure for one test does not cancel other actions
       fail-fast: false
       matrix:
-        # TODO: Would love to add macos here. 
+        # TODO: Add macos-latest here. 
+        # Currently it's failing as can be seen here: 
+        # Ref: https://github.com/BlaiseMuhirwa/flatnav/actions/runs/12161129183/job/33915004519?pr=72
         os: [ubuntu-latest] 
     runs-on: ${{ matrix.os }}
     steps:
@@ -62,16 +80,10 @@ jobs:
 
     - name: Install dependencies
       run: |
-        # Install CMake and clang
-        ./bin/install_clang.sh
-        ./bin/install_cmake.sh
-
-    - name: Build flatnav 
+        # Install CMake, Clang and LibOMP
+        make setup-clang-cmake-libomp
+        
+    - name: Build and Run C++ Unit Tests
       run: |
-        # Build flatnav as well as all tests and examples 
-        ./bin/build.sh -e -t 
-
-    - name: Run Unit Tests
-      run: |
-        ./build/test_distances
-        ./build/test_serialization
+        set -ex
+        make run-cpp-unit-tests

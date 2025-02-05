@@ -16,6 +16,7 @@ scipy = "^1.11.4"
 matplotlib = "^3.8.2"
 seaborn = "^0.13.1"
 scikit-learn = "^1.5.0"
+flatnav = "^0.1.0"
 
 [build-system]
 requires = ["poetry-core"]

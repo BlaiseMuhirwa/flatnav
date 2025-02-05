@@ -1,0 +1,6 @@
+**/__pycache__
+_skbuild
+build/
+*.egg-info
+MANIFEST.in 
+dist/*

@@ -1,10 +1,8 @@
 # Build arguments 
-# This is a relatively large image, so we might want to use a smaller base image, such as
-# alpine in the future if image size becomes an issue.
-ARG BASE_IMAGE=ubuntu:22.04
+# debian:buster-slim is much smaller than ubuntu 22
+ARG BASE_IMAGE=debian:buster-slim
 
-FROM ${BASE_IMAGE} as base
-
+FROM ${BASE_IMAGE} AS base
 
 ARG POETRY_VERSION=1.8.2
 ARG PYTHON_VERSION=3.11.6
@@ -13,8 +11,8 @@ ARG ROOT_DIR="/root"
 ARG FLATNAV_PATH="${ROOT_DIR}/flatnavlib"
 ARG INCLUDE_HNSWLIB=false
 
-
 ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
         # Need for python installation: 
@@ -37,14 +35,11 @@ RUN apt-get update -y \
         libxmlsec1-dev \
         libffi-dev \
         liblzma-dev \
-        # Multi-process manager inside docker 
-        supervisor \
         # Install the rest
         git \
         gcc \
         g++ \
         apt-utils \
-        wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/*
@@ -83,22 +78,15 @@ ENV PATH="${POETRY_HOME}/bin:${PATH}"
 WORKDIR ${FLATNAV_PATH}
 
 # Copy source code
-COPY flatnav/ ./flatnav/
-COPY flatnav_python/ ./flatnav_python/
+COPY include/flatnav/ ./flatnav/
+COPY python-bindings/ ./python-bindings/
 COPY experiments/ ./experiments/
-# We don't need quantization for now, but it doesn't hurt to have it.
-COPY quantization/ ./quantization/
+
 # Copy external dependencies (for now only cereal)
 COPY external/ ./external/
 
-# Copy the configuration for supervisor 
-COPY bin/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
 # Install needed dependencies including flatnav. 
-# This installs numpy as well, which is a large dependency. 
-WORKDIR ${FLATNAV_PATH}/flatnav_python
-RUN ./install_flatnav.sh 
-
+# Install hnwlib (from a forked repo that has extensions we need)
 WORKDIR ${FLATNAV_PATH}
 # Install hnswlib (from a forked repo that has extensions we need)
 RUN if [ "$INCLUDE_HNSWLIB" = true ] ; then \
@@ -109,20 +97,8 @@ RUN if [ "$INCLUDE_HNSWLIB" = true ] ; then \
     fi 
 
 # Get the wheel as an environment variable 
-# NOTE: This is not robust and will break if there are multiple wheels in the dist folder
-ENV FLATNAV_WHEEL=${FLATNAV_PATH}/flatnav_python/dist/*.whl
+ENV HNSWLIB_WHEEL=${FLATNAV_PATH}/hnswlib-original/python_bindings/dist/*.whl
 
+# Add hnswlib to the experiment runner 
 WORKDIR ${FLATNAV_PATH}/experiments
-
-# Add this directory to pyton path
-ENV PYTHONPATH=${FLATNAV_PATH}:${PYTHONPATH}
-
-RUN echo ${FLATNAV_WHEEL}
-RUN poetry add ${FLATNAV_WHEEL} -v
-
-RUN if [ "$INCLUDE_HNSWLIB" = true ] ; then \
-        export HNSWLIB_WHEEL=${FLATNAV_PATH}/hnswlib-original/python_bindings/dist/*.whl; \
-        poetry add ${HNSWLIB_WHEEL}; \
-    fi
-
-RUN poetry install --no-root
+RUN poetry add ${HNSWLIB_WHEEL} && poetry install --no-root

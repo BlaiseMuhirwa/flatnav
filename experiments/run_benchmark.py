@@ -9,7 +9,7 @@ import logging
 import platform, socket, psutil
 import argparse
 import flatnav
-from flatnav.data_type import DataType 
+from flatnav.data_type import DataType
 from data_loader import get_data_loader
 from plotting.plot import create_plot, create_linestyles
 from plotting.metrics import metric_manager
@@ -397,7 +397,7 @@ def main(
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
 
-    experiment_key = f"{dataset_name}_{index_type}_{data_type}"
+    experiment_key = f"{dataset_name}_{index_type}"
 
     for node_links in num_node_links:
         metrics = {}

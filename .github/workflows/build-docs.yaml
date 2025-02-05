@@ -35,8 +35,9 @@ jobs:
 
       - name: Generate Doxygen & Sphinx documentation
         run: |
-          # using the -f flag to force building the Python library.
-          ./generate_docs.sh -f
+          # Update the lock file if necessary
+          poetry lock 
+          ./generate_docs.sh
 
       - name: Create .nojekyll file
         run: |
