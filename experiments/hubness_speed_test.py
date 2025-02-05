@@ -43,14 +43,6 @@ METRICS_DIR = "/root/metrics"
 os.makedirs(SPEED_TESTS_SAVE_PATH, exist_ok=True)
 
 SYNTHETIC_DATASETS = [
-    # "normal-1-angular",
-    # "normal-1-euclidean",
-    # "normal-2-angular",
-    # "normal-2-euclidean",
-    # "normal-4-angular",
-    # "normal-4-euclidean",
-    # "normal-8-angular",
-    # "normal-8-euclidean",
     "normal-16-angular",
     "normal-16-euclidean",
     "normal-32-angular",
@@ -68,12 +60,10 @@ SYNTHETIC_DATASETS = [
 ]
 
 ANN_DATASETS = [
-    # "sift-128-euclidean",
     "glove-100-angular",
     "nytimes-256-angular",
     "gist-960-euclidean",
     "yandex-deep-10m-euclidean",
-    # "yandex-tti-10m-angular",
     "spacev-10m-euclidean",
 ]
 
