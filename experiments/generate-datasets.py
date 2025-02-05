@@ -142,7 +142,6 @@ def check_datasets_exists(base_path: str, dataset_name: str) -> bool:
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-path", type=str, required=True)
     parser.add_argument("--dataset-size", type=int, required=True)
     parser.add_argument("--num-queries", type=int, required=True)
     parser.add_argument("--dimensions", type=int, nargs="+", required=True)
@@ -153,12 +152,11 @@ def parse_arguments() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_arguments()
-    base_path = args.base_path
     dimensions = args.dimensions
 
+    base_path = "/root/data"
     DATASET_NAMES = [f"normal-{d}-angular" for d in dimensions]
     DATASET_NAMES += [f"normal-{d}-euclidean" for d in dimensions]
-    # DATASET_NAMES = [f"normal-{d}-euclidean" for d in dimensions]
 
     # Create the datasets. First create the directory if it doesn't exist
     for dataset_name in DATASET_NAMES:
