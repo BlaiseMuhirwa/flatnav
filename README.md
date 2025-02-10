@@ -4,6 +4,11 @@ FlatNav is a fast and header-only graph-based index for Approximate Nearest Neig
 
 We hope to maintain this open source library as a resource for broader community. Please consider opening a Github Issue for bugs and feature requests, or get in touch with us directly for discussions.
 
+### Reproducing Experimental Results from the Research Paper
+
+In our associated [research paper](https://arxiv.org/pdf/2412.01940), we conduct a series of benchmarking experiments comparing FlatNav's non-hierarchical navigable small world graph index with HNSW. Ultimately, we find that in high-dimensional vector spaces, the hierarchical component of HNSW provides no discernible benefit in terms of search quality and performance compared to simply using a non-hierarchical NSW graph. To reproduce the benchmarking results reported in the paper, please see the [README file](https://github.com/BlaiseMuhirwa/flatnav/blob/main/experiments/README.md) located within the `experiments` directory of this repository. 
+
+In addition to our benchmarking experiments, we also investigate *why* the hierarchical component of HNSW seems to not provide additional value on high-dimensional vector search workloads. In particular, we hypothesize that navigable small world graphs over high-dimensional metric spaces naturally form hubs. These hubs consist of a small subset of nodes that are highly connected to other points in the graph and thus facilitate fast traversal without the need for an explicit hierarchy. In our paper, we also perform a series of statistical tests to provide compelling evidence that our Hub Highway Hypothesis holds in practice. To reproduce these experimental findings, please see the [HUBNESS_EXPERIMENTS.md](https://github.com/BlaiseMuhirwa/flatnav/blob/main/experiments/HUBNESS_EXPERIMENTS.md) file. 
 
 ### Installation 
 FlatNav is implemented in C++ with a complete Python extension with [cereal](https://uscilab.github.io/cereal/) as the only external dependency. This is a header-only library, so there is nothing to build. Currently, FlatNav is supported on x86-64 machines on Linux and MacOS (we can extend this to Windows and ARM platforms if there is sufficient interest).
@@ -208,13 +213,7 @@ int main(int argc, char** argv) {
   run_knn_search(index, queries, gtruth, ef_search, k, num_queries, num_gtruth, dataset_dimension);
 }
 
-```
-
-### Reproducing Experimental Results from the Research Paper
-
-In our associated [research paper](https://arxiv.org/pdf/2412.01940), we conduct a series of benchmarking experiments comparing FlatNav's non-hierarchical navigable small world graph index with HNSW. Ultimately, we find that in high-dimensional vector spaces, the hierarchical component of HNSW provides no discernible benefit in terms of search quality and performance compared to simply using a non-hierarchical NSW graph. To reproduce the benchmarking results reported in the paper, please see the [README file](https://github.com/BlaiseMuhirwa/flatnav/blob/main/experiments/README.md) located within the `experiments` directory of this repository. 
-
-In addition to our benchmarking experiments, we also investigate *why* the hierarchical component of HNSW seems to not provide additional value on high-dimensional vector search workloads. In particular, we hypothesize that navigable small world graphs over high-dimensional metric spaces naturally form hubs. These hubs consist of a small subset of nodes that are highly connected to other points in the graph and thus facilitate fast traversal without the need for an explicit hierarchy. In our paper, we also perform a series of statistical tests to provide compelling evidence that our Hub Highway Hypothesis holds in practice. We will add reproduction steps for these experiments shortly. 
+``` 
 
 ### Experimental API and Future Extensions 
 

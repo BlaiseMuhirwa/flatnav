@@ -5,7 +5,7 @@ This document provides instructions for reproducing the experimental results com
 
 To enable relatively seamless reproducibility, we require the users to do the following:
 
-* A machine with [docker](https://www.docker.com/) installed (and sufficient RAM to build and query indexes for a given workload). If you prefer to run the experiments without docker, we will add additional instructions shortly (though we highly recommend using the docker approach for complete consistency with our reported results)
+* A machine with [docker](https://www.docker.com/) installed (and sufficient RAM to build and query indexes for a given workload).
 
 * Download and preprocess the benchmark datasets into a certain folder named as `data` in the top-level directory of the `flatnav` repository. We provide more detailed instructions for this step in the next sections. 
 
