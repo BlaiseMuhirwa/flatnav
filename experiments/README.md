@@ -5,7 +5,7 @@ This document provides instructions for reproducing the experimental results com
 
 To enable relatively seamless reproducibility, we require the users to do the following:
 
-* A machine with [docker](https://www.docker.com/) installed (and sufficient RAM to build and query indexes for a given workload). If you prefer to run the experiments without docker, we will add additional instructions shortly (though we highly recommend using the docker approach for complete consistency with our reported results)
+* A machine with [docker](https://www.docker.com/) installed (and sufficient RAM to build and query indexes for a given workload). In our experiments, we use an AWS `c6i.8xlarge` instance for all benchmarks with less than 100M points. This machine comes up with 64 GiB of RAM and an Intel Xeon 8375C (Ice Lake) processor. For our 100M-scale experiments, we use a machine with 1TB of RAM and an AMD EPYC 9J14 96-Core Processor. 
 
 * Download and preprocess the benchmark datasets into a certain folder named as `data` in the top-level directory of the `flatnav` repository. We provide more detailed instructions for this step in the next sections. 
 
