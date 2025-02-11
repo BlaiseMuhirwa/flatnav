@@ -3,7 +3,7 @@
 ## Overview
 This document provides instructions for reproducing the experimental results comparing our non-hierarchical NSW implementation in FlatNav to the popular open source [HNSWLib](https://github.com/nmslib/hnswlib) library which utilizes a layered hierarchical graph. 
 
-To enable relatively seamless reproducibility, we require the users to do the following:
+To enable relatively seamless reproducibility, we require users to do the following:
 
 * A machine with [docker](https://www.docker.com/) installed (and sufficient RAM to build and query indexes for a given workload). In our experiments, we use an AWS `c6i.8xlarge` instance for all benchmarks with less than 100M points. This machine comes up with 64 GiB of RAM and an Intel Xeon 8375C (Ice Lake) processor. For our 100M-scale experiments, we use a machine with 1TB of RAM and an AMD EPYC 9J14 96-Core Processor. 
 
@@ -13,21 +13,21 @@ To enable relatively seamless reproducibility, we require the users to do the fo
 
 ## Example Commands
 
-Assuming you have docker installed and have prepared a benchmark dataset into the `data` directory, one can reproduce any one of our experiments specified in `experiments/Makefile`. For example, the following command will benchmark `flatnav` on the `gist` dataset. 
+Assuming you have docker installed, one can download any of the benchmark datases and reproduce any one of our experiments specified in `experiments/Makefile`. For example, the following command wills download the gist dataset and then benchmark `flatnav` and then `hnswlib` on the `gist` dataset. 
 
 ```shell
+./bin/download_ann_benchmarks_datasets.sh gist-960-euclidean
+
 ./bin/docker-run.sh gist-bench-flatnav
-```
 
-The analogous `hnswlib` benchmarking job on `gist` can be executed with a similar command. Again, the details of this make target are specified in the [Makefile](/experiments/Makefile). 
-
-```shell
 ./bin/docker-run.sh gist-bench-hnsw
 ```
 
+The details of all the benchmark make targets are specified in the [Makefile](/experiments/Makefile). 
+
 **NOTE:** We currently mount the data as a volume so that the experiment runner script has access 
 to the dataset. What this means for you is that you have to place the dataset you want to use under the 
-[data](/data/) subdirectory. Then, when you define a new target, specify the data path as `/root/data/<dataset-name>`. For instance, for the `sift-bench` we specify the dataset path like this:
+[data](/data/) subdirectory. Our data downloading scripts (described below) do this automatically. When you define a new target, specify the data path as `/root/data/<dataset-name>`. For instance, for the `sift-bench` we specify the dataset path like this:
 
 ```
 sift-bench: 
@@ -50,6 +50,14 @@ You may also want to save the experiment logs to a file on disk. You can do so b
 ### Viewing Output Metrics
 
 Once you have run a benchmarking job to completion, the experiment runner will save a set of plots under the `metrics` directory in the top level of the `flatnav` repo. These plots include, amongst others, the latency vs. recall tradeoff curves that we report in the paper. We also save the raw data used to generate these plots in the file `metrics/metrics.json`. 
+
+## Full List of Commands
+
+If you would like to understand more of the details of our data preparation scripts, please see the remaining sections below. If you would simply like to reproduce our benchmarking results for all 13 ANN Benchmarks and Big ANN Benchmark datasets considered in the paper, we list the specific commands per datasets below. 
+
+###
+
+mnist-784-euclidean
 
 ## Input Data Format
 
