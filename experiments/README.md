@@ -3,6 +3,12 @@
 ## Overview
 This document provides instructions for reproducing the experimental results comparing our non-hierarchical NSW implementation in FlatNav to the popular open source [HNSWLib](https://github.com/nmslib/hnswlib) library which utilizes a layered hierarchical graph. 
 
+As a first step, please clone the `flatnav` GitHub repository which contains all of the relevant experimental scripts
+
+```shell
+git clone https://github.com/BlaiseMuhirwa/flatnav.git --recurse-submodules
+```
+
 To enable relatively seamless reproducibility, we require users to do the following:
 
 * A machine with [docker](https://www.docker.com/) installed (and sufficient RAM to build and query indexes for a given workload). In our experiments, we use an AWS `c6i.8xlarge` instance for all benchmarks with less than 100M points. This machine comes up with 64 GiB of RAM and an Intel Xeon 8375C (Ice Lake) processor. For our 100M-scale experiments, we use a machine with 1TB of RAM and an AMD EPYC 9J14 96-Core Processor. 
@@ -55,9 +61,144 @@ Once you have run a benchmarking job to completion, the experiment runner will s
 
 If you would like to understand more of the details of our data preparation scripts, please see the remaining sections below. If you would simply like to reproduce our benchmarking results for all 13 ANN Benchmarks and Big ANN Benchmark datasets considered in the paper, we list the specific commands per datasets below. 
 
-###
+### MNIST Dataset
+```shell
+./bin/download_ann_benchmarks_datasets.sh mnist-784-euclidean
 
-mnist-784-euclidean
+./bin/docker-run.sh mnist-bench-flatnav
+
+./bin/docker-run.sh mnist-bench-hnsw
+```
+
+### GIST Dataset
+```shell
+./bin/download_ann_benchmarks_datasets.sh gist-960-euclidean
+
+./bin/docker-run.sh gist-bench-flatnav
+
+./bin/docker-run.sh gist-bench-hnsw
+```
+
+### Yandex Deep Dataset (ANN Benchmarks)
+```shell
+./bin/download_ann_benchmarks_datasets.sh deep-image-96-angular --normalize
+
+./bin/docker-run.sh deep-image-bench-flatnav
+
+./bin/docker-run.sh deep-image-bench-hnsw
+```
+
+### SIFT Dataset
+
+```shell
+./bin/download_ann_benchmarks_datasets.sh sift-128-euclidean
+
+./bin/docker-run.sh sift-bench-flatnav
+
+./bin/docker-run.sh sift-bench-hnsw
+```
+
+### NYTimes Dataset
+
+```shell
+./bin/download_ann_benchmarks_datasets.sh nytimes-256-angular --normalize
+
+./bin/docker-run.sh nytimes-bench-flatnav
+
+./bin/docker-run.sh nytimes-bench-hnsw
+```
+
+### Glove 25 Dataset
+
+```shell
+./bin/download_ann_benchmarks_datasets.sh glove-25-angular --normalize
+
+./bin/docker-run.sh glove25-bench-flatnav
+
+./bin/docker-run.sh glove25-bench-hnsw
+```
+
+### Glove 50 Dataset
+
+```shell
+./bin/download_ann_benchmarks_datasets.sh glove-50-angular --normalize
+
+./bin/docker-run.sh glove50-bench-flatnav
+
+./bin/docker-run.sh glove50-bench-hnsw
+```
+
+### Glove 100 Dataset
+
+```shell
+./bin/download_ann_benchmarks_datasets.sh glove-100-angular --normalize
+
+./bin/docker-run.sh glove100-bench-flatnav
+
+./bin/docker-run.sh glove100-bench-hnsw
+```
+
+### Glove 200 Dataset
+
+```shell
+./bin/download_ann_benchmarks_datasets.sh glove-200-angular --normalize
+
+./bin/docker-run.sh glove200-bench-flatnav
+
+./bin/docker-run.sh glove200-bench-hnsw
+```
+
+### Bigann 10M and 100M Datasets
+```shell
+./bin/download_bigann_datasets.sh bigann
+
+./bin/docker-run.sh bigann-10m-bench-flatnav
+
+./bin/docker-run.sh bigann-10m-bench-hnsw
+
+./bin/docker-run.sh bigann-100m-bench-flatnav
+
+./bin/docker-run.sh bigann-100m-bench-hnsw
+```
+
+### Yandex Deep 10M and 100M Datasets
+```shell
+./bin/download_bigann_datasets.sh deep
+
+./bin/docker-run.sh yandex-deep-10m-bench-flatnav
+
+./bin/docker-run.sh yandex-deep-10m-bench-hnsw
+
+./bin/docker-run.sh yandex-deep-100m-bench-flatnav
+
+./bin/docker-run.sh yandex-deep-100m-bench-hnsw
+```
+
+### Yandex Text-to-Image 10M and 100M Datasets
+```shell
+./bin/download_bigann_datasets.sh text2image
+
+./bin/docker-run.sh tti-10m-bench-flatnav
+
+./bin/docker-run.sh tti-10m-bench-hnsw
+
+./bin/docker-run.sh tti-100m-bench-flatnav
+
+./bin/docker-run.sh tti-100m-bench-hnsw
+```
+
+### Microsoft SpaceV 10M and 100M Datasets
+```shell
+./bin/download_bigann_datasets.sh msspacev
+
+./bin/docker-run.sh spacev-10m-bench-flatnav
+
+./bin/docker-run.sh spacev-10m-bench-hnsw
+
+./bin/docker-run.sh spacev-100m-bench-flatnav
+
+./bin/docker-run.sh spacev-100m-bench-hnsw
+```
 
 ## Input Data Format
 
@@ -84,15 +225,15 @@ __IMPORTANT:__ For datasets that use the angular/cosine similarity, you will nee
 Available dataset names include:
 
 ```shell
-_ mnist-784-euclidean
-_ sift-128-euclidean
-_ glove-25-angular
-_ glove-50-angular
-_ glove-100-angular
-_ glove-200-angular
-_ deep-image-96-angular
-_ gist-960-euclidean
-_ nytimes-256-angular
+- mnist-784-euclidean
+- sift-128-euclidean
+- glove-25-angular
+- glove-50-angular
+- glove-100-angular
+- glove-200-angular
+- deep-image-96-angular
+- gist-960-euclidean
+- nytimes-256-angular
 ```
 
 ## Preparing Datasets from Big-ANN Benchmarks
