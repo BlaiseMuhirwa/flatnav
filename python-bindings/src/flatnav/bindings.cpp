@@ -295,6 +295,7 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   }
 
   void setNumThreads(uint32_t num_threads) { _index->setNumThreads(num_threads); }
+  void setPruningAlgorithm(uint32_t algorithm_id) { _index->setPruningAlgorithm(algorithm_id); }
 
   uint32_t getNumThreads() { return _index->getNumThreads(); }
 
@@ -468,6 +469,7 @@ void bindSpecialization(py::module_& index_submodule) {
            GET_GRAPH_OUTDEGREE_TABLE_DOCSTRING)
       .def("reorder", &IndexType::reorder, py::arg("strategies"), REORDER_DOCSTRING)
       .def("set_num_threads", &IndexType::setNumThreads, py::arg("num_threads"), SET_NUM_THREADS_DOCSTRING)
+      .def("set_pruning_algorithm", &IndexType::setPruningAlgorithm, py::arg("algorithm_id"), "Experimental.")
       .def_static("load_index", &IndexType::loadIndex, py::arg("filename"), LOAD_INDEX_DOCSTRING)
       .def_property_readonly("max_edges_per_node", &IndexType::getMaxEdgesPerNode)
       .def_property_readonly("num_threads", &IndexType::getNumThreads, NUM_THREADS_DOCSTRING);

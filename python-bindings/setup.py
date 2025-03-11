@@ -108,6 +108,7 @@ def construct_cmake_args() -> List[str]:
     cmake_args = []
     cmake_args.append(f"-DCMAKE_INCLUDE_PATH={';'.join(cmake_include_directories)}")
     cmake_args.append(f"-DCMAKE_CXX_FLAGS={' '.join(compile_args)}")
+    cmake_args.append(f"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64")
 
     if cmake_linker_args:
         cmake_args.append(f"-DCMAKE_EXE_LINKER_FLAGS={' '.join(cmake_linker_args)}")
