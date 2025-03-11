@@ -36,6 +36,13 @@ $ ./cibuild.sh --current-version 3.12
 $ pip install wheelhouse/flatnav*.whl --force-reinstall
 ```
 
+Alternatively, if you just don't care about cross-platform builds and want to test it out quickly, you can simply run 
+
+```shell
+$ cd python-bindings
+$ pip install .
+```
+
 #### C++ Installation
 
 To get the C++ library working and run examples under the [tools](https://github.com/BlaiseMuhirwa/flatnav/blob/main/tools) directory, you will need
