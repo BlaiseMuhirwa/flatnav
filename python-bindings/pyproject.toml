@@ -2,7 +2,8 @@
 requires = [
   "scikit-build>=0.13",
   "cmake>=3.21",
-  "numpy>=1.21.0,<2"
+  "numpy>=1.21.0,<2",
+  "pybind11==2.10.4"
 ]
 build-backend = "setuptools.build_meta"
 

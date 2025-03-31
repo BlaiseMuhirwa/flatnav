@@ -48,10 +48,12 @@ class CentroidsGenerator {
         _seed(seed),
         _initialization_type("default") {}
 
-  void initializeCentroids(const float* data, uint64_t n,
-                           const std::function<float(const float*, const float*)>& distance_func) {
+  void initializeCentroids(
+      const float* data, uint64_t n,
+      const std::function<float(const float*, const float*)>& distance_func) {
     auto initialization_type = _initialization_type;
-    std::transform(initialization_type.begin(), initialization_type.end(), initialization_type.begin(),
+    std::transform(initialization_type.begin(), initialization_type.end(),
+                   initialization_type.begin(),
                    [](unsigned char c) { return std::tolower(c); });
 
     if (_centroids.size() != _num_centroids * _dim) {
@@ -65,8 +67,8 @@ class CentroidsGenerator {
     } else if (initialization_type == "hypercube") {
       hypercubeInitialize(data, n);
     } else {
-      throw std::invalid_argument("Invalid centroids initialization initialization type: " +
-                                  initialization_type);
+      throw std::invalid_argument(
+          "Invalid centroids initialization initialization type: " + initialization_type);
     }
     _centroids_initialized = true;
   }
@@ -94,11 +96,13 @@ class CentroidsGenerator {
    * @param distance_func The distance function to use (e.g. l2 distance or
    cosinde/inner product)
    */
-  void generateCentroids(const float* vectors, const float* vec_weights, uint64_t n,
-                         const std::function<float(const float*, const float*)>& distance_func) {
+  void generateCentroids(
+      const float* vectors, const float* vec_weights, uint64_t n,
+      const std::function<float(const float*, const float*)>& distance_func) {
     if (n < _num_centroids) {
       throw std::runtime_error(
-          "Invalid configuration. The number of centroids: " + std::to_string(_num_centroids) +
+          "Invalid configuration. The number of centroids: " +
+          std::to_string(_num_centroids) +
           " is bigger than the number of data points: " + std::to_string(n));
     }
 
@@ -135,7 +139,8 @@ class CentroidsGenerator {
       for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
         for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
 #pragma omp atomic
-          sums[assignment[vec_index] * _dim + dim_index] += vectors[vec_index * _dim + dim_index];
+          sums[assignment[vec_index] * _dim + dim_index] +=
+              vectors[vec_index * _dim + dim_index];
         }
 #pragma omp atomic
         counts[assignment[vec_index]]++;
@@ -143,9 +148,9 @@ class CentroidsGenerator {
 #pragma omp parallel for
       for (uint32_t c_index = 0; c_index < _num_centroids; c_index++) {
         for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-          _centroids[c_index * _dim + dim_index] = counts[c_index]
-                                                       ? sums[c_index * _dim + dim_index] / counts[c_index]
-                                                       : _centroids[c_index * _dim + dim_index];
+          _centroids[c_index * _dim + dim_index] =
+              counts[c_index] ? sums[c_index * _dim + dim_index] / counts[c_index]
+                              : _centroids[c_index * _dim + dim_index];
         }
       }
     }
@@ -170,7 +175,8 @@ class CentroidsGenerator {
     std::iota(indices.begin(), indices.end(), 0);
     std::mt19937 generator(_seed + 1);
     std::vector<uint64_t> sample_indices(_num_centroids);
-    std::sample(indices.begin(), indices.end(), sample_indices.begin(), _num_centroids, generator);
+    std::sample(indices.begin(), indices.end(), sample_indices.begin(), _num_centroids,
+                generator);
 
     for (uint32_t i = 0; i < _num_centroids; i++) {
       auto sample_index = sample_indices[i];
@@ -196,8 +202,9 @@ class CentroidsGenerator {
    * @param data  The input data points
    * @param n     The number of data points
    */
-  void kmeansPlusPlusInitialize(const float* data, uint64_t n,
-                                const std::function<float(const float*, const float*)>& distance_func) {
+  void kmeansPlusPlusInitialize(
+      const float* data, uint64_t n,
+      const std::function<float(const float*, const float*)>& distance_func) {
     std::mt19937 generator(_seed);
     std::uniform_int_distribution<uint64_t> distribution(0, n - 1);
 
@@ -246,7 +253,8 @@ class CentroidsGenerator {
 
       // Add selected centroid the the centroids array
       for (uint32_t dim_index = 0; dim_index < _dim; dim_index++) {
-        _centroids[cent_idx * _dim + dim_index] = data[next_centroid_index * _dim + dim_index];
+        _centroids[cent_idx * _dim + dim_index] =
+            data[next_centroid_index * _dim + dim_index];
       }
     }
   }

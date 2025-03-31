@@ -244,7 +244,8 @@ class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQua
     // contiguous, then the second subvector, and so on.
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
       for (uint64_t vec_index = 0; vec_index < n; vec_index++) {
-        std::memcpy(slice + (vec_index * _subvector_dim), vectors + (vec_index * dim) + (m * _subvector_dim),
+        std::memcpy(slice + (vec_index * _subvector_dim),
+                    vectors + (vec_index * dim) + (m * _subvector_dim),
                     _subvector_dim * sizeof(float));
       }
 
@@ -291,7 +292,8 @@ class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQua
 
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
       uint64_t code_ = code_manager.decode();
-      std::memcpy(vector + (m * _subvector_dim), getCentroids(m, 0), sizeof(float) * _subvector_dim);
+      std::memcpy(vector + (m * _subvector_dim), getCentroids(m, 0),
+                  sizeof(float) * _subvector_dim);
     }
   }
 
@@ -314,8 +316,9 @@ class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQua
    * @param dist_table output table, size (_num_subquantizers x
    * _subq_centroids_count)
    */
-  void computeDistanceTable(const float* vector, float* dist_table,
-                            const std::function<float(const float*, const float*)>& dist_func) const {
+  void computeDistanceTable(
+      const float* vector, float* dist_table,
+      const std::function<float(const float*, const float*)>& dist_func) const {
 
     for (uint32_t m = 0; m < _num_subquantizers; m++) {
       flatnav::copyDistancesIntoBuffer(
@@ -334,7 +337,8 @@ class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQua
 #pragma omp parallel for if (n > 1)
     for (uint64_t i = 0; i < n; i++) {
       computeDistanceTable(vectors + (i * dim),
-                           dist_tables + (i * _subq_centroids_count * _num_subquantizers), _dist_func);
+                           dist_tables + (i * _subq_centroids_count * _num_subquantizers),
+                           _dist_func);
     }
   }
 
@@ -420,10 +424,12 @@ class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQua
   void getSummaryImpl() const {
     std::cout << "\nProduct Quantizer Parameters" << std::flush;
     std::cout << "-----------------------------" << std::flush;
-    std::cout << "Number of subquantizers (M): " << _num_subquantizers << "\n" << std::flush;
+    std::cout << "Number of subquantizers (M): " << _num_subquantizers << "\n"
+              << std::flush;
     std::cout << "Number of bits per index: " << _num_bits << "\n" << std::flush;
     std::cout << "Subvector dimension: " << _subvector_dim << "\n" << std::flush;
-    std::cout << "Subquantizer centroids count: " << _subq_centroids_count << "\n" << std::flush;
+    std::cout << "Subquantizer centroids count: " << _subq_centroids_count << "\n"
+              << std::flush;
     std::cout << "Code size: " << _code_size << "\n" << std::flush;
     std::cout << "Is trained: " << _is_trained << "\n" << std::flush;
     std::cout << "Train type: " << _train_type << "\n" << std::flush;
@@ -449,11 +455,13 @@ class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQua
   std::function<float(const float*, const float*)> getDistFuncFromVariant() const {
     if (_distance.index() == 0) {
       return [local_distance = _distance](const float* a, const float* b) -> float {
-        return std::get<SquaredL2Distance<DataType::float32>>(local_distance).distanceImpl(a, b);
+        return std::get<SquaredL2Distance<DataType::float32>>(local_distance)
+            .distanceImpl(a, b);
       };
     }
     return [local_distance = _distance](const float* a, const float* b) -> float {
-      return std::get<InnerProductDistance<DataType::float32>>(local_distance).distanceImpl(a, b);
+      return std::get<InnerProductDistance<DataType::float32>>(local_distance)
+          .distanceImpl(a, b);
     };
   }
 
@@ -473,16 +481,18 @@ class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQua
    *
    */
   void computeSymmetricDistanceTables() {
-    _symmetric_distance_tables.resize(_num_subquantizers * _subq_centroids_count * _subq_centroids_count);
+    _symmetric_distance_tables.resize(_num_subquantizers * _subq_centroids_count *
+                                      _subq_centroids_count);
 
 #pragma omp parallel for
     for (uint64_t mk = 0; mk < _num_subquantizers * _subq_centroids_count; mk++) {
       auto m = mk / _subq_centroids_count;
       auto k = mk % _subq_centroids_count;
-      const float* centroids = _centroids.data() + (m * _subq_centroids_count * _subvector_dim);
+      const float* centroids =
+          _centroids.data() + (m * _subq_centroids_count * _subvector_dim);
       const float* centroid_k = centroids + (k * _subvector_dim);
-      float* dist_table =
-          _symmetric_distance_tables.data() + (m * _subq_centroids_count * _subq_centroids_count);
+      float* dist_table = _symmetric_distance_tables.data() +
+                          (m * _subq_centroids_count * _subq_centroids_count);
 
       flatnav::copyDistancesIntoBuffer(
           /* distances_buffer = */ dist_table + (k * _subq_centroids_count),
@@ -544,7 +554,9 @@ class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQua
 
   TrainType _train_type;
 
-  std::variant<SquaredL2Distance<DataType::float32>, InnerProductDistance<DataType::float32>> _distance;
+  std::variant<SquaredL2Distance<DataType::float32>,
+               InnerProductDistance<DataType::float32>>
+      _distance;
 
   std::function<float(const float*, const float*)> _dist_func;
 
@@ -553,8 +565,9 @@ class ProductQuantizer : public flatnav::distances::DistanceInterface<ProductQua
   template <typename Archive>
   void serialize(Archive& archive) {
 
-    archive(_code_size, _num_subquantizers, _num_bits, _subvector_dim, _subq_centroids_count, _centroids,
-            _symmetric_distance_tables, _is_trained, _metric_type, _train_type);
+    archive(_code_size, _num_subquantizers, _num_bits, _subvector_dim,
+            _subq_centroids_count, _centroids, _symmetric_distance_tables, _is_trained,
+            _metric_type, _train_type);
 
     if constexpr (Archive::is_loading::value) {
       // loading PQ

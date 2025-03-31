@@ -31,9 +31,10 @@ namespace flatnav {
  * @param dim
  * @param target_set_size
  */
-static void copyDistancesIntoBuffer(float* distances_buffer, const float* x, const float* y, uint32_t dim,
-                                    uint64_t target_set_size,
-                                    const std::function<float(const float*, const float*)>& dist_func) {
+static void copyDistancesIntoBuffer(
+    float* distances_buffer, const float* x, const float* y, uint32_t dim,
+    uint64_t target_set_size,
+    const std::function<float(const float*, const float*)>& dist_func) {
 
   for (uint64_t i = 0; i < target_set_size; i++) {
     distances_buffer[i] = dist_func(x, y);
@@ -54,9 +55,10 @@ static void copyDistancesIntoBuffer(float* distances_buffer, const float* x, con
  * @return 0 if target_set_size equals 0. Otherwise, the index of the
  * nearest vector.
  */
-static uint64_t distanceWithKNeighbors(float* distances_buffer, const float* x, const float* y, uint32_t dim,
-                                       uint64_t target_set_size,
-                                       const std::function<float(const float*, const float*)>& dist_func) {
+static uint64_t distanceWithKNeighbors(
+    float* distances_buffer, const float* x, const float* y, uint32_t dim,
+    uint64_t target_set_size,
+    const std::function<float(const float*, const float*)>& dist_func) {
 
   if (target_set_size == 0) {
     return 0;

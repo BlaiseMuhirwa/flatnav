@@ -59,7 +59,8 @@ static float computeIP_Avx(const void* x, const void* y, const size_t& dimension
   return 1.0f - total;
 }
 
-static float computeIP_Avx_4aligned(const void* x, const void* y, const size_t& dimension) {
+static float computeIP_Avx_4aligned(const void* x, const void* y,
+                                    const size_t& dimension) {
 
   float* pointer_x = static_cast<float*>(const_cast<void*>(x));
   float* pointer_y = static_cast<float*>(const_cast<void*>(y));
@@ -136,7 +137,8 @@ const float computeIP_Sse(const void* x, const void* y, const size_t& dimension)
   return 1.0f - total;
 }
 
-const float computeIP_Sse_4aligned(const void* x, const void* y, const size_t& dimension) {
+const float computeIP_Sse_4aligned(const void* x, const void* y,
+                                   const size_t& dimension) {
   float* pointer_x = static_cast<float*>(const_cast<void*>(x));
   float* pointer_y = static_cast<float*>(const_cast<void*>(y));
   const float* first_chunk_end = pointer_x + (dimension >> 4 << 4);
@@ -182,7 +184,8 @@ const float computeIP_Sse_4aligned(const void* x, const void* y, const size_t& d
   return 1.0f - total;
 }
 
-const float computeIP_SseWithResidual_16(const void* x, const void* y, const size_t& dimension) {
+const float computeIP_SseWithResidual_16(const void* x, const void* y,
+                                         const size_t& dimension) {
   size_t aligned_dimension = dimension >> 4 << 4;
   size_t residual_dimension = dimension - aligned_dimension;
 
@@ -201,7 +204,8 @@ const float computeIP_SseWithResidual_16(const void* x, const void* y, const siz
   return 1.0f - (first_chunk_sum + residual_sum);
 }
 
-const float computeIP_SseWithResidual_4(const void* x, const void* y, const size_t& dimension) {
+const float computeIP_SseWithResidual_4(const void* x, const void* y,
+                                        const size_t& dimension) {
   size_t aligned_dimension = dimension >> 2 << 2;
   size_t residual_dimension = dimension - aligned_dimension;
 

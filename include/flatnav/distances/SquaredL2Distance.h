@@ -29,7 +29,8 @@ class SquaredL2Distance : public DistanceInterface<SquaredL2Distance<data_type>>
 
  public:
   SquaredL2Distance() = default;
-  SquaredL2Distance(size_t dim) : _dimension(dim), _data_size_bytes(dim * util::size(data_type)) {}
+  SquaredL2Distance(size_t dim)
+      : _dimension(dim), _data_size_bytes(dim * util::size(data_type)) {}
 
   static std::unique_ptr<SquaredL2Distance<data_type>> create(size_t dim) {
     return std::make_unique<SquaredL2Distance<data_type>>(dim);
@@ -37,10 +38,11 @@ class SquaredL2Distance : public DistanceInterface<SquaredL2Distance<data_type>>
 
   inline constexpr size_t getDimension() const { return _dimension; }
 
-  constexpr float distanceImpl(const void* x, const void* y, [[maybe_unused]] bool asymmetric = false) const {
-    return L2DistanceDispatcher::dispatch(static_cast<const typename type_for_data_type<data_type>::type*>(x),
-                                          static_cast<const typename type_for_data_type<data_type>::type*>(y),
-                                          _dimension);
+  constexpr float distanceImpl(const void* x, const void* y,
+                               [[maybe_unused]] bool asymmetric = false) const {
+    return L2DistanceDispatcher::dispatch(
+        static_cast<const typename type_for_data_type<data_type>::type*>(x),
+        static_cast<const typename type_for_data_type<data_type>::type*>(y), _dimension);
   }
 
   inline DataType getDataTypeImpl() const { return data_type; }

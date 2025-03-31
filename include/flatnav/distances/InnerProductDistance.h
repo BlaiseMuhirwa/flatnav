@@ -36,10 +36,11 @@ class InnerProductDistance : public DistanceInterface<InnerProductDistance<data_
     return std::make_unique<InnerProductDistance<data_type>>(dim);
   }
 
-  constexpr float distanceImpl(const void* x, const void* y, [[maybe_unused]] bool asymmetric = false) const {
-    return IPDistanceDispatcher::dispatch(static_cast<const typename type_for_data_type<data_type>::type*>(x),
-                                          static_cast<const typename type_for_data_type<data_type>::type*>(y),
-                                          _dimension);
+  constexpr float distanceImpl(const void* x, const void* y,
+                               [[maybe_unused]] bool asymmetric = false) const {
+    return IPDistanceDispatcher::dispatch(
+        static_cast<const typename type_for_data_type<data_type>::type*>(x),
+        static_cast<const typename type_for_data_type<data_type>::type*>(y), _dimension);
   }
 
   DataType getDataTypeImpl() const { return data_type; }
@@ -59,7 +60,9 @@ class InnerProductDistance : public DistanceInterface<InnerProductDistance<data_
 
   size_t dataSizeImpl() { return _data_size_bytes; }
 
-  void transformDataImpl(void* dst, const void* src) { std::memcpy(dst, src, _data_size_bytes); }
+  void transformDataImpl(void* dst, const void* src) {
+    std::memcpy(dst, src, _data_size_bytes);
+  }
 
   void getSummaryImpl() {
     std::cout << "\nInnerProductDistance Parameters" << std::flush;

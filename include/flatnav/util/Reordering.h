@@ -24,7 +24,8 @@
 namespace flatnav::util {
 
 template <typename node_id_t>
-std::vector<node_id_t> gOrder(std::vector<std::vector<node_id_t>>& outdegree_table, const int w) {
+std::vector<node_id_t> gOrder(std::vector<std::vector<node_id_t>>& outdegree_table,
+                              const int w) {
   /* Simple explanation of the Gorder Algorithm:
   insert all v into Q each with priority 0
   select a start node into P
@@ -155,9 +156,8 @@ std::vector<node_id_t> rcmOrder(std::vector<std::vector<node_id_t>>& outdegree_t
 
       // sort neighbors by degree (min degree first)
       std::sort(neighbors.begin(), neighbors.end(),
-                [](const std::pair<node_id_t, int>& a, const std::pair<node_id_t, int>& b) {
-                  return a.second < b.second;
-                });
+                [](const std::pair<node_id_t, int>& a,
+                   const std::pair<node_id_t, int>& b) { return a.second < b.second; });
 
       // add neighbors to queue
       for (int j = 0; j < neighbors.size(); j++) {
@@ -178,10 +178,11 @@ std::vector<node_id_t> rcmOrder(std::vector<std::vector<node_id_t>>& outdegree_t
             candidate_neighbors.push_back({edge, degrees[edge]});
           }
           // sort neighbors by degree (min degree first)
-          std::sort(candidate_neighbors.begin(), candidate_neighbors.end(),
-                    [](const std::pair<node_id_t, int>& a, const std::pair<node_id_t, int>& b) {
-                      return a.second < b.second;
-                    });
+          std::sort(
+              candidate_neighbors.begin(), candidate_neighbors.end(),
+              [](const std::pair<node_id_t, int>& a, const std::pair<node_id_t, int>& b) {
+                return a.second < b.second;
+              });
           // add neighbors to queue
           for (int j = 0; j < candidate_neighbors.size(); j++) {
             Q.push(candidate_neighbors[j].first);

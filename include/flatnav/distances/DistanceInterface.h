@@ -1,11 +1,10 @@
 #pragma once
 
+#include <flatnav/util/Datatype.h>
 #include <cereal/access.hpp>
 #include <cstddef>  // for size_t
 #include <fstream>  // for ifstream, ofstream
 #include <iostream>
-#include <flatnav/util/Datatype.h>
-
 
 using flatnav::util::DataType;
 

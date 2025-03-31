@@ -79,7 +79,8 @@ struct InnerProductImpl<float> {
 // TODO: Include SIMD optimized implementations for int8_t.
 template <>
 struct InnerProductImpl<int8_t> {
-  static float computeDistance(const int8_t* x, const int8_t* y, const size_t& dimension) {
+  static float computeDistance(const int8_t* x, const int8_t* y,
+                               const size_t& dimension) {
     return defaultInnerProduct<int8_t>(x, y, dimension);
   }
 };
@@ -87,7 +88,8 @@ struct InnerProductImpl<int8_t> {
 // TODO: Include SIMD optimized implementations for uint8_t.
 template <>
 struct InnerProductImpl<uint8_t> {
-  static float computeDistance(const uint8_t* x, const uint8_t* y, const size_t& dimension) {
+  static float computeDistance(const uint8_t* x, const uint8_t* y,
+                               const size_t& dimension) {
     return defaultInnerProduct<uint8_t>(x, y, dimension);
   }
 };

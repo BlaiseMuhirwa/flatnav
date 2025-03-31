@@ -88,7 +88,8 @@ struct SquaredL2Impl<float> {
 
 template <>
 struct SquaredL2Impl<int8_t> {
-  static float computeDistance(const int8_t* x, const int8_t* y, const size_t& dimension) {
+  static float computeDistance(const int8_t* x, const int8_t* y,
+                               const size_t& dimension) {
 // #if defined(USE_AVX512BW) && defined(USE_AVX512VNNI)
 //     if (platformSupportsAvx512()) {
 //       return flatnav::util::computeL2_Avx512_int8(x, y, dimension);
@@ -105,7 +106,8 @@ struct SquaredL2Impl<int8_t> {
 
 template <>
 struct SquaredL2Impl<uint8_t> {
-  static float computeDistance(const uint8_t* x, const uint8_t* y, const size_t& dimension) {
+  static float computeDistance(const uint8_t* x, const uint8_t* y,
+                               const size_t& dimension) {
 #if defined(USE_AVX512)
     if (platformSupportsAvx512()) {
       if (dimension % 64 == 0) {

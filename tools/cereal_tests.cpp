@@ -1,6 +1,7 @@
 #include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/index/Allocator.h>
 #include <flatnav/index/Index.h>
 #include <cassert>
 #include <memory>
@@ -13,11 +14,18 @@ using flatnav::distances::SquaredL2Distance;
 using flatnav::util::DataType;
 
 template <typename dist_t>
-void serializeIndex(float* data, std::unique_ptr<DistanceInterface<dist_t>>&& distance, int N, int M, int dim,
-                    int ef_construction, const std::string& save_file) {
+void serializeIndex(float* data, std::unique_ptr<DistanceInterface<dist_t>>&& distance,
+                    int N, int M, int dim, int ef_construction,
+                    const std::string& save_file) {
+  auto params = std::make_shared<flatnav::MemoryAllocParameters>();
+  params->data_size_bytes = distance->dataSize();
+  params->M = M;
+  params->max_node_count = N;
+  params->setNodeSizeBytes();
+  auto allocator = std::make_unique<flatnav::FlatMemoryAllocator<int>>(params.get());
   std::unique_ptr<Index<dist_t, int>> index = std::make_unique<Index<dist_t, int>>(
-      /* dist = */ std::move(distance), /* dataset_size = */ N,
-      /* max_edges = */ M);
+      /* dist = */ std::move(distance), /* memory_allocator = */ *allocator,
+      /* params = */ params.get());
 
   float* element = new float[dim];
   std::vector<int> labels(N);
@@ -30,7 +38,8 @@ void serializeIndex(float* data, std::unique_ptr<DistanceInterface<dist_t>>&& di
 
   std::cout << "Loading index \n" << std::flush;
 
-  auto new_index = Index<dist_t, int>::loadIndex(/* filename = */ save_file);
+  auto new_index =
+      Index<dist_t, int>::loadIndex(/* filename = */ save_file, *allocator, params.get());
 
   assert(new_index->maxEdgesPerNode() == M);
   assert(new_index->dataSizeBytes() == distance->dataSize() + (32 * M) + 32);
@@ -57,8 +66,9 @@ int main(int argc, char** argv) {
   int N = 60000;
   float* data = datafile.data<float>();
   auto l2_distance = SquaredL2Distance<DataType::float32>::create(dim);
-  serializeIndex<SquaredL2Distance<DataType::float32>>(data, std::move(l2_distance), N, M, dim,
-                                                       ef_construction, std::string("l2_flatnav.bin"));
+  serializeIndex<SquaredL2Distance<DataType::float32>>(data, std::move(l2_distance), N, M,
+                                                       dim, ef_construction,
+                                                       std::string("l2_flatnav.bin"));
 
   // auto inner_product_distance =
   //     std::make_unique<InnerProductDistance<float>>(dim);

@@ -29,7 +29,8 @@ static float computeL2_Avx512(const void* x, const void* y, const size_t& dimens
 /**
  * @todo Make this support dimensions that are not multiples of 64
  */
-static float computeL2_Avx512_Uint8(const void* x, const void* y, const size_t& dimension) {
+static float computeL2_Avx512_Uint8(const void* x, const void* y,
+                                    const size_t& dimension) {
   const uint8_t* pointer_x = static_cast<const uint8_t*>(x);
   const uint8_t* pointer_y = static_cast<const uint8_t*>(y);
 
@@ -107,7 +108,8 @@ static float computeL2_Avx2(const void* x, const void* y, const size_t& dimensio
 
   float result[8];
   sum.storeu(result);
-  return result[0] + result[1] + result[2] + result[3] + result[4] + result[5] + result[6] + result[7];
+  return result[0] + result[1] + result[2] + result[3] + result[4] + result[5] +
+         result[6] + result[7];
 }
 
 #endif  // USE_AVX
@@ -173,7 +175,8 @@ static float computeL2_Sse_int8(const void* x, const void* y, const size_t& dime
     __m128i diff = _mm_sub_epi8(vx, vy);
 
     // Convert to 16-bit and square
-    __m128i diff_squared = _mm_madd_epi16(_mm_cvtepi8_epi16(diff), _mm_cvtepi8_epi16(diff));
+    __m128i diff_squared =
+        _mm_madd_epi16(_mm_cvtepi8_epi16(diff), _mm_cvtepi8_epi16(diff));
 
     // Accumulate in 32-bit integer
     sum = _mm_add_epi32(sum, diff_squared);
@@ -194,7 +197,8 @@ static float computeL2_Sse_int8(const void* x, const void* y, const size_t& dime
 
 #endif  // USE_SSE4_1
 
-static float computeL2_Sse4Aligned(const void* x, const void* y, const size_t& dimension) {
+static float computeL2_Sse4Aligned(const void* x, const void* y,
+                                   const size_t& dimension) {
   float* pointer_x = static_cast<float*>(const_cast<void*>(x));
   float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
@@ -214,7 +218,8 @@ static float computeL2_Sse4Aligned(const void* x, const void* y, const size_t& d
   return sum.reduce_add();
 }
 
-static float computeL2_SseWithResidual_16(const void* x, const void* y, const size_t& dimension) {
+static float computeL2_SseWithResidual_16(const void* x, const void* y,
+                                          const size_t& dimension) {
 
   size_t dimension_aligned = dimension >> 4 << 4;
   float aligned_distance = computeL2_Sse(x, y, dimension_aligned);
@@ -231,7 +236,8 @@ static float computeL2_SseWithResidual_16(const void* x, const void* y, const si
   return aligned_distance + residual_distance;
 }
 
-static float computeL2_Sse4aligned(const void* x, const void* y, const size_t& dimension) {
+static float computeL2_Sse4aligned(const void* x, const void* y,
+                                   const size_t& dimension) {
   float* pointer_x = static_cast<float*>(const_cast<void*>(x));
   float* pointer_y = static_cast<float*>(const_cast<void*>(y));
 
@@ -251,7 +257,8 @@ static float computeL2_Sse4aligned(const void* x, const void* y, const size_t& d
   return sum.reduce_add();
 }
 
-static float computeL2_SseWithResidual_4(const void* x, const void* y, const size_t& dimension) {
+static float computeL2_SseWithResidual_4(const void* x, const void* y,
+                                         const size_t& dimension) {
   size_t dimension_aligned = dimension >> 2 << 2;
   float aligned_distance = computeL2_Sse4aligned(x, y, dimension_aligned);
   size_t residual_dimension = dimension - dimension_aligned;

@@ -1,6 +1,7 @@
-#include <developmental-features/quantization/ProductQuantization.h>
+// #include <developmental-features/quantization/ProductQuantization.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/index/Allocator.h>
 #include <flatnav/index/Index.h>
 #include <flatnav/util/Datatype.h>
 #include <chrono>
@@ -19,14 +20,18 @@
 using flatnav::Index;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
-using flatnav::quantization::ProductQuantizer;
+// using flatnav::quantization::ProductQuantizer;
 using flatnav::util::DataType;
 
 template <typename dist_t>
-void run(float* queries, int* gtruth, const std::string& index_filename, const std::vector<int>& ef_searches,
-         int K, int num_queries, int num_gtruth, int dim, bool reorder = true) {
+void run(float* queries, int* gtruth, const std::string& index_filename,
+         const std::vector<int>& ef_searches, int K, int num_queries, int num_gtruth,
+         int dim, bool reorder = true) {
 
-  std::unique_ptr<Index<dist_t, int>> index = Index<dist_t, int>::loadIndex(index_filename);
+  auto params = flatnav::MemoryAllocParameters::load(index_filename + ".metadata");
+  auto allocator = std::make_unique<flatnav::FlatMemoryAllocator<int>>(params.get());
+  std::unique_ptr<Index<dist_t, int>> index =
+      Index<dist_t, int>::loadIndex(index_filename, *allocator, params.get());
 
   std::cout << "[INFO] Index loaded" << std::endl;
   index->getIndexSummary();
@@ -36,8 +41,10 @@ void run(float* queries, int* gtruth, const std::string& index_filename, const s
     auto start_r = std::chrono::high_resolution_clock::now();
     index->reorderGOrder();
     auto stop_r = std::chrono::high_resolution_clock::now();
-    auto duration_r = std::chrono::duration_cast<std::chrono::milliseconds>(stop_r - start_r);
-    std::clog << "Reordering time: " << (float)(duration_r.count()) / (1000.0) << " seconds" << std::endl;
+    auto duration_r =
+        std::chrono::duration_cast<std::chrono::milliseconds>(stop_r - start_r);
+    std::clog << "Reordering time: " << (float)(duration_r.count()) / (1000.0)
+              << " seconds" << std::endl;
   }
 
   for (const auto& ef_search : ef_searches) {
@@ -62,9 +69,11 @@ void run(float* queries, int* gtruth, const std::string& index_filename, const s
       mean_recall = mean_recall + recall;
     }
     auto stop_q = std::chrono::high_resolution_clock::now();
-    auto duration_q = std::chrono::duration_cast<std::chrono::milliseconds>(stop_q - start_q);
+    auto duration_q =
+        std::chrono::duration_cast<std::chrono::milliseconds>(stop_q - start_q);
     std::cout << "[INFO] Mean Recall: " << mean_recall / num_queries
-              << ", Duration:" << (float)(duration_q.count()) / num_queries << " milliseconds" << std::endl;
+              << ", Duration:" << (float)(duration_q.count()) / num_queries
+              << " milliseconds" << std::endl;
   }
 }
 
@@ -114,23 +123,25 @@ int main(int argc, char** argv) {
   int dim = queryfile.shape[1];
   int n_gt = truthfile.shape[1];
   if (k > n_gt) {
-    std::cerr << "K is larger than the number of precomputed ground truth neighbors" << std::endl;
+    std::cerr << "K is larger than the number of precomputed ground truth neighbors"
+              << std::endl;
     return -1;
   }
 
   std::clog << "Loading " << num_queries << " queries" << std::endl;
   float* queries = queryfile.data<float>();
-  std::clog << "Loading " << num_queries << " ground truth results with k = " << k << std::endl;
+  std::clog << "Loading " << num_queries << " ground truth results with k = " << k
+            << std::endl;
   int* gtruth = truthfile.data<int>();
 
   if (quantized) {
-    run<ProductQuantizer>(/* queries = */ queries, /* gtruth = */
-                          gtruth,
-                          /* index_filename = */ indexfilename,
-                          /* ef_searches = */ ef_searches, /* K = */ k,
-                          /* num_queries = */ num_queries,
-                          /* num_gtruth = */ n_gt, /* dim = */ dim,
-                          /* reorder = */ reorder);
+    // run<ProductQuantizer>(/* queries = */ queries, /* gtruth = */
+    //                       gtruth,
+    //                       /* index_filename = */ indexfilename,
+    //                       /* ef_searches = */ ef_searches, /* K = */ k,
+    //                       /* num_queries = */ num_queries,
+    //                       /* num_gtruth = */ n_gt, /* dim = */ dim,
+    //                       /* reorder = */ reorder);
   } else if (space_ID == 0) {
     run<SquaredL2Distance<DataType::float32>>(
         /* queries = */ queries,

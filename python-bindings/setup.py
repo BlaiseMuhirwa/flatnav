@@ -108,7 +108,7 @@ def construct_cmake_args() -> List[str]:
     cmake_args = []
     cmake_args.append(f"-DCMAKE_INCLUDE_PATH={';'.join(cmake_include_directories)}")
     cmake_args.append(f"-DCMAKE_CXX_FLAGS={' '.join(compile_args)}")
-    cmake_args.append(f"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64")
+    # cmake_args.append(f"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64")
 
     if cmake_linker_args:
         cmake_args.append(f"-DCMAKE_EXE_LINKER_FLAGS={' '.join(cmake_linker_args)}")
@@ -137,7 +137,8 @@ setup(
     install_requires=[
         # The following need to be synced with pyproject.toml
         "numpy>=1.21.0,<2",
-        "h5py==3.11.0"
+        "h5py==3.11.0",
+        "pybind11==2.10.4"
     ],
     license="Apache License, Version 2.0",
     keywords=["similarity search", "vector databases", "machine learning"],

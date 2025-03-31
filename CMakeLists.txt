@@ -89,8 +89,8 @@ set(HEADERS
     ${PROJECT_SOURCE_DIR}/include/flatnav/util/SimdUtils.h
     ${PROJECT_SOURCE_DIR}/include/flatnav/distances/DistanceInterface.h
     ${PROJECT_SOURCE_DIR}/include/flatnav/index/Index.h
-    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/ProductQuantization.h
-    ${PROJECT_SOURCE_DIR}/developmental-features/quantization/CentroidsGenerator.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/index/PrimitiveTypes.h
+    ${PROJECT_SOURCE_DIR}/include/flatnav/index/Pruning.h
     ${PROJECT_SOURCE_DIR}/developmental-features/quantization/Utils.h)
 
 # Interface here means that the library is header only

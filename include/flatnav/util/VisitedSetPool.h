@@ -50,7 +50,8 @@ class VisitedSet {
   ~VisitedSet() { delete[] _table; }
 
   // copy constructor
-  VisitedSet(const VisitedSet& other) : _table_size(other._table_size), _mark(other._mark) {
+  VisitedSet(const VisitedSet& other)
+      : _table_size(other._table_size), _mark(other._mark) {
 
     _table = new uint8_t[_table_size];
     std::memcpy(_table, other._table, _table_size);
@@ -139,11 +140,15 @@ class VisitedSetPool {
  public:
   VisitedSetPool(uint32_t initial_pool_size, uint32_t num_elements,
                  uint32_t max_pool_size = std::thread::hardware_concurrency())
-      : _visisted_set_pool(initial_pool_size), _num_elements(num_elements), _max_pool_size(max_pool_size) {
+      : _visisted_set_pool(initial_pool_size),
+        _num_elements(num_elements),
+        _max_pool_size(max_pool_size) {
     if (initial_pool_size > max_pool_size) {
-      throw std::invalid_argument("initial_pool_size must be less than or equal to max_pool_size");
+      throw std::invalid_argument(
+          "initial_pool_size must be less than or equal to max_pool_size");
     }
-    for (uint32_t visited_set_id = 0; visited_set_id < _visisted_set_pool.size(); visited_set_id++) {
+    for (uint32_t visited_set_id = 0; visited_set_id < _visisted_set_pool.size();
+         visited_set_id++) {
       _visisted_set_pool[visited_set_id] = new VisitedSet(/* size = */ _num_elements);
     }
   }
@@ -175,7 +180,8 @@ class VisitedSetPool {
     std::unique_lock<std::mutex> lock(_pool_guard);
 
     if (new_pool_size > _visisted_set_pool.size()) {
-      throw std::invalid_argument("new_pool_size must be less than or equal to the current pool size");
+      throw std::invalid_argument(
+          "new_pool_size must be less than or equal to the current pool size");
     }
 
     while (_visisted_set_pool.size() > new_pool_size) {

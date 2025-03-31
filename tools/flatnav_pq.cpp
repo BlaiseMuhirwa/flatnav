@@ -18,8 +18,9 @@ using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
 
 template <typename dist_t>
-void run(float* data, std::unique_ptr<flatnav::distances::DistanceInterface<dist_t>>&& distance, int N, int M,
-         int dim, int ef_construction, const std::string& save_file) {
+void run(float* data,
+         std::unique_ptr<flatnav::distances::DistanceInterface<dist_t>>&& distance, int N,
+         int M, int dim, int ef_construction, const std::string& save_file) {
   auto index = new Index<dist_t, int>(
       /* dist = */ std::move(distance), /* dataset_size = */ N,
       /* max_edges = */ M);
@@ -45,7 +46,8 @@ void run(float* data, std::unique_ptr<flatnav::distances::DistanceInterface<dist
   delete index;
 }
 
-std::vector<uint8_t> quantize(float* vectors, uint64_t vec_count, uint32_t dim, uint32_t M, uint32_t nbits) {
+std::vector<uint8_t> quantize(float* vectors, uint64_t vec_count, uint32_t dim,
+                              uint32_t M, uint32_t nbits) {
   auto distance = std::make_unique<SquaredL2Distance>(dim);
   ProductQuantizer<SquaredL2Distance> pq(/* dist = */ std::move(distance),
                                          /* dim = */ dim, /* M = */ M,
@@ -91,13 +93,15 @@ int main(int argc, char** argv) {
   assert(datafile.shape[0] == dataset_size);
   assert(datafile.shape[1] == dim);
 
-  std::clog << "Loading " << dim << "-dimensional dataset with N = " << dataset_size << std::endl;
+  std::clog << "Loading " << dim << "-dimensional dataset with N = " << dataset_size
+            << std::endl;
   float* data = datafile.data<float>();
 
   if (quantize) {
     // NOTE: M here is different from max_edges.
-    std::vector<uint8_t> codes = quantize(/* vectors = */ data, /* vec_count = */ dataset_size,
-                                          /* dim = */ dim, /* M = */ 8, /* nbits = */ 8);
+    std::vector<uint8_t> codes =
+        quantize(/* vectors = */ data, /* vec_count = */ dataset_size,
+                 /* dim = */ dim, /* M = */ 8, /* nbits = */ 8);
   }
 
   auto distance = std::make_unique<SquaredL2Distance>(dim);
@@ -134,7 +138,8 @@ int main(int argc, char** argv) {
         /* N = */ N, /* M = */ M, dim,
         /* ef_construction = */ ef_construction, /* save_file = */ argv[5]);
   } else {
-    throw std::invalid_argument("Provided metric ID " + std::to_string(metric_id) + "is invalid.");
+    throw std::invalid_argument("Provided metric ID " + std::to_string(metric_id) +
+                                "is invalid.");
   }
 
   return 0;

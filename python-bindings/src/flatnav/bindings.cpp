@@ -2,7 +2,9 @@
 #include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
+#include <flatnav/index/Allocator.h>
 #include <flatnav/index/Index.h>
+#include <flatnav/index/Pruning.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/Multithreading.h>
 #include <pybind11/numpy.h>
@@ -19,12 +21,11 @@
 #include <vector>
 #include "docs.h"
 
-
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
-
 using flatnav::Index;
+using flatnav::PruningHeuristic;
 using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
@@ -34,17 +35,21 @@ using flatnav::util::for_each_data_type;
 namespace py = pybind11;
 
 template <typename Func, typename... Args>
-auto cast_and_call(DataType data_type, const py::array& array, Func&& function, Args&&... args) {
+auto cast_and_call(DataType data_type, const py::array& array, Func&& function,
+                   Args&&... args) {
   switch (data_type) {
     case DataType::float32:
-      return function(array.cast<py::array_t<float, py::array::c_style | py::array::forcecast>>(),
-                      std::forward<Args>(args)...);
+      return function(
+          array.cast<py::array_t<float, py::array::c_style | py::array::forcecast>>(),
+          std::forward<Args>(args)...);
     case DataType::int8:
-      return function(array.cast<py::array_t<int8_t, py::array::c_style | py::array::forcecast>>(),
-                      std::forward<Args>(args)...);
+      return function(
+          array.cast<py::array_t<int8_t, py::array::c_style | py::array::forcecast>>(),
+          std::forward<Args>(args)...);
     case DataType::uint8:
-      return function(array.cast<py::array_t<uint8_t, py::array::c_style | py::array::forcecast>>(),
-                      std::forward<Args>(args)...);
+      return function(
+          array.cast<py::array_t<uint8_t, py::array::c_style | py::array::forcecast>>(),
+          std::forward<Args>(args)...);
     default:
       throw std::invalid_argument("Unsupported data type.");
   }
@@ -62,8 +67,10 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
 
   // Internal add method that handles templated dispatch
   template <typename data_type>
-  void addImpl(const py::array_t<data_type, py::array::c_style | py::array::forcecast>& data,
-               int ef_construction, int num_initializations = 100, py::object labels = py::none()) {
+  void addImpl(
+      const py::array_t<data_type, py::array::c_style | py::array::forcecast>& data,
+      int ef_construction, int num_initializations = 100,
+      py::object labels = py::none()) {
     // py::array_t<float, py::array::c_style | py::array::forcecast> means that
     // the functions expects either a Numpy array of floats or a castable type
     // to that type. If the given type can't be casted, pybind11 will throw an
@@ -120,8 +127,8 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
 
   template <typename data_type>
   DistancesLabelsPair searchSingleImpl(
-      const py::array_t<data_type, py::array::c_style | py::array::forcecast>& query, int K, int ef_search,
-      int num_initializations = 100) {
+      const py::array_t<data_type, py::array::c_style | py::array::forcecast>& query,
+      int K, int ef_search, int num_initializations = 100) {
     if (query.ndim() != 1 || query.shape(0) != _dim) {
       throw std::invalid_argument("Query has incorrect dimensions.");
     }
@@ -132,8 +139,9 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
         /* num_initializations = */ num_initializations);
 
     if (top_k.size() != K) {
-      throw std::runtime_error("Search did not return the expected number of results. Expected " +
-                               std::to_string(K) + " but got " + std::to_string(top_k.size()) + ".");
+      throw std::runtime_error(
+          "Search did not return the expected number of results. Expected " +
+          std::to_string(K) + " but got " + std::to_string(top_k.size()) + ".");
     }
 
     label_t* labels = new label_t[K];
@@ -147,7 +155,8 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     // Allows to transfer ownership to Python
     py::capsule free_labels_when_done(labels, [](void* ptr) { delete (label_t*)ptr; });
 
-    py::capsule free_distances_when_done(distances, [](void* ptr) { delete (float*)ptr; });
+    py::capsule free_distances_when_done(distances,
+                                         [](void* ptr) { delete (float*)ptr; });
 
     py::array_t<label_t> labels_array =
         py::array_t<label_t>({K}, {sizeof(label_t)}, labels, free_labels_when_done);
@@ -160,8 +169,8 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
 
   template <typename data_type>
   DistancesLabelsPair searchImpl(
-      const py::array_t<data_type, py::array::c_style | py::array::forcecast>& queries, int K, int ef_search,
-      int num_initializations = 100) {
+      const py::array_t<data_type, py::array::c_style | py::array::forcecast>& queries,
+      int K, int ef_search, int num_initializations = 100) {
     size_t num_queries = queries.shape(0);
     size_t queries_dim = queries.shape(1);
 
@@ -213,49 +222,68 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
 
     // Allows to transfer ownership to Python
     py::capsule free_results_when_done(results, [](void* ptr) { delete (label_t*)ptr; });
-    py::capsule free_distances_when_done(distances, [](void* ptr) { delete (float*)ptr; });
+    py::capsule free_distances_when_done(distances,
+                                         [](void* ptr) { delete (float*)ptr; });
 
-    py::array_t<label_t> labels = py::array_t<label_t>({num_queries, (size_t)K},  // shape of the array
-                                                       {K * sizeof(label_t), sizeof(label_t)},  // strides
-                                                       results,                // data pointer
-                                                       free_results_when_done  // capsule
-    );
+    py::array_t<label_t> labels =
+        py::array_t<label_t>({num_queries, (size_t)K},  // shape of the array
+                             {K * sizeof(label_t), sizeof(label_t)},  // strides
+                             results,                                 // data pointer
+                             free_results_when_done                   // capsule
+        );
 
-    py::array_t<float> dists = py::array_t<float>(
-        {num_queries, (size_t)K}, {K * sizeof(float), sizeof(float)}, distances, free_distances_when_done);
+    py::array_t<float> dists =
+        py::array_t<float>({num_queries, (size_t)K}, {K * sizeof(float), sizeof(float)},
+                           distances, free_distances_when_done);
 
     return {dists, labels};
   }
 
  public:
   explicit PyIndex(std::unique_ptr<Index<dist_t, label_t>> index)
-      : _dim(index->dataDimension()), _label_id(0), _verbose(false), _index(index.release()) {
+      : _dim(index->dataDimension()),
+        _label_id(0),
+        _verbose(false),
+        _index(index.release()) {
 
     if (_verbose) {
       _index->getIndexSummary();
     }
   }
 
-  PyIndex(std::unique_ptr<DistanceInterface<dist_t>>&& distance, DataType data_type, int dataset_size,
-          int max_edges_per_node, bool verbose = false, bool collect_stats = false)
+  PyIndex(std::unique_ptr<DistanceInterface<dist_t>>&& distance, DataType data_type,
+          int dataset_size, int max_edges_per_node, bool verbose = false,
+          bool collect_stats = false)
       : _dim(distance->dimension()),
         _label_id(0),
-        _verbose(verbose),
-        _index(new Index<dist_t, label_t>(
-            /* dist = */ std::move(distance),
-            /* dataset_size = */ dataset_size,
-            /* max_edges_per_node = */ max_edges_per_node,
-            /* collect_stats = */ collect_stats,
-            /* data_type = */ data_type)) {
+        _verbose(verbose) {
+
+    auto params = std::make_shared<flatnav::MemoryAllocParameters>();
+    params->data_size_bytes = distance->dataSize();
+    params->M = max_edges_per_node;
+    params->max_node_count = dataset_size;
+    params->data_type = data_type;
+    params->setNodeSizeBytes();
+    auto mem_allocator =
+        std::make_shared<flatnav::FlatMemoryAllocator<label_t>>(params.get());
+
+    _index = new Index<dist_t, label_t>(
+        /* dist = */ std::move(distance),
+        /* memory_allocator = */ *mem_allocator,
+        /* params = */ params.get(),
+        /* collect_stats = */ collect_stats);
 
     if (_verbose) {
       uint64_t total_index_memory = _index->getTotalIndexMemory();
       uint64_t visited_set_allocated_memory = _index->visitedSetPoolAllocatedMemory();
       uint64_t mutexes_allocated_memory = _index->mutexesAllocatedMemory();
 
-      auto total_memory = total_index_memory + visited_set_allocated_memory + mutexes_allocated_memory;
+      auto total_memory =
+          total_index_memory + visited_set_allocated_memory + mutexes_allocated_memory;
 
-      std::cout << "Total allocated index memory: " << (float)(total_memory / 1e9) << " GB \n" << std::flush;
+      std::cout << "Total allocated index memory: " << (float)(total_memory / 1e9)
+                << " GB \n"
+                << std::flush;
       std::cout << "[WARN]: More memory might be allocated due to visited sets "
                    "in multi-threaded environments.\n"
                 << std::flush;
@@ -273,12 +301,17 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     return distance_computations;
   }
 
+  void setPruningHeuristic(PruningHeuristic heuristic) {
+    _index->setPruningHeuristic(heuristic);
+  }
+
   void buildGraphLinks(const std::string& mtx_filename) {
     _index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
   }
 
-
-  std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() { return _index->getGraphOutdegreeTable(); }
+  std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
+    return _index->getGraphOutdegreeTable();
+  }
 
   uint32_t getMaxEdgesPerNode() { return _index->maxEdgesPerNode(); }
 
@@ -286,22 +319,30 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     // validate the given strategies
     for (auto& strategy : strategies) {
       auto alg = strategy;
-      std::transform(alg.begin(), alg.end(), alg.begin(), [](unsigned char c) { return std::tolower(c); });
+      std::transform(alg.begin(), alg.end(), alg.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
       if (alg != "gorder" && alg != "rcm") {
-        throw std::invalid_argument("`" + strategy + "` is not a supported graph re-ordering strategy.");
+        throw std::invalid_argument("`" + strategy +
+                                    "` is not a supported graph re-ordering strategy.");
       }
     }
     _index->doGraphReordering(strategies);
   }
 
   void setNumThreads(uint32_t num_threads) { _index->setNumThreads(num_threads); }
-  void setPruningAlgorithm(uint32_t algorithm_id) { _index->setPruningAlgorithm(algorithm_id); }
 
   uint32_t getNumThreads() { return _index->getNumThreads(); }
 
   void save(const std::string& filename) { _index->saveIndex(/* filename = */ filename); }
 
-  static std::shared_ptr<PyIndex<dist_t, label_t>> loadIndex(const std::string& filename) {
+  static std::shared_ptr<PyIndex<dist_t, label_t>> loadIndex(
+      const std::string& filename) {
+    // Construct metadata filename as filename + ".metadata"
+    std::string metadata_filename = filename + ".metadata";
+    auto params = flatnav::MemoryAllocParameters::load(metadata_filename);
+    auto mem_allocator =
+        std::make_shared<flatnav::FlatMemoryAllocator<label_t>>(params.get());
+
     auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename);
     return std::make_shared<PyIndex<dist_t, label_t>>(std::move(index));
   }
@@ -330,27 +371,32 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     cast_and_call(
         data_type, data,
         [this](auto&& casted_data, int ef, int num_init, py::object lbls) {
-          this->addImpl(std::forward<decltype(casted_data)>(casted_data), ef, num_init, lbls);
+          this->addImpl(std::forward<decltype(casted_data)>(casted_data), ef, num_init,
+                        lbls);
         },
         ef_construction, num_initializations, labels);
   }
 
-  DistancesLabelsPair search(const py::array& queries, int K, int ef_search, int num_initializations) {
+  DistancesLabelsPair search(const py::array& queries, int K, int ef_search,
+                             int num_initializations) {
     auto data_type = _index->getDataType();
     return cast_and_call(
         data_type, queries,
         [this](auto&& casted_queries, int k, int ef, int num_init) {
-          return this->searchImpl(std::forward<decltype(casted_queries)>(casted_queries), k, ef, num_init);
+          return this->searchImpl(std::forward<decltype(casted_queries)>(casted_queries),
+                                  k, ef, num_init);
         },
         K, ef_search, num_initializations);
   }
 
-  DistancesLabelsPair searchSingle(const py::array& query, int K, int ef_search, int num_initializations) {
+  DistancesLabelsPair searchSingle(const py::array& query, int K, int ef_search,
+                                   int num_initializations) {
     auto data_type = _index->getDataType();
     return cast_and_call(
         data_type, query,
         [this](auto&& casted_query, int k, int ef, int num_init) {
-          return this->searchSingleImpl(std::forward<decltype(casted_query)>(casted_query), k, ef, num_init);
+          return this->searchSingleImpl(
+              std::forward<decltype(casted_query)>(casted_query), k, ef, num_init);
         },
         K, ef_search, num_initializations);
   }
@@ -413,53 +459,56 @@ py::object createIndex(const std::string& distance_type, int dim, Args&&... args
 
   if (distance_type == "l2") {
     auto distance = SquaredL2Distance<data_type>::create(dim);
-    auto index = std::make_shared<PyIndex<SquaredL2Distance<data_type>, int>>(std::move(distance), data_type,
-                                                                              std::forward<Args>(args)...);
+    auto index = std::make_shared<PyIndex<SquaredL2Distance<data_type>, int>>(
+        std::move(distance), data_type, std::forward<Args>(args)...);
     return py::cast(index);
   }
 
   auto distance = InnerProductDistance<data_type>::create(dim);
-  auto index = std::make_shared<PyIndex<InnerProductDistance<data_type>, int>>(std::move(distance), data_type,
-                                                                               std::forward<Args>(args)...);
+  auto index = std::make_shared<PyIndex<InnerProductDistance<data_type>, int>>(
+      std::move(distance), data_type, std::forward<Args>(args)...);
   return py::cast(index);
 }
 
 template <typename dist_t, typename label_t>
 void bindSpecialization(py::module_& index_submodule) {
   using IndexType = typename IndexSpecialization<dist_t>::type;
-  auto index_class =
-      py::class_<IndexType, std::shared_ptr<IndexType>>(index_submodule, IndexSpecialization<dist_t>::name);
+  auto index_class = py::class_<IndexType, std::shared_ptr<IndexType>>(
+      index_submodule, IndexSpecialization<dist_t>::name);
 
   index_class
       .def(
           "add",
-          [](IndexType& index, const py::array& data, int ef_construction, int num_initializations = 100,
-             py::object labels = py::none()) {
+          [](IndexType& index, const py::array& data, int ef_construction,
+             int num_initializations = 100, py::object labels = py::none()) {
             index.add(data, ef_construction, num_initializations, labels);
           },
-          py::arg("data"), py::arg("ef_construction"), py::arg("num_initializations") = 100,
-          py::arg("labels") = py::none(), ADD_DOCSTRING)
+          py::arg("data"), py::arg("ef_construction"),
+          py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
+          ADD_DOCSTRING)
       .def(
           "allocate_nodes",
-          [](IndexType& index, const py::array_t<float, py::array::c_style | py::array::forcecast>& data) {
+          [](IndexType& index,
+             const py::array_t<float, py::array::c_style | py::array::forcecast>& data) {
             return index.allocateNodes(data);
           },
           py::arg("data"), ALLOCATE_NODES_DOCSTRING)
       .def(
           "search_single",
-          [](IndexType& index, const py::array& query, int K, int ef_search, int num_initializations = 100) {
+          [](IndexType& index, const py::array& query, int K, int ef_search,
+             int num_initializations = 100) {
             return index.searchSingle(query, K, ef_search, num_initializations);
           },
-          py::arg("query"), py::arg("K"), py::arg("ef_search"), py::arg("num_initializations") = 100,
-          SEARCH_SINGLE_DOCSTRING)
+          py::arg("query"), py::arg("K"), py::arg("ef_search"),
+          py::arg("num_initializations") = 100, SEARCH_SINGLE_DOCSTRING)
       .def(
           "search",
           [](IndexType& index, const py::array& queries, int K, int ef_search,
              int num_initializations = 100) {
             return index.search(queries, K, ef_search, num_initializations);
           },
-          py::arg("queries"), py::arg("K"), py::arg("ef_search"), py::arg("num_initializations") = 100,
-          SEARCH_DOCSTRING)
+          py::arg("queries"), py::arg("K"), py::arg("ef_search"),
+          py::arg("num_initializations") = 100, SEARCH_DOCSTRING)
       .def("get_query_distance_computations", &IndexType::getQueryDistanceComputations,
            GET_QUERY_DISTANCE_COMPUTATIONS_DOCSTRING)
       .def("save", &IndexType::save, py::arg("filename"), SAVE_DOCSTRING)
@@ -468,11 +517,15 @@ void bindSpecialization(py::module_& index_submodule) {
       .def("get_graph_outdegree_table", &IndexType::getGraphOutdegreeTable,
            GET_GRAPH_OUTDEGREE_TABLE_DOCSTRING)
       .def("reorder", &IndexType::reorder, py::arg("strategies"), REORDER_DOCSTRING)
-      .def("set_num_threads", &IndexType::setNumThreads, py::arg("num_threads"), SET_NUM_THREADS_DOCSTRING)
-      .def("set_pruning_algorithm", &IndexType::setPruningAlgorithm, py::arg("algorithm_id"), "Experimental.")
-      .def_static("load_index", &IndexType::loadIndex, py::arg("filename"), LOAD_INDEX_DOCSTRING)
+      .def("set_num_threads", &IndexType::setNumThreads, py::arg("num_threads"),
+           SET_NUM_THREADS_DOCSTRING)
+      .def("set_pruning_heuristic", &IndexType::setPruningHeuristic, py::arg("heuristic"),
+           "Experimental.")
+      .def_static("load_index", &IndexType::loadIndex, py::arg("filename"),
+                  LOAD_INDEX_DOCSTRING)
       .def_property_readonly("max_edges_per_node", &IndexType::getMaxEdgesPerNode)
-      .def_property_readonly("num_threads", &IndexType::getNumThreads, NUM_THREADS_DOCSTRING);
+      .def_property_readonly("num_threads", &IndexType::getNumThreads,
+                             NUM_THREADS_DOCSTRING);
 }
 
 void defineIndexSubmodule(py::module_& index_submodule) {
@@ -485,25 +538,30 @@ void defineIndexSubmodule(py::module_& index_submodule) {
 
   index_submodule.def(
       "create",
-      [](const std::string& distance_type, int dim, int dataset_size, int max_edges_per_node,
-         DataType index_data_type, bool verbose = false, bool collect_stats = false) {
+      [](const std::string& distance_type, int dim, int dataset_size,
+         int max_edges_per_node, DataType index_data_type, bool verbose = false,
+         bool collect_stats = false) {
         switch (index_data_type) {
           case DataType::float32:
-            return createIndex<DataType::float32>(distance_type, dim, dataset_size, max_edges_per_node,
-                                                  verbose, collect_stats);
+            return createIndex<DataType::float32>(distance_type, dim, dataset_size,
+                                                  max_edges_per_node, verbose,
+                                                  collect_stats);
           case DataType::int8:
-            return createIndex<DataType::int8>(distance_type, dim, dataset_size, max_edges_per_node, verbose,
+            return createIndex<DataType::int8>(distance_type, dim, dataset_size,
+                                               max_edges_per_node, verbose,
                                                collect_stats);
           case DataType::uint8:
-            return createIndex<DataType::uint8>(distance_type, dim, dataset_size, max_edges_per_node, verbose,
+            return createIndex<DataType::uint8>(distance_type, dim, dataset_size,
+                                                max_edges_per_node, verbose,
                                                 collect_stats);
           default:
             throw std::runtime_error("Unsupported data type");
         }
       },
-      py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"), py::arg("max_edges_per_node"),
-      py::arg("index_data_type") = DataType::float32, py::arg("verbose") = false,
-      py::arg("collect_stats") = false, CONSTRUCTOR_DOCSTRING);
+      py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
+      py::arg("max_edges_per_node"), py::arg("index_data_type") = DataType::float32,
+      py::arg("verbose") = false, py::arg("collect_stats") = false,
+      CONSTRUCTOR_DOCSTRING);
 }
 
 void defineDatatypeEnums(py::module_& module) {
@@ -516,6 +574,68 @@ void defineDatatypeEnums(py::module_& module) {
       .export_values();
 }
 
+void definePruningHeuristicsEnums(py::module_& module) {
+  py::enum_<PruningHeuristic>(module, "PruningHeuristic")
+      .value("ARYA_MOUNT", PruningHeuristic::ARYA_MOUNT)
+      .value("VAMANA", PruningHeuristic::VAMANA)
+      .value("VAMANA_LOWER_ALPHA", PruningHeuristic::VAMANA_LOWER_ALPHA)
+      .value("ARYA_MOUNT_SANITY_CHECK", PruningHeuristic::ARYA_MOUNT_SANITY_CHECK)
+      .value("NEAREST_M", PruningHeuristic::NEAREST_M)
+      .value("FURTHEST_M", PruningHeuristic::FURTHEST_M)
+      .value("MEDIAN_ADAPTIVE", PruningHeuristic::MEDIAN_ADAPTIVE)
+      .value("TOP_M_MEDIAN_ADAPTIVE", PruningHeuristic::TOP_M_MEDIAN_ADAPTIVE)
+      .value("MEAN_SORTED_BASELINE", PruningHeuristic::MEAN_SORTED_BASELINE)
+      .value("QUANTILE_NOT_MIN", PruningHeuristic::QUANTILE_NOT_MIN)
+      .value("ARYA_MOUNT_REVERSED", PruningHeuristic::ARYA_MOUNT_REVERSED)
+      .value("PROBABILISTIC_RANK", PruningHeuristic::PROBABILISTIC_RANK)
+      .value("NEIGHBORHOOD_OVERLAP", PruningHeuristic::NEIGHBORHOOD_OVERLAP)
+      .value("GEOMETRIC_MEAN", PruningHeuristic::GEOMETRIC_MEAN)
+      .value("SIGMOID_RATIO_STEEPNESS_1", PruningHeuristic::SIGMOID_RATIO_STEEPNESS_1)
+      .value("SIGMOID_RATIO_STEEPNESS_5", PruningHeuristic::SIGMOID_RATIO_STEEPNESS_5)
+      .value("SIGMOID_RATIO_STEEPNESS_10", PruningHeuristic::SIGMOID_RATIO_STEEPNESS_10)
+      .value("ARYA_MOUNT_SHUFFLED", PruningHeuristic::ARYA_MOUNT_SHUFFLED)
+      .value("ARYA_MOUNT_RANDOM_ON_REJECTS",
+             PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS)
+      .value("ARYA_MOUNT_RANDOM_ON_REJECTS_5",
+             PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS_5)
+      .value("ARYA_MOUNT_RANDOM_ON_REJECTS_10",
+             PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS_10)
+      .value("ARYA_MOUNT_SIGMOID_ON_REJECTS",
+             PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS)
+      .value("ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_5",
+             PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_5)
+      .value("ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_10",
+             PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_10)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_EDGE_THRESHOLD",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_EDGE_THRESHOLD)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_2",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_2)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_4",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_4)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_6",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_6)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_8",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_8)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_10",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_10)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_12",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_12)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_14",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_14)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_16",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_16)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_20",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_20)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_24",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_24)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL_M",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_M)
+      .value("LARGE_OUTDEGREE_CONDITIONAL", PruningHeuristic::LARGE_OUTDEGREE_CONDITIONAL)
+      .value("ONE_SPANNER", PruningHeuristic::ONE_SPANNER)
+      .value("ARYA_MOUNT_PLUS_SPANNER", PruningHeuristic::ARYA_MOUNT_PLUS_SPANNER)
+      .export_values();
+}
+
 void defineDistanceEnums(py::module_& module) {
   py::enum_<flatnav::distances::MetricType>(module, "MetricType")
       .value("L2", flatnav::distances::MetricType::L2)
@@ -525,10 +645,10 @@ void defineDistanceEnums(py::module_& module) {
 PYBIND11_MODULE(_core, module) {
 #ifdef VERSION_INFO
   module.attr("__version__") = TOSTRING(VERSION_INFO);
-  #pragma message("VERSION_INFO: " TOSTRING(VERSION_INFO))
+#pragma message("VERSION_INFO: " TOSTRING(VERSION_INFO))
 #else
   module.attr("__version__") = "dev";
-  #pragma message("VERSION_INFO is not defined")
+#pragma message("VERSION_INFO is not defined")
 #endif
 
   module.doc() = CXX_EXTENSION_MODULE_DOCSTRING;
@@ -538,4 +658,7 @@ PYBIND11_MODULE(_core, module) {
   auto index_submodule = module.def_submodule("index");
   defineIndexSubmodule(index_submodule);
   defineDistanceEnums(module);
+
+  auto utils_submodule = module.def_submodule("utils");
+  definePruningHeuristicsEnums(utils_submodule);
 }

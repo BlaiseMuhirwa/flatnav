@@ -13,7 +13,6 @@ using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
 using flatnav::util::DataType;
 
-
 namespace flatnav::testing {
 
 static const uint32_t INDEXED_VECTORS = 10000;
@@ -24,7 +23,7 @@ static const uint32_t EF_SEARCH = 50;
 
 // TODO: This is duplicated a couple times. Move it to a common testing
 // utils file.
-template<typename T>
+template <typename T>
 std::vector<T> generateRandomVectors(uint32_t num_vectors, uint32_t dim) {
   std::vector<T> vectors(num_vectors * dim);
   for (uint32_t i = 0; i < num_vectors * dim; i++) {
@@ -34,14 +33,15 @@ std::vector<T> generateRandomVectors(uint32_t num_vectors, uint32_t dim) {
 }
 
 template <typename T, typename dist_t, typename label_t>
-void runTest(T* data, std::unique_ptr<DistanceInterface<dist_t>>&& distance, int N, int M, int dim,
-             int ef_construction, const std::string& save_file) {
+void runTest(T* data, std::unique_ptr<DistanceInterface<dist_t>>&& distance, int N, int M,
+             int dim, int ef_construction, const std::string& save_file) {
   auto data_size = distance->dataSize();
   auto data_type = distance->getDataType();
 
-  std::unique_ptr<Index<dist_t, label_t>> index = std::make_unique<Index<dist_t, label_t>>(
-      /* dist = */ std::move(distance), /* dataset_size = */ N,
-      /* max_edges = */ M, /* collect_stats= */ false, /* data_type = */ data_type);
+  std::unique_ptr<Index<dist_t, label_t>> index =
+      std::make_unique<Index<dist_t, label_t>>(
+          /* dist = */ std::move(distance), /* dataset_size = */ N,
+          /* max_edges = */ M, /* collect_stats= */ false, /* data_type = */ data_type);
 
   std::vector<int> labels(N);
   std::iota(labels.begin(), labels.end(), 0);
@@ -66,7 +66,8 @@ void runTest(T* data, std::unique_ptr<DistanceInterface<dist_t>>&& distance, int
 
     std::vector<std::pair<float, int>> query_result = index->search(q, K, EF_SEARCH);
 
-    std::vector<std::pair<float, int>> new_query_result = new_index->search(q, K, EF_SEARCH);
+    std::vector<std::pair<float, int>> new_query_result =
+        new_index->search(q, K, EF_SEARCH);
 
     for (uint32_t j = 0; j < K; j++) {
       ASSERT_EQ(query_result[j].first, new_query_result[j].first);
@@ -125,7 +126,6 @@ TEST(FlatnavSerializationTest, TestL2Int8IndexSerialization) {
 
   EXPECT_EQ(std::remove(save_file.c_str()), 0);
 }
-
 
 TEST(FlatnavSerializationTest, TestInnerProductFloatIndexSerialization) {
   auto vectors = generateRandomVectors<float>(INDEXED_VECTORS, VEC_DIM);
