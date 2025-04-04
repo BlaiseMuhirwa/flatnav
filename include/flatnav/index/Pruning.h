@@ -1,60 +1,38 @@
 #pragma once
 
 #include <flatnav/distances/DistanceInterface.h>
+#include <flatnav/index/Allocator.h>
 #include <flatnav/index/PrimitiveTypes.h>
+#include <optional>
 #include <random>
 
 namespace flatnav {
 
 using flatnav::distances::DistanceInterface;
 
+// Proposed Reduced Enum
 enum class PruningHeuristic {
-  ARYA_MOUNT,                       // Arya and Mount's heuristic
-  VAMANA,                           // DiskANN/Vamana's Robust Prune
-  VAMANA_LOWER_ALPHA,               // DiskANN/Vamana's Robust Prune with lower alpha
-  ARYA_MOUNT_SANITY_CHECK,          // Arya and Mount's heuristic with sanity check
-  NEAREST_M,                        // Regular KNN graph
-  FURTHEST_M,                       // Weird KNN graph
-  MEDIAN_ADAPTIVE,                  // Median Adaptive
-  TOP_M_MEDIAN_ADAPTIVE,            // Top M Median Adaptive
-  MEAN_SORTED_BASELINE,             // Mean Sorted Baseline
-  QUANTILE_NOT_MIN,                 // Quantile Not Min
-  ARYA_MOUNT_REVERSED,              // Arya and Mount's heuristic reversed
-  PROBABILISTIC_RANK,               // Probabilistic Rank
-  NEIGHBORHOOD_OVERLAP,             // Neighborhood Overlap
-  GEOMETRIC_MEAN,                   // Geometric Mean
-  SIGMOID_RATIO_STEEPNESS_1,        // Sigmoid Ratio
-  SIGMOID_RATIO_STEEPNESS_5,        // Sigmoid Ratio Steepness 5
-  SIGMOID_RATIO_STEEPNESS_10,       // Sigmoid Ratio Steepness 10
-  ARYA_MOUNT_SHUFFLED,              // Arya and Mount's heuristic shuffled
-  ARYA_MOUNT_RANDOM_ON_REJECTS,     // Arya and Mount's heuristic with random on
-                                    // rejects (1% chance of including rejects)
-  ARYA_MOUNT_RANDOM_ON_REJECTS_5,   // Arya and Mount's heuristic with random on
-                                    // rejects (5% chance of including rejects)
-  ARYA_MOUNT_RANDOM_ON_REJECTS_10,  // Arya and Mount's heuristic with random on
-                                    // rejects (10% chance of including rejects)
-  ARYA_MOUNT_SIGMOID_ON_REJECTS,    // Arya and Mount's heuristic with sigmoid on
-                                    // rejects
-  ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_5,   // Arya and Mount's heuristic with
-                                               // sigmoid on rejects (steepness 5)
-  ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_10,  // Arya and Mount's heuristic with
-                                               // sigmoid on rejects (steepness 10)
-  CHEAP_OUTDEGREE_CONDITIONAL_EDGE_THRESHOLD,  // Cheap Outdegree Conditional
-  CHEAP_OUTDEGREE_CONDITIONAL_2,               // Cheap Outdegree Conditional 2
-  CHEAP_OUTDEGREE_CONDITIONAL_4,               // Cheap Outdegree Conditional 4
-  CHEAP_OUTDEGREE_CONDITIONAL_6,               // Cheap Outdegree Conditional 6
-  CHEAP_OUTDEGREE_CONDITIONAL_8,               // Cheap Outdegree Conditional 8
-  CHEAP_OUTDEGREE_CONDITIONAL_10,              // Cheap Outdegree Conditional 10
-  CHEAP_OUTDEGREE_CONDITIONAL_12,              // Cheap Outdegree Conditional 12
-  CHEAP_OUTDEGREE_CONDITIONAL_14,              // Cheap Outdegree Conditional 14
-  CHEAP_OUTDEGREE_CONDITIONAL_16,              // Cheap Outdegree Conditional 16
-  CHEAP_OUTDEGREE_CONDITIONAL_20,              // Cheap Outdegree Conditional 20
-  CHEAP_OUTDEGREE_CONDITIONAL_24,              // Cheap Outdegree Conditional 24
-  CHEAP_OUTDEGREE_CONDITIONAL_M,               // Cheap Outdegree Conditional M
-  LARGE_OUTDEGREE_CONDITIONAL,                 // Large Outdegree Conditional
-
-  ONE_SPANNER,              // One Spanner
-  ARYA_MOUNT_PLUS_SPANNER,  // Arya and Mount's heuristic plus spanner
+  ARYA_MOUNT,
+  VAMANA,
+  ARYA_MOUNT_SANITY_CHECK,
+  NEAREST_M,
+  FURTHEST_M,
+  MEDIAN_ADAPTIVE,
+  TOP_M_MEDIAN_ADAPTIVE,
+  MEAN_SORTED_BASELINE,
+  QUANTILE_NOT_MIN,  // Parameter: Quantile value (e.g., 0.2)
+  ARYA_MOUNT_REVERSED,
+  PROBABILISTIC_RANK,    // Parameter: Rank scale (e.g., 1.0)
+  NEIGHBORHOOD_OVERLAP,  // Parameter: Overlap threshold (e.g., 0.8)
+  GEOMETRIC_MEAN,
+  SIGMOID_RATIO,  // Parameter: Steepness (e.g., 1.0, 5.0, 10.0)
+  ARYA_MOUNT_SHUFFLED,
+  ARYA_MOUNT_RANDOM_ON_REJECTS,   // Parameter: Probability (e.g., 0.01, 0.05, 0.1)
+  ARYA_MOUNT_SIGMOID_ON_REJECTS,  // Parameter: Steepness (e.g., 0.1, 5.0, 10.0)
+  CHEAP_OUTDEGREE_CONDITIONAL,  // Parameter: Threshold (e.g., 2, 4, ..., or special values for M/default)
+  LARGE_OUTDEGREE_CONDITIONAL,  // Parameter: Threshold (uses local calculation for now)
+  ONE_SPANNER,
+  ARYA_MOUNT_PLUS_SPANNER
 };
 
 template <typename dist_t, typename label_t>
@@ -63,7 +41,7 @@ struct PruningHeuristicSelector {
   using dist_node_t = flatnav::index_dist_node_t;
   using PriorityQueue = flatnav::index_priority_queue_t;
   using node_id_t = flatnav::index_node_id_t;
-  using MemoryAllocator = flatnav::FlatMemoryAllocator<label_t>;
+  using MemoryAllocator = flatnav::FlatMemoryAllocator<int>;
 
   // TODO: Make these references const
   MemoryAllocator& _allocator;
@@ -74,38 +52,26 @@ struct PruningHeuristicSelector {
       : _allocator(allocator), _distance(distance) {}
 
   void select(PruningHeuristic heuristic, PriorityQueue& neighbors, int M,
-              float alpha) const {
-    int cheap_outgoing_edge_threshold = std::max(M / 4, 2);
-    int well_connected_outgoing_edge_threshold = std::min(3 * M / 4, M);
-
+              std::optional<float> parameter = std::nullopt) const {
     switch (heuristic) {
-      case PruningHeuristic::ARYA_MOUNT:
+      case PruningHeuristic::ARYA_MOUNT: {
         selectNeighborsAryaMount(neighbors, M);
         break;
+      }
       case PruningHeuristic::ARYA_MOUNT_SANITY_CHECK:
         selectNeighborsAryaMountSanityCheck(neighbors, M);
         break;
-      case PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS:
+      case PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS: {
         // sigmoid slope = 0.1.
-        selectNeighborsAryaMountSigmoidOnRejects(neighbors, M, 0.1);
+        auto steepness = parameter.value_or(0.1f);
+        selectNeighborsAryaMountSigmoidOnRejects(neighbors, M, steepness);
         break;
-      case PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_5:
-        // sigmoid slope = 5.0.
-        selectNeighborsAryaMountSigmoidOnRejects(neighbors, M, 5.0);
+      }
+      case PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS: {
+        auto probability = parameter.value_or(0.01f);
+        selectNeighborsAryaMountRandomOnRejects(neighbors, M, probability);
         break;
-      case PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_10:
-        // sigmoid slope = 10.0.
-        selectNeighborsAryaMountSigmoidOnRejects(neighbors, M, 10.0);
-        break;
-      case PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS:
-        selectNeighborsAryaMountRandomOnRejects(neighbors, M, 0.01);
-        break;
-      case PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS_5:
-        selectNeighborsAryaMountRandomOnRejects(neighbors, M, 0.05);
-        break;
-      case PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS_10:
-        selectNeighborsAryaMountRandomOnRejects(neighbors, M, 0.1);
-        break;
+      }
       case PruningHeuristic::ARYA_MOUNT_REVERSED:
         selectNeighborsAryaMountReversed(neighbors, M);
         break;
@@ -115,73 +81,35 @@ struct PruningHeuristicSelector {
       case PruningHeuristic::ARYA_MOUNT_PLUS_SPANNER:
         selectNeighborsAryaMountPlusSpanner(neighbors, M);
         break;
-      case PruningHeuristic::VAMANA:
+      case PruningHeuristic::VAMANA: {
+        auto alpha = parameter.value_or(0.8333f);
         selectNeighborsVamana(neighbors, M, alpha);
         break;
-      case PruningHeuristic::VAMANA_LOWER_ALPHA:
-        // DiskANN heuristic, but going the other direction.
-        selectNeighborsVamana(neighbors, M, 0.8333);
-        break;
-
+      }
       case PruningHeuristic::NEAREST_M:
         selectNeighborsPickTopM(neighbors, M);
         break;
       case PruningHeuristic::FURTHEST_M:
         selectNeighborsPickTopM(neighbors, M, /* nearest = */ false);
         break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_EDGE_THRESHOLD:
-        selectNeighborsCheapOutDegreeConditional(
-            neighbors, M,
-            /* cheap_outgoing_edge_threshold = */ cheap_outgoing_edge_threshold);
+      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL: {
+        int cheap_outgoing_edge_threshold = static_cast<int>(parameter.value_or(M));
+        selectNeighborsCheapOutDegreeConditional(neighbors, M,
+                                                 cheap_outgoing_edge_threshold);
         break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_2:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, 2);
+      }
+      case PruningHeuristic::LARGE_OUTDEGREE_CONDITIONAL: {
+        int well_connected_outgoing_edge_threshold =
+            static_cast<int>(parameter.value_or(M));
+        selectNeighborsLargeOutDegreeConditional(neighbors, M,
+                                                 well_connected_outgoing_edge_threshold);
         break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_4:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, 4);
+      }
+      case PruningHeuristic::SIGMOID_RATIO: {
+        auto sigmoid_steepness = parameter.value_or(1.0f);
+        selectNeighborsSigmoidRatio(neighbors, M, sigmoid_steepness);
         break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_6:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, 6);
-        break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_8:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, 8);
-        break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_10:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, 10);
-        break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_12:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, 12);
-        break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_14:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, 14);
-        break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_16:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, 16);
-        break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_20:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, 20);
-        break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_24:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, 24);
-        break;
-      case PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_M:
-        selectNeighborsCheapOutDegreeConditional(neighbors, M, M);
-        break;
-      case PruningHeuristic::LARGE_OUTDEGREE_CONDITIONAL:
-        selectNeighborsLargeOutDegreeConditional(
-            neighbors, M, /* well_connected_outgoing_edge_threshold = */
-            well_connected_outgoing_edge_threshold);
-        break;
-      case PruningHeuristic::SIGMOID_RATIO_STEEPNESS_1:
-        selectNeighborsSigmoidRatio(neighbors, M, 1.0);
-        break;
-      case PruningHeuristic::SIGMOID_RATIO_STEEPNESS_5:
-        selectNeighborsSigmoidRatio(neighbors, M, 5.0);
-        break;
-      case PruningHeuristic::SIGMOID_RATIO_STEEPNESS_10:
-        // steepness = 10.0 - almost the same as A&M
-        selectNeighborsSigmoidRatio(neighbors, M, 10.0);
-        break;
+      }
       case PruningHeuristic::MEDIAN_ADAPTIVE:
         selectNeighborsMedianAdaptive(neighbors, M);
         break;
@@ -191,15 +119,21 @@ struct PruningHeuristicSelector {
       case PruningHeuristic::MEAN_SORTED_BASELINE:
         selectNeighborsMeanSortedBaseline(neighbors, M);
         break;
-      case PruningHeuristic::QUANTILE_NOT_MIN:
-        selectNeighborsQuantileNotMin(neighbors, M, 0.2);
+      case PruningHeuristic::QUANTILE_NOT_MIN: {
+        auto quantile = parameter.value_or(0.2f);
+        selectNeighborsQuantileNotMin(neighbors, M, quantile);
         break;
-      case PruningHeuristic::PROBABILISTIC_RANK:
-        selectNeighborsProbabilisticRank(neighbors, M, 1.0);
+      }
+      case PruningHeuristic::PROBABILISTIC_RANK: {
+        auto rank_prune_factor = parameter.value_or(1.0f);
+        selectNeighborsProbabilisticRank(neighbors, M, rank_prune_factor);
         break;
-      case PruningHeuristic::NEIGHBORHOOD_OVERLAP:
-        selectNeighborsNeighborhoodOverlap(neighbors, M, 0.8);
+      }
+      case PruningHeuristic::NEIGHBORHOOD_OVERLAP: {
+        auto overlap_threshold = parameter.value_or(0.8f);
+        selectNeighborsNeighborhoodOverlap(neighbors, M, overlap_threshold);
         break;
+      }
       case PruningHeuristic::GEOMETRIC_MEAN:
         selectNeighborsGeometricMean(neighbors, M);
         break;

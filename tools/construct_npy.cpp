@@ -33,11 +33,14 @@ void buildIndex(float* data, std::unique_ptr<DistanceInterface<dist_t>> distance
                 int M, int dim, int ef_construction, int build_num_threads,
                 const std::string& save_file) {
 
-  auto params = std::make_shared<flatnav::MemoryAllocParameters>();
-  params->data_size_bytes = distance->dataSize();
-  params->M = M;
-  params->max_node_count = N;
-  params->setNodeSizeBytes();
+  auto params = std::make_shared<flatnav::IndexBuildParameters>(
+    /* dim = */ dim,
+    /* M = */ M,
+    /* dataset_size = */ N,
+    /* data_type = */ flatnav::util::DataType::float32,
+    /* ef_construction = */ ef_construction,
+    /* heuristic = */ flatnav::PruningHeuristic::ARYA_MOUNT,
+  );
 
   auto allocator = std::make_unique<flatnav::FlatMemoryAllocator<int>>(params.get());
 
@@ -53,8 +56,7 @@ void buildIndex(float* data, std::unique_ptr<DistanceInterface<dist_t>> distance
   std::vector<int> labels(N);
   std::iota(labels.begin(), labels.end(), 0);
   index->template addBatch<float>(/* data = */ (void*)data,
-                                  /* labels = */ labels,
-                                  /* ef_construction */ ef_construction);
+                                  /* labels = */ labels);
 
   auto stop = std::chrono::high_resolution_clock ::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);

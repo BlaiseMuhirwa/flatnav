@@ -16,18 +16,22 @@ include_directories(${CMAKE_SOURCE_DIR}/src/flatnav)
 include_directories(${CMAKE_SOURCE_DIR}/../include)
 include_directories(${CMAKE_SOURCE_DIR}/../external/cereal/include)
 
-
-# Fetch Pybind11
-include(FetchContent)
-FetchContent_Declare(
-    pybind11
-    GIT_REPOSITORY https://github.com/pybind/pybind11
-    GIT_TAG v2.10.4
+# Option 1: Use pybind11 from Python environment
+# This requires setting the PYBIND11_INCLUDE_DIR variable before calling this
+execute_process(
+    COMMAND "${PYTHON_EXECUTABLE}" -c "import pybind11; print(pybind11.get_include())"
+    OUTPUT_VARIABLE PYBIND11_INCLUDE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-FetchContent_GetProperties(pybind11)
-if(NOT pybind11_POPULATED)
-    FetchContent_MakeAvailable(pybind11)
-endif()
+include_directories(${PYBIND11_INCLUDE_DIR})
+
+# Get Python include path
+execute_process(
+    COMMAND "${PYTHON_EXECUTABLE}" -c "from distutils import sysconfig; print(sysconfig.get_python_inc())"
+    OUTPUT_VARIABLE PYTHON_INCLUDE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+include_directories(${PYTHON_INCLUDE_DIR})
 
 # Find Python executable
 if(DEFINED PYTHON_EXECUTABLE)
@@ -42,13 +46,14 @@ set(CPP_SOURCE
 )
 
 # Add library for the Python extension
-pybind11_add_module(_core MODULE ${CPP_SOURCE})
+add_library(_core MODULE ${CPP_SOURCE})
+set_target_properties(_core PROPERTIES PREFIX "")
+
 target_compile_definitions(_core PRIVATE VERSION_INFO=${VERSION_INFO})
 
 # Print include directories for the target
 get_property(INCLUDE_DIRS TARGET _core PROPERTY INCLUDE_DIRECTORIES)
 message(STATUS "Include directories for core library: ${INCLUDE_DIRS}")
-
 
 # Add debug and release flags
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -56,5 +61,4 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # Place the shared object file (.so) in the destination indicated by setup.py
-# install(TARGETS flatnav LIBRARY DESTINATION flatnav)
 install(TARGETS _core DESTINATION .)

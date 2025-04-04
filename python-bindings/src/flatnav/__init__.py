@@ -3,6 +3,8 @@ from ._core import (
     MetricType,
     utils,
     data_type,
+    MemoryAllocator,
+    BuildParameters,
     __version__,
     __doc__
 )

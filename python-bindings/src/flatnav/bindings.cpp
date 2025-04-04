@@ -24,7 +24,9 @@
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
+using flatnav::FlatMemoryAllocator;
 using flatnav::Index;
+using flatnav::IndexBuildParameters;
 using flatnav::PruningHeuristic;
 using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
@@ -69,8 +71,7 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   template <typename data_type>
   void addImpl(
       const py::array_t<data_type, py::array::c_style | py::array::forcecast>& data,
-      int ef_construction, int num_initializations = 100,
-      py::object labels = py::none()) {
+      int num_initializations = 100, py::object labels = py::none()) {
     // py::array_t<float, py::array::c_style | py::array::forcecast> means that
     // the functions expects either a Numpy array of floats or a castable type
     // to that type. If the given type can't be casted, pybind11 will throw an
@@ -100,7 +101,6 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
         this->_index->template addBatch<data_type>(
             /* data = */ (void*)data.data(0),
             /* labels = */ vec_labels,
-            /* ef_construction = */ ef_construction,
             /* num_initializations = */ num_initializations);
       }
       return;
@@ -117,7 +117,6 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
         py::gil_scoped_release gil;
         this->_index->template addBatch<data_type>(
             /* data = */ (void*)data.data(0), /* labels = */ vec_labels,
-            /* ef_construction = */ ef_construction,
             /* num_initializations = */ num_initializations);
       }
     } catch (const py::cast_error& error) {
@@ -251,22 +250,16 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     }
   }
 
-  PyIndex(std::unique_ptr<DistanceInterface<dist_t>>&& distance, DataType data_type,
-          int dataset_size, int max_edges_per_node, bool verbose = false,
+  PyIndex(std::unique_ptr<DistanceInterface<dist_t>>&& distance,
+          std::shared_ptr<IndexBuildParameters> params,
+          std::shared_ptr<FlatMemoryAllocator<int>> mem_allocator, bool verbose = false,
           bool collect_stats = false)
-      : _dim(distance->dimension()),
-        _label_id(0),
-        _verbose(verbose) {
+      : _dim(distance->dimension()), _label_id(0), _verbose(verbose) {
 
-    auto params = std::make_shared<flatnav::MemoryAllocParameters>();
-    params->data_size_bytes = distance->dataSize();
-    params->M = max_edges_per_node;
-    params->max_node_count = dataset_size;
-    params->data_type = data_type;
-    params->setNodeSizeBytes();
-    auto mem_allocator =
-        std::make_shared<flatnav::FlatMemoryAllocator<label_t>>(params.get());
-
+#ifdef DEBUG_BUILD
+    assert(params && "IndexBuildParameters shared_ptr is null");
+    assert(mem_allocator && "MemoryAllocator shared_ptr is null");
+#endif
     _index = new Index<dist_t, label_t>(
         /* dist = */ std::move(distance),
         /* memory_allocator = */ *mem_allocator,
@@ -301,10 +294,6 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     return distance_computations;
   }
 
-  void setPruningHeuristic(PruningHeuristic heuristic) {
-    _index->setPruningHeuristic(heuristic);
-  }
-
   void buildGraphLinks(const std::string& mtx_filename) {
     _index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
   }
@@ -336,14 +325,11 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
   void save(const std::string& filename) { _index->saveIndex(/* filename = */ filename); }
 
   static std::shared_ptr<PyIndex<dist_t, label_t>> loadIndex(
-      const std::string& filename) {
-    // Construct metadata filename as filename + ".metadata"
-    std::string metadata_filename = filename + ".metadata";
-    auto params = flatnav::MemoryAllocParameters::load(metadata_filename);
-    auto mem_allocator =
-        std::make_shared<flatnav::FlatMemoryAllocator<label_t>>(params.get());
-
-    auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename);
+      const std::string& filename, std::shared_ptr<IndexBuildParameters> params,
+      std::shared_ptr<FlatMemoryAllocator<int>> mem_allocator) {
+    auto index = Index<dist_t, label_t>::loadIndex(/* filename = */ filename,
+                                                   /* allocator = */ *mem_allocator,
+                                                   /* params = */ params.get());
     return std::make_shared<PyIndex<dist_t, label_t>>(std::move(index));
   }
 
@@ -365,16 +351,16 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     return this->shared_from_this();
   }
 
-  void add(const py::array& data, int ef_construction, int num_initializations,
+  void add(const py::array& data, int num_initializations,
            py::object labels = py::none()) {
     auto data_type = _index->getDataType();
     cast_and_call(
         data_type, data,
-        [this](auto&& casted_data, int ef, int num_init, py::object lbls) {
-          this->addImpl(std::forward<decltype(casted_data)>(casted_data), ef, num_init,
+        [this](auto&& casted_data, int num_init, py::object lbls) {
+          this->addImpl(std::forward<decltype(casted_data)>(casted_data), num_init,
                         lbls);
         },
-        ef_construction, num_initializations, labels);
+        num_initializations, labels);
   }
 
   DistancesLabelsPair search(const py::array& queries, int K, int ef_search,
@@ -454,19 +440,22 @@ void validateDistanceType(const std::string& distance_type) {
 }
 
 template <DataType data_type, typename... Args>
-py::object createIndex(const std::string& distance_type, int dim, Args&&... args) {
+py::object createIndex(const std::string& distance_type,
+                       std::shared_ptr<IndexBuildParameters> params,
+                       std::shared_ptr<FlatMemoryAllocator<int>> mem_allocator,
+                       Args&&... args) {
   validateDistanceType(distance_type);
 
   if (distance_type == "l2") {
-    auto distance = SquaredL2Distance<data_type>::create(dim);
+    auto distance = SquaredL2Distance<data_type>::create(params->dim);
     auto index = std::make_shared<PyIndex<SquaredL2Distance<data_type>, int>>(
-        std::move(distance), data_type, std::forward<Args>(args)...);
+        std::move(distance), params, mem_allocator, std::forward<Args>(args)...);
     return py::cast(index);
   }
 
-  auto distance = InnerProductDistance<data_type>::create(dim);
+  auto distance = InnerProductDistance<data_type>::create(params->dim);
   auto index = std::make_shared<PyIndex<InnerProductDistance<data_type>, int>>(
-      std::move(distance), data_type, std::forward<Args>(args)...);
+      std::move(distance), params, mem_allocator, std::forward<Args>(args)...);
   return py::cast(index);
 }
 
@@ -479,13 +468,12 @@ void bindSpecialization(py::module_& index_submodule) {
   index_class
       .def(
           "add",
-          [](IndexType& index, const py::array& data, int ef_construction,
-             int num_initializations = 100, py::object labels = py::none()) {
-            index.add(data, ef_construction, num_initializations, labels);
+          [](IndexType& index, const py::array& data, int num_initializations = 100,
+             py::object labels = py::none()) {
+            index.add(data, num_initializations, labels);
           },
-          py::arg("data"), py::arg("ef_construction"),
-          py::arg("num_initializations") = 100, py::arg("labels") = py::none(),
-          ADD_DOCSTRING)
+          py::arg("data"), py::arg("num_initializations") = 100,
+          py::arg("labels") = py::none(), ADD_DOCSTRING)
       .def(
           "allocate_nodes",
           [](IndexType& index,
@@ -519,10 +507,8 @@ void bindSpecialization(py::module_& index_submodule) {
       .def("reorder", &IndexType::reorder, py::arg("strategies"), REORDER_DOCSTRING)
       .def("set_num_threads", &IndexType::setNumThreads, py::arg("num_threads"),
            SET_NUM_THREADS_DOCSTRING)
-      .def("set_pruning_heuristic", &IndexType::setPruningHeuristic, py::arg("heuristic"),
-           "Experimental.")
       .def_static("load_index", &IndexType::loadIndex, py::arg("filename"),
-                  LOAD_INDEX_DOCSTRING)
+        py::arg("params"), py::arg("mem_allocator"), LOAD_INDEX_DOCSTRING)
       .def_property_readonly("max_edges_per_node", &IndexType::getMaxEdgesPerNode)
       .def_property_readonly("num_threads", &IndexType::getNumThreads,
                              NUM_THREADS_DOCSTRING);
@@ -536,30 +522,28 @@ void defineIndexSubmodule(py::module_& index_submodule) {
   bindSpecialization<InnerProductDistance<DataType::int8>, int>(index_submodule);
   bindSpecialization<InnerProductDistance<DataType::uint8>, int>(index_submodule);
 
+  // Define a function that takes the memory allocator parameters and the memory
+  // allocator as arguments
   index_submodule.def(
       "create",
-      [](const std::string& distance_type, int dim, int dataset_size,
-         int max_edges_per_node, DataType index_data_type, bool verbose = false,
+      [](const std::string& distance_type, std::shared_ptr<IndexBuildParameters> params,
+         std::shared_ptr<FlatMemoryAllocator<int>> mem_allocator, bool verbose = false,
          bool collect_stats = false) {
-        switch (index_data_type) {
+        switch (params->data_type) {
           case DataType::float32:
-            return createIndex<DataType::float32>(distance_type, dim, dataset_size,
-                                                  max_edges_per_node, verbose,
-                                                  collect_stats);
+            return createIndex<DataType::float32>(distance_type, params, mem_allocator,
+                                                  verbose, collect_stats);
           case DataType::int8:
-            return createIndex<DataType::int8>(distance_type, dim, dataset_size,
-                                               max_edges_per_node, verbose,
-                                               collect_stats);
+            return createIndex<DataType::int8>(distance_type, params, mem_allocator,
+                                               verbose, collect_stats);
           case DataType::uint8:
-            return createIndex<DataType::uint8>(distance_type, dim, dataset_size,
-                                                max_edges_per_node, verbose,
-                                                collect_stats);
+            return createIndex<DataType::uint8>(distance_type, params, mem_allocator,
+                                                verbose, collect_stats);
           default:
             throw std::runtime_error("Unsupported data type");
         }
       },
-      py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
-      py::arg("max_edges_per_node"), py::arg("index_data_type") = DataType::float32,
+      py::arg("distance_type"), py::arg("params"), py::arg("mem_allocator"),
       py::arg("verbose") = false, py::arg("collect_stats") = false,
       CONSTRUCTOR_DOCSTRING);
 }
@@ -577,60 +561,35 @@ void defineDatatypeEnums(py::module_& module) {
 void definePruningHeuristicsEnums(py::module_& module) {
   py::enum_<PruningHeuristic>(module, "PruningHeuristic")
       .value("ARYA_MOUNT", PruningHeuristic::ARYA_MOUNT)
-      .value("VAMANA", PruningHeuristic::VAMANA)
-      .value("VAMANA_LOWER_ALPHA", PruningHeuristic::VAMANA_LOWER_ALPHA)
+      .value("VAMANA", PruningHeuristic::VAMANA)  // Base Vamana
       .value("ARYA_MOUNT_SANITY_CHECK", PruningHeuristic::ARYA_MOUNT_SANITY_CHECK)
       .value("NEAREST_M", PruningHeuristic::NEAREST_M)
       .value("FURTHEST_M", PruningHeuristic::FURTHEST_M)
       .value("MEDIAN_ADAPTIVE", PruningHeuristic::MEDIAN_ADAPTIVE)
       .value("TOP_M_MEDIAN_ADAPTIVE", PruningHeuristic::TOP_M_MEDIAN_ADAPTIVE)
       .value("MEAN_SORTED_BASELINE", PruningHeuristic::MEAN_SORTED_BASELINE)
-      .value("QUANTILE_NOT_MIN", PruningHeuristic::QUANTILE_NOT_MIN)
+      .value("QUANTILE_NOT_MIN", PruningHeuristic::QUANTILE_NOT_MIN)  // Parameterized
       .value("ARYA_MOUNT_REVERSED", PruningHeuristic::ARYA_MOUNT_REVERSED)
-      .value("PROBABILISTIC_RANK", PruningHeuristic::PROBABILISTIC_RANK)
-      .value("NEIGHBORHOOD_OVERLAP", PruningHeuristic::NEIGHBORHOOD_OVERLAP)
+      .value("PROBABILISTIC_RANK",
+             PruningHeuristic::PROBABILISTIC_RANK)  // Parameterized
+      .value("NEIGHBORHOOD_OVERLAP",
+             PruningHeuristic::NEIGHBORHOOD_OVERLAP)  // Parameterized
       .value("GEOMETRIC_MEAN", PruningHeuristic::GEOMETRIC_MEAN)
-      .value("SIGMOID_RATIO_STEEPNESS_1", PruningHeuristic::SIGMOID_RATIO_STEEPNESS_1)
-      .value("SIGMOID_RATIO_STEEPNESS_5", PruningHeuristic::SIGMOID_RATIO_STEEPNESS_5)
-      .value("SIGMOID_RATIO_STEEPNESS_10", PruningHeuristic::SIGMOID_RATIO_STEEPNESS_10)
+      .value("SIGMOID_RATIO",
+             PruningHeuristic::SIGMOID_RATIO)  // Parameterized (base name)
       .value("ARYA_MOUNT_SHUFFLED", PruningHeuristic::ARYA_MOUNT_SHUFFLED)
       .value("ARYA_MOUNT_RANDOM_ON_REJECTS",
-             PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS)
-      .value("ARYA_MOUNT_RANDOM_ON_REJECTS_5",
-             PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS_5)
-      .value("ARYA_MOUNT_RANDOM_ON_REJECTS_10",
-             PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS_10)
+             PruningHeuristic::
+                 ARYA_MOUNT_RANDOM_ON_REJECTS)  // Parameterized (base name)
       .value("ARYA_MOUNT_SIGMOID_ON_REJECTS",
-             PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS)
-      .value("ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_5",
-             PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_5)
-      .value("ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_10",
-             PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_10)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_EDGE_THRESHOLD",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_EDGE_THRESHOLD)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_2",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_2)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_4",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_4)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_6",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_6)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_8",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_8)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_10",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_10)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_12",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_12)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_14",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_14)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_16",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_16)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_20",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_20)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_24",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_24)
-      .value("CHEAP_OUTDEGREE_CONDITIONAL_M",
-             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL_M)
-      .value("LARGE_OUTDEGREE_CONDITIONAL", PruningHeuristic::LARGE_OUTDEGREE_CONDITIONAL)
+             PruningHeuristic::
+                 ARYA_MOUNT_SIGMOID_ON_REJECTS)  // Parameterized (base name)
+      .value(
+          "CHEAP_OUTDEGREE_CONDITIONAL",
+          PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL)  // Parameterized (base name)
+      .value(
+          "LARGE_OUTDEGREE_CONDITIONAL",
+          PruningHeuristic::LARGE_OUTDEGREE_CONDITIONAL)  // Parameterized (base name)
       .value("ONE_SPANNER", PruningHeuristic::ONE_SPANNER)
       .value("ARYA_MOUNT_PLUS_SPANNER", PruningHeuristic::ARYA_MOUNT_PLUS_SPANNER)
       .export_values();
@@ -642,6 +601,24 @@ void defineDistanceEnums(py::module_& module) {
       .value("IP", flatnav::distances::MetricType::IP);
 }
 
+void defineBuildParameters(py::module_& module) {
+  py::class_<IndexBuildParameters, std::shared_ptr<IndexBuildParameters>>(
+      module, "BuildParameters")
+      .def(py::init<size_t, size_t, size_t, DataType, size_t, PruningHeuristic,
+                    std::optional<float>>(),
+           py::arg("dim"), py::arg("M"), py::arg("dataset_size"), py::arg("data_type"),
+           py::arg("ef_construction"), py::arg("pruning_heuristic"),
+           py::arg("pruning_heuristic_parameter") = std::nullopt, "Experimental.")
+      .def("save", &IndexBuildParameters::save, py::arg("filename"), "Experimental.")
+      .def_static("load", &IndexBuildParameters::load, "Experimental.");
+}
+
+void defineMemoryAllocator(py::module_& module) {
+  py::class_<FlatMemoryAllocator<int>, std::shared_ptr<FlatMemoryAllocator<int>>>(
+      module, "MemoryAllocator")
+      .def(py::init<IndexBuildParameters*>(), py::arg("params"));
+}
+
 PYBIND11_MODULE(_core, module) {
 #ifdef VERSION_INFO
   module.attr("__version__") = TOSTRING(VERSION_INFO);
@@ -650,6 +627,9 @@ PYBIND11_MODULE(_core, module) {
   module.attr("__version__") = "dev";
 #pragma message("VERSION_INFO is not defined")
 #endif
+
+  defineBuildParameters(module);
+  defineMemoryAllocator(module);
 
   module.doc() = CXX_EXTENSION_MODULE_DOCSTRING;
   auto data_type_submodule = module.def_submodule("data_type");

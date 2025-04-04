@@ -20,7 +20,7 @@ void serializeIndex(float* data, std::unique_ptr<DistanceInterface<dist_t>>&& di
   auto params = std::make_shared<flatnav::MemoryAllocParameters>();
   params->data_size_bytes = distance->dataSize();
   params->M = M;
-  params->max_node_count = N;
+  params->dataset_size= N;
   params->setNodeSizeBytes();
   auto allocator = std::make_unique<flatnav::FlatMemoryAllocator<int>>(params.get());
   std::unique_ptr<Index<dist_t, int>> index = std::make_unique<Index<dist_t, int>>(

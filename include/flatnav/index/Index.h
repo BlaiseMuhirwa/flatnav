@@ -42,7 +42,7 @@ class Index {
   using dist_node_t = flatnav::index_dist_node_t;
   using PriorityQueue = flatnav::index_priority_queue_t;
   using MemoryAllocator = flatnav::FlatMemoryAllocator<label_t>;
-  using MemoryAllocParameters = flatnav::MemoryAllocParameters;
+  using IndexBuildParameters = flatnav::IndexBuildParameters;
 
   size_t _cur_num_nodes;
   std::unique_ptr<DistanceInterface<dist_t>> _distance;
@@ -55,11 +55,9 @@ class Index {
 
   bool _collect_stats = false;
 
-  PruningHeuristic _pruning_heuristic;
   MemoryAllocator& _memory_allocator;
-  MemoryAllocParameters* _params;
+  IndexBuildParameters* _params;
   PruningHeuristicSelector<dist_t, label_t> _ph_selector;
-  uint32_t _pruning_algo_choice = 0;
 
   // NOTE: These metrics are meaningful the most with single-threaded search.
   // With multi-threaded search, for instance, the number of distance computations will
@@ -86,7 +84,6 @@ class Index {
         _visited_set_pool(std::exchange(other._visited_set_pool, nullptr)),
         _node_links_mutexes(std::move(other._node_links_mutexes)),
         _collect_stats(other._collect_stats),
-        _pruning_heuristic(other._pruning_heuristic),
         _memory_allocator(other._memory_allocator),  // reference copy
         _params(other._params),                      // pointer copy
         _ph_selector(other._memory_allocator,
@@ -106,7 +103,6 @@ class Index {
       _node_links_mutexes = std::move(other._node_links_mutexes);
 
       _collect_stats = other._collect_stats;
-      _pruning_heuristic = other._pruning_heuristic;
 
       _memory_allocator = other._memory_allocator;  // reference copy
       _params = other._params;                      // pointer copy
@@ -122,7 +118,7 @@ class Index {
     archive(_cur_num_nodes, *_distance);
 
     uint64_t total_mem = static_cast<uint64_t>(_params->node_size_bytes) *
-                         static_cast<uint64_t>(_params->max_node_count);
+                         static_cast<uint64_t>(_params->dataset_size);
 
     archive(cereal::binary_data(_memory_allocator.getIndexMemoryBlock(), total_mem));
   }
@@ -144,18 +140,16 @@ class Index {
    * the search process.
    */
   Index(std::unique_ptr<DistanceInterface<dist_t>> dist,
-        MemoryAllocator& memory_allocator, MemoryAllocParameters* params,
-        bool collect_stats = false,
-        PruningHeuristic heuristic = PruningHeuristic::ARYA_MOUNT)
+        MemoryAllocator& memory_allocator, IndexBuildParameters* params,
+        bool collect_stats = false)
       : _cur_num_nodes(0),
         _distance(std::move(dist)),
         _num_threads(1),
         _visited_set_pool(new VisitedSetPool(
             /* initial_pool_size = */ 1,
-            /* num_elements = */ params->max_node_count)),
-        _node_links_mutexes(params->max_node_count),
+            /* num_elements = */ params->dataset_size)),
+        _node_links_mutexes(params->dataset_size),
         _collect_stats(collect_stats),
-        _pruning_heuristic(heuristic),
         _memory_allocator(memory_allocator),
         _params(params),
         _ph_selector(memory_allocator, *_distance) {}
@@ -182,7 +176,7 @@ class Index {
     // check that the number of vertices in the mtx file matches the number of
     // nodes in the index and that the number of edges is equal to the number of
     // links per node.
-    if (num_vertices != _params->max_node_count) {
+    if (num_vertices != _params->dataset_size) {
       throw std::runtime_error(
           "Number of vertices in the mtx file does not "
           "match the size allocated for the index.");
@@ -213,10 +207,6 @@ class Index {
     }
 
     input_file.close();
-  }
-
-  void setPruningHeuristic(flatnav::PruningHeuristic heuristic) {
-    _pruning_heuristic = heuristic;
   }
 
   std::vector<std::vector<uint32_t>> getGraphOutdegreeTable() {
@@ -281,13 +271,14 @@ class Index {
    * index is reached.
    */
   template <typename data_type>
-  void addBatch(void* data, std::vector<label_t>& labels, int ef_construction,
+  void addBatch(void* data, std::vector<label_t>& labels,
                 int num_initializations = 100) {
     if (num_initializations <= 0) {
       throw std::invalid_argument("num_initializations must be greater than 0.");
     }
     uint32_t total_num_nodes = labels.size();
     uint32_t data_dimension = _distance->dimension();
+    int ef_construction = static_cast<int>(_params->ef_construction);
 
     // Don't spawn any threads if we are only using one.
     if (_num_threads == 1) {
@@ -300,7 +291,7 @@ class Index {
       }
       return;
     }
-
+    
     flatnav::executeInParallel(
         /* start_index = */ 0, /* end_index = */ total_num_nodes,
         /* num_threads = */ _num_threads, /* function = */
@@ -337,10 +328,10 @@ class Index {
    */
   void add(void* data, label_t& label, int ef_construction, int num_initializations) {
 
-    if (_cur_num_nodes >= _params->max_node_count) {
+    if (_cur_num_nodes >= _params->dataset_size) {
       throw std::runtime_error(
           "Maximum number of nodes reached. Consider "
-          "increasing the `max_node_count` parameter to "
+          "increasing the `dataset_size` parameter to "
           "create a larger index.");
     }
     std::unique_lock<std::mutex> global_lock(_index_data_guard);
@@ -358,7 +349,8 @@ class Index {
         /* buffer_size = */ ef_construction);
 
     int selection_M = std::max(static_cast<int>(_params->M / 2), 1);
-    _ph_selector.select(_pruning_heuristic, neighbors, selection_M, 1.0);
+    _ph_selector.select(_params->pruning_heuristic, neighbors, selection_M,
+                        _params->pruning_heuristic_parameter);
     connectNeighbors(neighbors, new_node_id);
   }
 
@@ -371,18 +363,6 @@ class Index {
    */
   std::vector<dist_label_t> search(const void* query, const int K, int ef_search,
                                    int num_initializations = 100) {
-
-    if (_memory_allocator.getTotalIndexMemory() == 0) {
-      throw std::runtime_error(
-          "Index has not been built. Please add vectors to the index before "
-          "searching.");
-    }
-    else if (_memory_allocator.getIndexMemoryBlock() == nullptr) {
-      throw std::runtime_error("Memory allocator is null.");
-    }
-    else if (_params == nullptr) {
-      throw std::runtime_error("Memory allocation parameters are null.");
-    }
     node_id_t entry_node = initializeSearch(query, num_initializations);
     PriorityQueue neighbors = beamSearch(/* query = */ query,
                                          /* entry_node = */ entry_node,
@@ -437,9 +417,9 @@ class Index {
     relabel(P);
   }
 
-  static std::unique_ptr<Index<dist_t, label_t>> loadIndex(
-      const std::string& filename, MemoryAllocator& allocator,
-      MemoryAllocParameters* params) {
+  static std::unique_ptr<Index<dist_t, label_t>> loadIndex(const std::string& filename,
+                                                           MemoryAllocator& allocator,
+                                                           IndexBuildParameters* params) {
 
     std::ifstream stream(filename, std::ios::binary);
     if (!stream.is_open()) {
@@ -456,19 +436,19 @@ class Index {
 
     // 3. Deserialize memory into the existing allocator
     uint64_t mem_size = static_cast<uint64_t>(params->node_size_bytes) *
-                        static_cast<uint64_t>(params->max_node_count);
+                        static_cast<uint64_t>(params->dataset_size);
     archive(cereal::binary_data(allocator.getIndexMemoryBlock(), mem_size));
 
     // 4. Construct the index with external allocator and params
-    auto index = std::make_unique<Index<dist_t, label_t>>(
-        std::move(dist), allocator, params, false);
+    auto index = std::make_unique<Index<dist_t, label_t>>(std::move(dist), allocator,
+                                                          params, false);
     // auto index =
     //     std::make_unique<Index<dist_t, label_t>>(std::move(dist), allocator, params);
 
     index->_cur_num_nodes = cur_num_nodes;
-    index->_visited_set_pool = new VisitedSetPool(1, params->max_node_count);
+    index->_visited_set_pool = new VisitedSetPool(1, params->dataset_size);
     index->_num_threads = std::max<uint32_t>(1, std::thread::hardware_concurrency() / 2);
-    index->_node_links_mutexes = std::vector<std::mutex>(params->max_node_count);
+    index->_node_links_mutexes = std::vector<std::mutex>(params->dataset_size);
     return index;
   }
 
@@ -498,11 +478,6 @@ class Index {
     }
   }
 
-  inline void setPruningAlgorithm(uint32_t algorithm_id) {
-    _pruning_algo_choice = algorithm_id;
-    return;
-  }
-
   inline uint64_t getTotalIndexMemory() const {
     return _memory_allocator.getTotalIndexMemory();
   }
@@ -522,7 +497,7 @@ class Index {
 
   inline size_t nodeSizeBytes() const { return _params->node_size_bytes; }
 
-  inline size_t maxNodeCount() const { return _params->max_node_count; }
+  inline size_t maxNodeCount() const { return _params->dataset_size; }
 
   inline size_t currentNumNodes() const { return _cur_num_nodes; }
   inline size_t dataDimension() const { return _distance->dimension(); }
@@ -542,7 +517,7 @@ class Index {
     std::cout << "max_edges_per_node (M): " << _params->M << "\n" << std::flush;
     std::cout << "data_size_bytes: " << _params->data_size_bytes << "\n" << std::flush;
     std::cout << "node_size_bytes: " << _params->node_size_bytes << "\n" << std::flush;
-    std::cout << "max_node_count: " << _params->max_node_count << "\n" << std::flush;
+    std::cout << "dataset_size: " << _params->dataset_size << "\n" << std::flush;
     std::cout << "cur_num_nodes: " << _cur_num_nodes << "\n" << std::flush;
 
     _distance->getSummary();
@@ -745,7 +720,8 @@ class Index {
           }
         }
         // 2X larger than the previous call to selectNeighbors.
-        _ph_selector.select(_pruning_heuristic, candidates, _params->M, 1.0);
+        _ph_selector.select(_params->pruning_heuristic, candidates, _params->M, 
+                            _params->pruning_heuristic_parameter);
         // connect the pruned set of candidates, including self-loops:
         size_t j = 0;
         while (candidates.size() > 0) {  // candidates
