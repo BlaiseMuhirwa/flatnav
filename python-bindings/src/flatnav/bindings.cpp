@@ -357,8 +357,7 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     cast_and_call(
         data_type, data,
         [this](auto&& casted_data, int num_init, py::object lbls) {
-          this->addImpl(std::forward<decltype(casted_data)>(casted_data), num_init,
-                        lbls);
+          this->addImpl(std::forward<decltype(casted_data)>(casted_data), num_init, lbls);
         },
         num_initializations, labels);
   }
@@ -508,7 +507,7 @@ void bindSpecialization(py::module_& index_submodule) {
       .def("set_num_threads", &IndexType::setNumThreads, py::arg("num_threads"),
            SET_NUM_THREADS_DOCSTRING)
       .def_static("load_index", &IndexType::loadIndex, py::arg("filename"),
-        py::arg("params"), py::arg("mem_allocator"), LOAD_INDEX_DOCSTRING)
+                  py::arg("params"), py::arg("mem_allocator"), LOAD_INDEX_DOCSTRING)
       .def_property_readonly("max_edges_per_node", &IndexType::getMaxEdgesPerNode)
       .def_property_readonly("num_threads", &IndexType::getNumThreads,
                              NUM_THREADS_DOCSTRING);
@@ -579,17 +578,14 @@ void definePruningHeuristicsEnums(py::module_& module) {
              PruningHeuristic::SIGMOID_RATIO)  // Parameterized (base name)
       .value("ARYA_MOUNT_SHUFFLED", PruningHeuristic::ARYA_MOUNT_SHUFFLED)
       .value("ARYA_MOUNT_RANDOM_ON_REJECTS",
-             PruningHeuristic::
-                 ARYA_MOUNT_RANDOM_ON_REJECTS)  // Parameterized (base name)
-      .value("ARYA_MOUNT_SIGMOID_ON_REJECTS",
-             PruningHeuristic::
-                 ARYA_MOUNT_SIGMOID_ON_REJECTS)  // Parameterized (base name)
+             PruningHeuristic::ARYA_MOUNT_RANDOM_ON_REJECTS)  // Parameterized (base name)
       .value(
-          "CHEAP_OUTDEGREE_CONDITIONAL",
-          PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL)  // Parameterized (base name)
-      .value(
-          "LARGE_OUTDEGREE_CONDITIONAL",
-          PruningHeuristic::LARGE_OUTDEGREE_CONDITIONAL)  // Parameterized (base name)
+          "ARYA_MOUNT_SIGMOID_ON_REJECTS",
+          PruningHeuristic::ARYA_MOUNT_SIGMOID_ON_REJECTS)  // Parameterized (base name)
+      .value("CHEAP_OUTDEGREE_CONDITIONAL",
+             PruningHeuristic::CHEAP_OUTDEGREE_CONDITIONAL)  // Parameterized (base name)
+      .value("LARGE_OUTDEGREE_CONDITIONAL",
+             PruningHeuristic::LARGE_OUTDEGREE_CONDITIONAL)  // Parameterized (base name)
       .value("ONE_SPANNER", PruningHeuristic::ONE_SPANNER)
       .value("ARYA_MOUNT_PLUS_SPANNER", PruningHeuristic::ARYA_MOUNT_PLUS_SPANNER)
       .export_values();
@@ -604,8 +600,8 @@ void defineDistanceEnums(py::module_& module) {
 void defineBuildParameters(py::module_& module) {
   py::class_<IndexBuildParameters, std::shared_ptr<IndexBuildParameters>>(
       module, "BuildParameters")
-      .def(py::init<size_t, size_t, size_t, DataType, size_t, PruningHeuristic,
-                    std::optional<float>>(),
+      .def(py::init<size_t, size_t, size_t, flatnav::utils::DataType, size_t,
+                    flatnav::PruningHeuristic, std::optional<float>>(),
            py::arg("dim"), py::arg("M"), py::arg("dataset_size"), py::arg("data_type"),
            py::arg("ef_construction"), py::arg("pruning_heuristic"),
            py::arg("pruning_heuristic_parameter") = std::nullopt, "Experimental.")
