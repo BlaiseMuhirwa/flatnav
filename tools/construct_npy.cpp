@@ -4,6 +4,7 @@
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/index/Allocator.h>
 #include <flatnav/index/Index.h>
+#include <flatnav/index/PruningEnum.h>
 #include <flatnav/util/Datatype.h>
 #include <algorithm>
 #include <chrono>
@@ -39,7 +40,7 @@ void buildIndex(float* data, std::unique_ptr<DistanceInterface<dist_t>> distance
     /* dataset_size = */ N,
     /* data_type = */ flatnav::util::DataType::float32,
     /* ef_construction = */ ef_construction,
-    /* heuristic = */ flatnav::PruningHeuristic::ARYA_MOUNT,
+    /* heuristic = */ flatnav::PruningHeuristic::ARYA_MOUNT
   );
 
   auto allocator = std::make_unique<flatnav::FlatMemoryAllocator<int>>(params.get());

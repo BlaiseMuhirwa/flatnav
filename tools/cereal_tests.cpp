@@ -17,11 +17,14 @@ template <typename dist_t>
 void serializeIndex(float* data, std::unique_ptr<DistanceInterface<dist_t>>&& distance,
                     int N, int M, int dim, int ef_construction,
                     const std::string& save_file) {
-  auto params = std::make_shared<flatnav::MemoryAllocParameters>();
-  params->data_size_bytes = distance->dataSize();
-  params->M = M;
-  params->dataset_size= N;
-  params->setNodeSizeBytes();
+  auto params = std::make_shared<flatnav::IndexBuildParameters>(
+      /* dim = */ dim, /* M = */ M, /* dataset_size = */ N,
+      /* data_type = */ flatnav::util::DataType::float32,
+      /* ef_construction = */ ef_construction,
+      /* heuristic = */ flatnav::PruningHeuristic::ARYA_MOUNT,
+      /* parameter = */ std::nullopt
+  );
+
   auto allocator = std::make_unique<flatnav::FlatMemoryAllocator<int>>(params.get());
   std::unique_ptr<Index<dist_t, int>> index = std::make_unique<Index<dist_t, int>>(
       /* dist = */ std::move(distance), /* memory_allocator = */ *allocator,

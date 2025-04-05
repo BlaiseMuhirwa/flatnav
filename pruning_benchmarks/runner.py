@@ -1,7 +1,7 @@
 import time
 import json
 import flatnav
-from flatnav import PruningHeuristic
+from flatnav.utils import PruningHeuristic
 from flatnav.data_type import DataType
 from flatnav import BuildParameters, MemoryAllocator
 import numpy as np
@@ -10,7 +10,47 @@ import os
 import logging
 import argparse
 from data_loader import get_data_loader
-from metrics import metric_manager
+import gc
+
+
+def compute_recall(queries, ground_truth, top_k_indices, k) -> float:
+    ground_truth_sets = [set(gt) for gt in ground_truth]
+    mean_recall = 0
+    for idx, k_neighbors in enumerate(top_k_indices):
+        query_recall = sum(
+            1 for neighbor in k_neighbors if neighbor in ground_truth_sets[idx]
+        )
+        mean_recall += query_recall / k
+    return mean_recall / len(queries)
+
+
+def compute_metrics(index, queries, ground_truth, ef_searches, k=100):
+    output = {}
+    for ef_search in ef_searches:
+        latencies = []
+        top_k_indices = []
+        distance_computations = []
+        for query in queries:
+            start = time.time()
+            _, indices = index.search_single(query=query, K=k, ef_search=ef_search)
+            end = time.time()
+            latencies.append(end - start)
+            top_k_indices.append(indices)
+            num_distances = index.get_query_distance_computations()
+            distance_computations.append(num_distances)
+        recall = compute_recall(queries, ground_truth, top_k_indices=top_k_indices, k=k)
+        output[ef_search] = {
+            "recall": recall,
+            "p99_latency": np.percentile(latencies, 99),
+            "p90_latency": np.percentile(latencies, 90),
+            "p50_latency": np.percentile(latencies, 50),
+            "mean_latency": np.mean(latencies),
+            "p99_distances": np.percentile(distance_computations, 99),
+            "p90_distances": np.percentile(distance_computations, 90),
+            "p50_distances": np.percentile(distance_computations, 50),
+            "mean_distances": np.mean(distance_computations),
+        }
+    return output
 
 
 # --- Define Experiments To Run ---
@@ -236,61 +276,12 @@ EXPERIMENTS_TO_RUN: List[Dict[str, Any]] = [
 ]
 
 
-def compute_metrics(
-    requested_metrics: List[str],
-    index: Union[flatnav.index.IndexL2Float, flatnav.index.IndexIPFloat],
-    queries: np.ndarray,
-    ground_truth: np.ndarray,
-    ef_search: int,
-    k=100,
-) -> Dict[str, float]:
-    latencies = []
-    top_k_indices = []
-    distance_computations = []
-    index.get_query_distance_computations()
-    for query in queries:
-        start = time.time()
-        _, indices = index.search_single(query=query, ef_search=ef_search, K=k)
-        end = time.time()
-        latencies.append(end - start)
-        top_k_indices.append(indices)
-        query_dist_computations = index.get_query_distance_computations()
-        distance_computations.append(query_dist_computations)
-
-    querying_time = sum(latencies)
-    total_distance_computations = sum(distance_computations)
-    num_queries = len(queries)
-    kwargs = {
-        "querying_time": querying_time,
-        "num_queries": num_queries,
-        "latencies": latencies,
-        "distance_computations_list": distance_computations,
-        "total_distance_computations": total_distance_computations,
-        "queries": queries,
-        "ground_truth": ground_truth,
-        "top_k_indices": top_k_indices,
-        "k": k,
-    }
-    metrics = {}
-    for metric_name in requested_metrics:
-        try:
-            if metric_name in metric_manager.metric_functions:
-                metric_kwargs = kwargs.copy()
-                # Adjust kwargs if specific metrics need different inputs
-                metrics[metric_name] = metric_manager.compute_metric(
-                    metric_name, **metric_kwargs
-                )
-        except Exception:
-            logging.error(f"Error computing metric {metric_name}", exc_info=True)
-    return metrics
-
-
 def train_index(
     train_dataset: np.ndarray,
     distance_type: str,
     dim: int,
     dataset_size: int,
-    max_edges_per_node: int, 
+    max_edges_per_node: int,
     ef_construction: int,
     base_heuristic: PruningHeuristic,
     parameter_value: Optional[float],
@@ -352,141 +343,104 @@ def main(
     ef_search_params: List[int],
     num_node_links: List[int],
     distance_type: str,
-    metrics_file: str,
     dataset_name: str,
-    requested_metrics: List[str],
     k_neighbors: int,
     num_build_threads: int = 1,
-    num_search_threads: int = 1,
 ):
     dataset_size = train_dataset.shape[0]
     dim = train_dataset.shape[1]
 
-    all_metrics_data = {}
-    if os.path.exists(metrics_file) and os.path.getsize(metrics_file) > 0:
-        try:
-            with open(metrics_file, "r") as file:
-                all_metrics_data = json.load(file)
-                logging.info(f"Loaded existing metrics from {metrics_file}")
-        except json.JSONDecodeError:
-            logging.error(f"Error reading existing {metrics_file}. Starting fresh.")
-            all_metrics_data = {}
+    os.makedirs("pruning-results", exist_ok=True)
+    results_path = f"pruning-results/{dataset_name}.json"
 
+    if os.path.exists(results_path):
+        with open(results_path, "r") as file:
+            dataset_results = json.load(file)
+    else:
+        dataset_results = {}
 
     def build_and_run_search(
         ef_cons: int,
         node_links: int,
         base_heuristic_enum: PruningHeuristic,
         parameter_value: Optional[float],
-        heuristic_display_name: str, 
+        heuristic_display_name: str,
     ):
         """
         Builds the index, runs KNN search for all ef_search values, and collects metrics.
         Manages index/allocator lifetime to control memory.
         """
-        nonlocal all_metrics_data
 
         index = None
         allocator = None
         log_heuristic_name = heuristic_display_name
 
+        start = time.monotonic()
+        # Create index configuration and pre-allocate memory
+        params = BuildParameters(
+            dim=dim,
+            M=node_links,
+            dataset_size=dataset_size,
+            data_type=DataType.float32,
+            ef_construction=ef_cons,
+            pruning_heuristic=base_heuristic_enum,
+            # Pass the parameter value (can be None)
+            pruning_heuristic_parameter=parameter_value,
+        )
+        allocator = MemoryAllocator(params=params)
+
+        # Create the index instance
+        index = flatnav.index.create(
+            distance_type=distance_type,
+            params=params,
+            mem_allocator=allocator,
+            verbose=True,
+            collect_stats=True,
+        )
+
         try:
-            index, allocator, indexing_time = train_index(
-                train_dataset=train_dataset,
-                max_edges_per_node=node_links,
-                ef_construction=ef_cons,
-                dataset_size=dataset_size,
-                dim=dim,
-                distance_type=distance_type,
-                base_heuristic=base_heuristic_enum,
-                parameter_value=parameter_value,
-                num_build_threads=num_build_threads,
+            index.set_num_threads(num_build_threads)
+            index.add(data=train_dataset)
+            index.set_num_threads(1)
+            index.get_query_distance_computations()
+
+            results = compute_metrics(
+                index=index,
+                queries=queries,
+                ground_truth=gtruth,
+                ef_searches=ef_search_params,
+                k=k_neighbors,
             )
 
-            index.set_num_threads(num_search_threads)
-            experiment_base_key = f"{dataset_name}_{distance_type}_{log_heuristic_name}_M{node_links}_efC{ef_cons}"
+            end = time.monotonic()
+            dataset_results[log_heuristic_name] = results
+            print(f"Experiment took {end - start:.5f} seconds.")
 
-            if experiment_base_key not in all_metrics_data:
-                all_metrics_data[experiment_base_key] = {"params": {}, "runs": []}
-
-            all_metrics_data[experiment_base_key]["params"] = {
-                "dataset": dataset_name,
-                "distance": distance_type,
-                "heuristic_name": log_heuristic_name,
-                "base_heuristic": str(base_heuristic_enum), 
-                "parameter": parameter_value,
-                "M": node_links,
-                "ef_construction": ef_cons,
-                "build_threads": num_build_threads,
-                "search_threads": num_search_threads,
-                "k": k_neighbors,
-                "dataset_size": dataset_size,
-                "dim": dim,
-                "indexing_time_sec": indexing_time,
-            }
-
-            existing_runs = {
-                run["ef_search"]: run
-                for run in all_metrics_data[experiment_base_key]["runs"]
-            }
-
-            for ef_search in ef_search_params:
-                if ef_search in existing_runs:
-                    logging.warning(
-                        f"Skipping ef_search={ef_search} for {experiment_base_key}, already exists."
-                    )
-                    continue
-
-                logging.info(
-                    f"Running search: ef_search={ef_search} for {experiment_base_key}"
-                )
-                start_compute_time = time.time()
-                current_metrics = compute_metrics(
-                    requested_metrics=requested_metrics,
-                    index=index,
-                    queries=queries,
-                    ground_truth=gtruth,
-                    ef_search=ef_search,
-                    k=k_neighbors,
-                )
-                end_compute_time = time.time()
-                logging.info(f"Metrics (ef_search={ef_search}): {current_metrics}")
-                logging.info(
-                    f"Metric computation time: {end_compute_time - start_compute_time:.4f} seconds"
-                )
-
-                current_metrics["ef_search"] = ef_search
-                all_metrics_data[experiment_base_key]["runs"].append(current_metrics)
-
-                # Incremental save
-                try:
-                    with open(metrics_file, "w") as file:
-                        json.dump(all_metrics_data, file, indent=4)
-                except Exception as e:
-                    logging.error(
-                        f"Failed to write metrics incrementally to {metrics_file}: {e}"
-                    )
+            # Save work incrementally
+            with open(results_path, "w") as file:
+                json.dump(dataset_results, file, indent=2)
+            print(f"✔ Saved {log_heuristic_name} results to {results_path}")
 
         except Exception as e:
             logging.error(
-                f"Failed experiment run for efC={ef_cons}, M={node_links}, Heuristic={log_heuristic_name}",
+                f"Failed to compute metrics for {log_heuristic_name}: {e}",
                 exc_info=True,
             )
         finally:
-            logging.debug(
-                f"Deleting index and allocator for efC={ef_cons}, M={node_links}, Heuristic={log_heuristic_name}"
-            )
             del index
             del allocator
-            import gc
             gc.collect()
-
-
 
     for experiment_config in EXPERIMENTS_TO_RUN:
         base_heuristic = experiment_config["base_heuristic"]
         parameter = experiment_config["parameter"]
         display_name = experiment_config["name"]
+
+        if display_name in dataset_results:
+            print(f"Skipping {display_name} — already completed.")
+            continue
+
+        print(f"\nMethod: {display_name}")
 
         for node_links in num_node_links:
             for ef_cons in ef_cons_params:
@@ -501,16 +455,6 @@ def main(
                     heuristic_display_name=display_name,
                 )
 
-    # Final save
-    try:
-        with open(metrics_file, "w") as file:
-            json.dump(all_metrics_data, file, indent=4)
-        logging.info(f"Final metrics saved to {metrics_file}")
-    except Exception as e:
-        logging.error(f"Failed to write final metrics to {metrics_file}: {e}")
-
-
-# --- Argument Parsing ---
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Benchmark FlatNav Pruning Heuristics (Parameterized)."
@@ -585,36 +529,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--num-search-threads", default=1, type=int, help="Threads for search."
     )
-
-    # --- Output and Metrics ---
-    parser.add_argument(
-        "--requested-metrics",
-        required=False,
-        nargs="+",
-        type=str,
-        default=[
-            "recall",
-            "qps",
-            "latency_p50",
-            "avg_dist_comps_per_query",
-        ],
-        help="List of metrics to compute and store.",
-    )
-    parser.add_argument(
-        "--metrics-file",
-        required=False,
-        default="pruning_heuristics_metrics.json",
-        help="File to save results (JSON).",
-    )
-    parser.add_argument(
-        "--metrics-dir",
-        required=False,
-        default="pruning_metrics",
-        help="Directory for metrics file and plots.",
-    )
-
     return parser.parse_args()
-
 
 
 def run_experiment():
@@ -622,20 +537,10 @@ def run_experiment():
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
     args = parse_arguments()
-
-    metrics_dir = args.metrics_dir
-    os.makedirs(metrics_dir, exist_ok=True)
-    metrics_file_path = os.path.join(metrics_dir, args.metrics_file)
-    logging.info(f"Metrics will be saved to: {metrics_file_path}")
-
-    logging.info(
-        f"Loading data: Dataset='{args.dataset}', Queries='{args.queries}', GTruth='{args.gtruth}'"
-    )
     data_loader = get_data_loader(
         train_dataset_path=args.dataset,
         queries_path=args.queries,
         ground_truth_path=args.gtruth,
-        range=args.train_dataset_range,
     )
     train_data, queries, ground_truth = data_loader.load_data()
 
@@ -654,10 +559,7 @@ def run_experiment():
         distance_type=args.metric.lower(),
         dataset_name=args.dataset_name,
         num_build_threads=args.num_build_threads,
-        num_search_threads=args.num_search_threads,
-        metrics_file=metrics_file_path,
         k_neighbors=args.k_neighbors,
-        requested_metrics=args.requested_metrics,
     )
     logging.info("Experiment finished.")
 

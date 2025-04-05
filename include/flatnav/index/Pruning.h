@@ -10,44 +10,18 @@ namespace flatnav {
 
 using flatnav::distances::DistanceInterface;
 
-// Proposed Reduced Enum
-enum class PruningHeuristic {
-  ARYA_MOUNT,
-  VAMANA,
-  ARYA_MOUNT_SANITY_CHECK,
-  NEAREST_M,
-  FURTHEST_M,
-  MEDIAN_ADAPTIVE,
-  TOP_M_MEDIAN_ADAPTIVE,
-  MEAN_SORTED_BASELINE,
-  QUANTILE_NOT_MIN,  // Parameter: Quantile value (e.g., 0.2)
-  ARYA_MOUNT_REVERSED,
-  PROBABILISTIC_RANK,    // Parameter: Rank scale (e.g., 1.0)
-  NEIGHBORHOOD_OVERLAP,  // Parameter: Overlap threshold (e.g., 0.8)
-  GEOMETRIC_MEAN,
-  SIGMOID_RATIO,  // Parameter: Steepness (e.g., 1.0, 5.0, 10.0)
-  ARYA_MOUNT_SHUFFLED,
-  ARYA_MOUNT_RANDOM_ON_REJECTS,   // Parameter: Probability (e.g., 0.01, 0.05, 0.1)
-  ARYA_MOUNT_SIGMOID_ON_REJECTS,  // Parameter: Steepness (e.g., 0.1, 5.0, 10.0)
-  CHEAP_OUTDEGREE_CONDITIONAL,  // Parameter: Threshold (e.g., 2, 4, ..., or special values for M/default)
-  LARGE_OUTDEGREE_CONDITIONAL,  // Parameter: Threshold (uses local calculation for now)
-  ONE_SPANNER,
-  ARYA_MOUNT_PLUS_SPANNER
-};
-
 template <typename dist_t, typename label_t>
 struct PruningHeuristicSelector {
   using dist_label_t = flatnav::index_dist_label_t<label_t>;
   using dist_node_t = flatnav::index_dist_node_t;
   using PriorityQueue = flatnav::index_priority_queue_t;
   using node_id_t = flatnav::index_node_id_t;
-  using MemoryAllocator = flatnav::FlatMemoryAllocator<int>;
 
   // TODO: Make these references const
-  MemoryAllocator& _allocator;
+  flatnav::FlatMemoryAllocator<int>& _allocator;
   DistanceInterface<dist_t>& _distance;
 
-  PruningHeuristicSelector(MemoryAllocator& allocator,
+  PruningHeuristicSelector(flatnav::FlatMemoryAllocator<int>& allocator,
                            DistanceInterface<dist_t>& distance)
       : _allocator(allocator), _distance(distance) {}
 

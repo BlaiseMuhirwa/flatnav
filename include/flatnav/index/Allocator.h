@@ -2,7 +2,7 @@
 
 #include <flatnav/distances/DistanceInterface.h>
 #include <flatnav/index/PrimitiveTypes.h>
-#include <flatnav/index/Pruning.h>
+#include <flatnav/index/PruningEnum.h>
 #include <flatnav/util/Datatype.h>
 #include <cereal/access.hpp>
 #include <cereal/archives/binary.hpp>
@@ -24,7 +24,7 @@ struct IndexBuildParameters {
   size_t data_size_bytes;
   DataType data_type = DataType::float32;
   size_t ef_construction;
-  flatnav::PruningHeuristic pruning_heuristic;
+  PruningHeuristic pruning_heuristic;
   std::optional<float> pruning_heuristic_parameter;
 
   friend class cereal::access;

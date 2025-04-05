@@ -1,7 +1,6 @@
 import sys 
 from ._core import (
     MetricType,
-    utils,
     data_type,
     MemoryAllocator,
     BuildParameters,
@@ -38,6 +37,8 @@ __all__ = [
     'data_type',
     'index',
     'utils',
+    'MemoryAllocator',
+    'BuildParameters',
     '__version__',
     '__doc__'
 ]

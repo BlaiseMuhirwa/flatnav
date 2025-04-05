@@ -4,6 +4,7 @@
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/index/Allocator.h>
 #include <flatnav/index/Index.h>
+#include <flatnav/index/PruningEnum.h>
 #include <flatnav/index/Pruning.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/Multithreading.h>
@@ -600,7 +601,7 @@ void defineDistanceEnums(py::module_& module) {
 void defineBuildParameters(py::module_& module) {
   py::class_<IndexBuildParameters, std::shared_ptr<IndexBuildParameters>>(
       module, "BuildParameters")
-      .def(py::init<size_t, size_t, size_t, flatnav::utils::DataType, size_t,
+      .def(py::init<size_t, size_t, size_t, flatnav::util::DataType, size_t,
                     flatnav::PruningHeuristic, std::optional<float>>(),
            py::arg("dim"), py::arg("M"), py::arg("dataset_size"), py::arg("data_type"),
            py::arg("ef_construction"), py::arg("pruning_heuristic"),

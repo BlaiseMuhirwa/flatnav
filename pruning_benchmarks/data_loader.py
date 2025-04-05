@@ -4,7 +4,7 @@ import os
 from typing import Tuple, List, Optional, Union
 
 
-def read_ivecs_file(filename: str, range: Optional[tuple[int, int]] = None) -> np.ndarray:
+def read_ivecs_file(filename: str, range: Optional[tuple] = None) -> np.ndarray:
     with open(filename, "rb") as f:
         dimension = np.fromfile(f, dtype=np.int32, count=1)[0]
         vec_size = 4 + dimension * 4
@@ -25,7 +25,7 @@ def read_ivecs_file(filename: str, range: Optional[tuple[int, int]] = None) -> n
         )
         return v.reshape((end - start + 1, dimension + 1))[:, 1:]
 
-def read_bvecs_file(filename: str, range: Optional[tuple[int, int]] = None) -> np.ndarray:
+def read_bvecs_file(filename: str, range: Optional[tuple] = None) -> np.ndarray:
     with open(filename, "rb") as f:
         dimension = np.fromfile(f, dtype=np.int32, count=1)[0]
         vec_size = 4 + dimension
@@ -53,7 +53,7 @@ class DatasetLoader(ABC):
         train_dataset_path: str,
         queries_path: str,
         ground_truth_path: str,
-        range: Optional[Tuple[int, int]] = None,
+        range: Optional[tuple] = None,
     ) -> None:
         """
         Load benchmark dataset, queries and ground truth.

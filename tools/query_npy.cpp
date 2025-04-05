@@ -28,7 +28,7 @@ void run(float* queries, int* gtruth, const std::string& index_filename,
          const std::vector<int>& ef_searches, int K, int num_queries, int num_gtruth,
          int dim, bool reorder = true) {
 
-  auto params = flatnav::MemoryAllocParameters::load(index_filename + ".metadata");
+  auto params = flatnav::IndexBuildParameters::load(index_filename + ".metadata");
   auto allocator = std::make_unique<flatnav::FlatMemoryAllocator<int>>(params.get());
   std::unique_ptr<Index<dist_t, int>> index =
       Index<dist_t, int>::loadIndex(index_filename, *allocator, params.get());
