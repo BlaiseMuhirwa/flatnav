@@ -589,6 +589,10 @@ void definePruningHeuristicsEnums(py::module_& module) {
              PruningHeuristic::LARGE_OUTDEGREE_CONDITIONAL)  // Parameterized (base name)
       .value("ONE_SPANNER", PruningHeuristic::ONE_SPANNER)
       .value("ARYA_MOUNT_PLUS_SPANNER", PruningHeuristic::ARYA_MOUNT_PLUS_SPANNER)
+      .value("DPP", PruningHeuristic::DPP)
+      .value("KERNEL_HERDING", PruningHeuristic::KERNEL_HERDING)
+      .value("DIRECTIONAL_DIVERSITY", PruningHeuristic::DIRECTIONAL_DIVERSITY)
+      .value("COMPOSITE_DIVERSITY", PruningHeuristic::COMPOSITE_DIVERSITY)
       .export_values();
 }
 
@@ -602,7 +606,7 @@ void defineBuildParameters(py::module_& module) {
   py::class_<IndexBuildParameters, std::shared_ptr<IndexBuildParameters>>(
       module, "BuildParameters")
       .def(py::init<size_t, size_t, size_t, flatnav::util::DataType, size_t,
-                    flatnav::PruningHeuristic, std::optional<float>>(),
+                    flatnav::PruningHeuristic, std::optional<std::vector<float>>>(),
            py::arg("dim"), py::arg("M"), py::arg("dataset_size"), py::arg("data_type"),
            py::arg("ef_construction"), py::arg("pruning_heuristic"),
            py::arg("pruning_heuristic_parameter") = std::nullopt, "Experimental.")

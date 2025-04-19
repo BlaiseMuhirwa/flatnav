@@ -271,8 +271,7 @@ class Index {
    * index is reached.
    */
   template <typename data_type>
-  void addBatch(void* data, std::vector<label_t>& labels,
-                int num_initializations = 100) {
+  void addBatch(void* data, std::vector<label_t>& labels, int num_initializations = 100) {
     if (num_initializations <= 0) {
       throw std::invalid_argument("num_initializations must be greater than 0.");
     }
@@ -291,7 +290,7 @@ class Index {
       }
       return;
     }
-    
+
     flatnav::executeInParallel(
         /* start_index = */ 0, /* end_index = */ total_num_nodes,
         /* num_threads = */ _num_threads, /* function = */
@@ -350,6 +349,7 @@ class Index {
 
     int selection_M = std::max(static_cast<int>(_params->M / 2), 1);
     _ph_selector.select(_params->pruning_heuristic, neighbors, selection_M,
+                        /* p = */ static_cast<char*>(data),
                         _params->pruning_heuristic_parameter);
     connectNeighbors(neighbors, new_node_id);
   }
@@ -703,9 +703,9 @@ class Index {
         // very careful. To ensure we respect the pruning heuristic, we
         // construct a candidate set including the old links AND our new
         // one, then prune this candidate set to get the new neighbors.
-
+        char* neighbor_node_ptr = _memory_allocator.getNodeData(neighbor_node_id);
         float max_dist =
-            _distance->distance(/* x = */ _memory_allocator.getNodeData(neighbor_node_id),
+            _distance->distance(/* x = */ neighbor_node_ptr,
                                 /* y = */ _memory_allocator.getNodeData(new_node_id));
 
         PriorityQueue candidates;
@@ -714,13 +714,14 @@ class Index {
           if (neighbor_node_links[j] != neighbor_node_id) {
             auto label = neighbor_node_links[j];
             auto distance = _distance->distance(
-                /* x = */ _memory_allocator.getNodeData(neighbor_node_id),
+                /* x = */ neighbor_node_ptr,
                 /* y = */ _memory_allocator.getNodeData(label));
             candidates.emplace(distance, label);
           }
         }
         // 2X larger than the previous call to selectNeighbors.
-        _ph_selector.select(_params->pruning_heuristic, candidates, _params->M, 
+        _ph_selector.select(_params->pruning_heuristic, candidates, _params->M,
+                            /* p = */ neighbor_node_ptr,
                             _params->pruning_heuristic_parameter);
         // connect the pruned set of candidates, including self-loops:
         size_t j = 0;

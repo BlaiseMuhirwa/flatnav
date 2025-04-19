@@ -1,102 +1,35 @@
 import numpy as np
 import flatnav
-from flatnav.utils import PruningHeuristic
-from flatnav.data_type import DataType
+from flatnav.data_type import DataType 
 import time
-from flatnav import BuildParameters
-from flatnav import MemoryAllocator
-
-ALL_HEURISTICS = [
-    PruningHeuristic.ARYA_MOUNT,
-    PruningHeuristic.VAMANA,
-    PruningHeuristic.VAMANA_LOWER_ALPHA,
-    PruningHeuristic.ARYA_MOUNT_SANITY_CHECK,
-    PruningHeuristic.NEAREST_M,
-    PruningHeuristic.FURTHEST_M,
-    PruningHeuristic.MEDIAN_ADAPTIVE,
-    PruningHeuristic.TOP_M_MEDIAN_ADAPTIVE,
-    PruningHeuristic.MEAN_SORTED_BASELINE,
-    PruningHeuristic.QUANTILE_NOT_MIN,
-    PruningHeuristic.ARYA_MOUNT_REVERSED,
-    PruningHeuristic.PROBABILISTIC_RANK,
-    PruningHeuristic.NEIGHBORHOOD_OVERLAP,
-    PruningHeuristic.GEOMETRIC_MEAN,
-    PruningHeuristic.SIGMOID_RATIO_STEEPNESS_1,
-    PruningHeuristic.SIGMOID_RATIO_STEEPNESS_5,
-    PruningHeuristic.SIGMOID_RATIO_STEEPNESS_10,
-    PruningHeuristic.ARYA_MOUNT_SHUFFLED,
-    PruningHeuristic.ARYA_MOUNT_RANDOM_ON_REJECTS,
-    PruningHeuristic.ARYA_MOUNT_RANDOM_ON_REJECTS_5,
-    PruningHeuristic.ARYA_MOUNT_RANDOM_ON_REJECTS_10,
-    PruningHeuristic.ARYA_MOUNT_SIGMOID_ON_REJECTS,
-    PruningHeuristic.ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_5,
-    PruningHeuristic.ARYA_MOUNT_SIGMOID_ON_REJECTS_STEEPNESS_10,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_EDGE_THRESHOLD,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_2,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_4,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_6,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_8,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_10,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_12,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_14,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_16,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_20,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_24,
-    PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL_M,
-    PruningHeuristic.LARGE_OUTDEGREE_CONDITIONAL,
-    PruningHeuristic.ONE_SPANNER,
-    PruningHeuristic.ARYA_MOUNT_PLUS_SPANNER,
-]
-
+import json
+import os
 
 def compute_recall(queries, ground_truth, top_k_indices, k) -> float:
     ground_truth_sets = [set(gt) for gt in ground_truth]
     mean_recall = 0
-
     for idx, k_neighbors in enumerate(top_k_indices):
-        query_recall = sum(
-            1 for neighbor in k_neighbors if neighbor in ground_truth_sets[idx]
-        )
+        query_recall = sum(1 for neighbor in k_neighbors if neighbor in ground_truth_sets[idx])
         mean_recall += query_recall / k
-
-    recall = mean_recall / len(queries)
-    return recall
+    return mean_recall / len(queries)
 
 
-def compute_metrics(
-    index,
-    queries,
-    ground_truth,
-    ef_searches,
-    k=100,
-):
-    # Returns an {ef_search_value: {metric_name: metric_value}}.
+def compute_metrics(index, queries, ground_truth, ef_searches, k=100):
     output = {}
     for ef_search in ef_searches:
         latencies = []
         top_k_indices = []
         distance_computations = []
-
         for query in queries:
             start = time.time()
-            _, indices = index.search_single(
-                query=query,
-                K=k,
-                ef_search=ef_search,
-            )
+            _, indices = index.search_single(query=query, K=k, ef_search=ef_search)
             end = time.time()
             latencies.append(end - start)
             top_k_indices.append(indices)
-
             num_distances = index.get_query_distance_computations()
             distance_computations.append(num_distances)
-        recall = compute_recall(
-            queries,
-            ground_truth,
-            top_k_indices=top_k_indices,
-            k=k,
-        )
-        values = {
+        recall = compute_recall(queries, ground_truth, top_k_indices=top_k_indices, k=k)
+        output[ef_search] = {
             "recall": recall,
             "p99_latency": np.percentile(latencies, 99),
             "p90_latency": np.percentile(latencies, 90),
@@ -107,98 +40,159 @@ def compute_metrics(
             "p50_distances": np.percentile(distance_computations, 50),
             "mean_distances": np.mean(distance_computations),
         }
-        output[ef_search] = values
     return output
 
 
-# Get your numpy-formatted dataset.
-# '''
-# SIFT config:
-dataset = np.load("data/sift-128-euclidean/sift-128-euclidean.train.npy")
-dataset_size = dataset.shape[0]
-dataset_dimension = dataset.shape[1]
-queries = np.load("data/sift-128-euclidean/sift-128-euclidean.test.npy")
-queries = np.array(queries)
-gtruth = np.load("data/sift-128-euclidean/sift-128-euclidean.gtruth.npy")
-gtruth = np.array(gtruth)
-# Define index construction parameters.
-distance_type = "l2"
-max_edges_per_node = 16
-ef_construction = 30
-num_build_threads = 8
+benchmark_configs = {
+    # "sift-128-euclidean": {
+    #     "path_prefix": "data/sift-128-euclidean/sift-128-euclidean",
+    #     "distance_type": "l2",
+    #     "max_edges_per_node": 8,
+    #     "ef_construction": 50,
+    #     "num_build_threads": 16,
+    #     "ef_searches": [100,200,300,400,500,600,700,800,900,1000],
+    # },
+    # "glove-25-angular": {
+    #     "path_prefix": "data/glove-25-angular/glove-25-angular",
+    #     "distance_type": "angular",
+    #     "max_edges_per_node": 8,
+    #     "ef_construction": 50,
+    #     "num_build_threads": 16,
+    #     "ef_searches": [100,200,300,400,500,600,700,800,900,1000],
+    # },
+ 
+    # "glove-200-angular": {
+    #     "path_prefix": "data/glove-200-angular/glove-200-angular",
+    #     "distance_type": "angular",
+    #     "max_edges_per_node": 8,
+    #     "ef_construction": 50,
+    #     "num_build_threads": 16,
+    #     "ef_searches": [100,200,300,400,500,600,700,800,900,1000],
+    # },
+    "gist-960-euclidean": {
+        "path_prefix": "data/gist-960-euclidean/gist-960-euclidean",
+        "distance_type": "l2",
+        "max_edges_per_node": 8,
+        "ef_construction": 50,
+        "num_build_threads": 16,
+        "ef_searches": [100,200,300,400,500,600,700,800,900,1000],
+    },
+    "glove-100-angular": {
+        "path_prefix": "data/glove-100-angular/glove-100-angular",
+        "distance_type": "angular",
+        "max_edges_per_node": 8,
+        "ef_construction": 50,
+        "num_build_threads": 16,
+        "ef_searches": [100,200,300,400,500,600,700,800,900,1000],
+    }, 
+}
 
-ef_searches = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 5000]
-# '''
+pruning_methods = {
+    0: "Arya-Mount",
+    1: "Arya-Mount-Reproduction",
+    13: "Cheap-Outdegree-Conditional-M-Over-4",
+    28: "Cheap-Outdegree-Conditional-2",
+    29: "Cheap-Outdegree-Conditional-4",
+    30: "Cheap-Outdegree-Conditional-6",
+    # 31: "Cheap-Outdegree-Conditional-8",
+    # 32: "Cheap-Outdegree-Conditional-10",
+    # 33: "Cheap-Outdegree-Conditional-12",
+    # 34: "Cheap-Outdegree-Conditional-16",
+    27: "Arya-Mount-DiskANN-Inverse",
+    20: "Arya-Mount-Random-On-Rejects-1p",
+    # 21: "Arya-Mount-Random-On-Rejects-5p",
+    # 22: "Arya-Mount-Random-On-Rejects-10p",
+    23: "Arya-Mount-Sigmoid-On-Rejects-0p1",
+    24: "Arya-Mount-Sigmoid-On-Rejects-1",
+    # 25: "Arya-Mount-Sigmoid-On-Rejects-5",
+    # 26: "Arya-Mount-Sigmoid-On-Rejects-10",
+    12: "Neighborhood-Overlap",
+    16: "Sigmoid-Ratio-1",
+    # 17: "Sigmoid-Ratio-5",
+    # 18: "Sigmoid-Ratio-10",
+    2: "Arya-Mount-DiskANN",
+    3: "Nearest-M",
+    4: "Furthest-M",
+    5: "Median-Adaptive",
+    # 6: "Top-M-Mean-Adaptive",
+    # 7: "Mean-Baseline-Dist",
+    8: "Quantile-Not-Min-20p",
+    # 9: "Quantile-Not-Min-10p",
+    # 10: "Arya-Mount-Reversed",
+    11: "Probabilistic-Rank",
+    # 14: "Large-Outdegree-Conditional",
+    # 15: "Geometric-Mean",
+    19: "Arya-Mount-Shuffled",
+    35: "One-Hop-Spanner",
+    # 36: "Arya-Mount-Plus-Spanner",
+    # 37: "Cheap-Outdegree-Conditional-M",  # Sanity check - should be as bad as Nearest-M
+}
 
-"""
-# Glove-100 config:
-dataset = np.load("data/glove-200-angular/glove-200-angular.train.npy")
-dataset_size = dataset.shape[0]
-dataset_dimension = dataset.shape[1]
-queries = np.load("data/glove-200-angular/glove-200-angular.test.npy")
-queries = np.array(queries)
-gtruth = np.load("data/glove-200-angular/glove-200-angular.gtruth.npy")
-gtruth = np.array(gtruth)
-# Define index construction parameters.
-distance_type = "angular"
-max_edges_per_node = 32
-ef_construction = 100
-num_build_threads = 8
-# ef_searches = [100,200,300,400,500,600,700,800,900,1000,2000,5000,10000]
-# ef_searches = list(np.arange(100, 10001, 100))
-# ef_searches.extend([20000, 30000, 40000, 50000])
-# The above one took wayyyy too long.
-ef_searches = [100,200,350,500,1000,1500,2000,3500,5000,10000,20000,30000,50000,100000]
-# """
+os.makedirs("results-second", exist_ok=True)
 
-for heuristic in ALL_HEURISTICS:
-    print(f"Method: {heuristic}")
-    start_time = time.time()
-    # Create index configuration and pre-allocate memory
-    params = BuildParameters(
-        dim=dataset_dimension,
-        M=max_edges_per_node,
-        dataset_size=dataset_size,
-        data_type=DataType.float32,
-    )
+for dataset_name, cfg in benchmark_configs.items():
+    print(f"\n===== Running benchmarks on dataset: {dataset_name} =====")
+    dataset = np.load(f"{cfg['path_prefix']}.train.npy")
+    queries = np.load(f"{cfg['path_prefix']}.test.npy")
+    gtruth = np.load(f"{cfg['path_prefix']}.gtruth.npy")
+    dataset_size = dataset.shape[0]
+    dataset_dimension = dataset.shape[1]
 
-    allocator = MemoryAllocator(params=params)
+    result_path = f"results/{dataset_name}.json"
 
-    index = flatnav.index.create(
-        distance_type=distance_type,
-        params=params,
-        mem_allocator=allocator,
-        verbose=True,
-        collect_stats=True,
-    )
+    # Load existing results for this dataset, or initialize
+    if os.path.exists(result_path):
+        with open(result_path, "r") as f:
+            dataset_results = json.load(f)
+    else:
+        dataset_results = {}
 
-    try:
-        index.set_num_threads(num_build_threads)
-        index.set_pruning_heuristic(heuristic=heuristic)
+    for algorithm_id, algorithm_name in pruning_methods.items():
+        method_key = algorithm_name.replace("-", "_").lower()
 
-        # Now index the dataset
-        print("Building index...")
-        index.add(data=dataset, ef_construction=ef_construction)
-        print("Index built.")
-        index.set_num_threads(1)
-        index.get_query_distance_computations()  # Reset the counter.
+        if method_key in dataset_results:
+            print(f"Skipping {method_key} — already completed.")
+            continue
 
-        print("Running queries...")
-        results = compute_metrics(
-            index=index,
-            queries=queries,
-            ground_truth=gtruth,
-            ef_searches=ef_searches,
-            k=100,
+        print(f"\nMethod: {algorithm_name}")
+        start_time = time.time()
+
+        index = flatnav.index.create(
+            distance_type=cfg["distance_type"],
+            index_data_type=DataType.float32,
+            dim=dataset_dimension,
+            dataset_size=dataset_size,
+            max_edges_per_node=cfg["max_edges_per_node"],
+            verbose=True,
+            collect_stats=True,
         )
 
-        end_time = time.time()
-        dict_name = str(heuristic).split(".")[1]
-        print(f"Experiment took {end_time-start_time:.2f} seconds.")
-        print(f"\n{dict_name} = {results}\n")
-    except Exception as e:
-        print(f"Could not run experiment {heuristic}")
-        raise (e)
+        try:
+            index.set_num_threads(cfg["num_build_threads"])
+            index.set_pruning_algorithm(algorithm_id)
+            index.add(data=dataset, ef_construction=cfg["ef_construction"])
+            index.set_num_threads(1)
+            index.get_query_distance_computations()
 
-    del index
-    del allocator
+            results = compute_metrics(
+                index=index,
+                queries=queries,
+                ground_truth=gtruth,
+                ef_searches=cfg["ef_searches"],
+                k=100,
+            )
+
+            end_time = time.time()
+            dataset_results[method_key] = results
+            print(f"Experiment took {end_time - start_time:.2f} seconds.")
+
+            # Save incrementally
+            with open(result_path, "w") as f:
+                json.dump(dataset_results, f, indent=2)
+            print(f"✔ Saved {method_key} results to {result_path}")
+
+        except Exception as e:
+            print(f"❌ Could not run experiment {algorithm_name} on {dataset_name}")
+            raise e
+
+        del index

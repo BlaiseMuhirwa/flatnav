@@ -68,212 +68,287 @@ def compute_metrics(index, queries, ground_truth, ef_searches, k=100):
 
 EXPERIMENTS_TO_RUN: List[Dict[str, Any]] = [
     # Arya Mount Family
+    # {
+    #     "name": "arya_mount",
+    #     "base_heuristic": PruningHeuristic.ARYA_MOUNT,
+    #     "parameter": None,
+    # },
+    # {
+    #     "name": "arya_mount_sanity_check",
+    #     "base_heuristic": PruningHeuristic.ARYA_MOUNT_SANITY_CHECK,
+    #     "parameter": None,
+    # },
+    # {
+    #     "name": "arya_mount_reversed",
+    #     "base_heuristic": PruningHeuristic.ARYA_MOUNT_REVERSED,
+    #     "parameter": None,
+    # },
+    # {
+    #     "name": "arya_mount_shuffled",
+    #     "base_heuristic": PruningHeuristic.ARYA_MOUNT_SHUFFLED,
+    #     "parameter": None,
+    # },
+    # {
+    #     "name": "arya_mount_plus_spanner",
+    #     "base_heuristic": PruningHeuristic.ARYA_MOUNT_PLUS_SPANNER,
+    #     "parameter": None,
+    # },
+    # # Vamana Family (Assuming parameter distinguishes variants or C++ handles default)
+    # {
+    #     "name": "vamana_alpha_1.2",
+    #     "base_heuristic": PruningHeuristic.VAMANA,
+    #     "parameter": 1.2,
+    # },  # Example: pass desired alpha
+    # {
+    #     "name": "vamana_alpha_0.83",
+    #     "base_heuristic": PruningHeuristic.VAMANA,
+    #     "parameter": 0.8333,
+    # },  # Example: pass lower alpha
+    # # Simple KNN
+    # {
+    #     "name": "nearest_m",
+    #     "base_heuristic": PruningHeuristic.NEAREST_M,
+    #     "parameter": None,
+    # },
+    # {
+    #     "name": "furthest_m",
+    #     "base_heuristic": PruningHeuristic.FURTHEST_M,
+    #     "parameter": None,
+    # },
+    # # Adaptive / Baseline
+    # {
+    #     "name": "median_adaptive",
+    #     "base_heuristic": PruningHeuristic.MEDIAN_ADAPTIVE,
+    #     "parameter": None,
+    # },
+    # {
+    #     "name": "top_m_median_adaptive",
+    #     "base_heuristic": PruningHeuristic.TOP_M_MEDIAN_ADAPTIVE,
+    #     "parameter": None,
+    # },
+    # {
+    #     "name": "mean_sorted_baseline",
+    #     "base_heuristic": PruningHeuristic.MEAN_SORTED_BASELINE,
+    #     "parameter": None,
+    # },
+    # {
+    #     "name": "geometric_mean",
+    #     "base_heuristic": PruningHeuristic.GEOMETRIC_MEAN,
+    #     "parameter": None,
+    # },
+    # # Parameterized (Single Base Enum)
+    # {
+    #     "name": "quantile_not_min_0.2",
+    #     "base_heuristic": PruningHeuristic.QUANTILE_NOT_MIN,
+    #     "parameter": 0.2,
+    # },
+    # {
+    #     "name": "am_sigmoid_rejects_0.1",
+    #     "base_heuristic": PruningHeuristic.ARYA_MOUNT_SIGMOID_ON_REJECTS,
+    #     "parameter": 0.1,
+    # },
+    # {
+    #     "name": "am_sigmoid_rejects_5.0",
+    #     "base_heuristic": PruningHeuristic.ARYA_MOUNT_SIGMOID_ON_REJECTS,
+    #     "parameter": 5.0,
+    # },
+    # # Cheap Outdegree Conditional (Using Parameter for threshold)
+    # # Special Values: -3.0 = Default Edge Threshold, -2.0 = M
+    # {
+    #     "name": "cheap_outdegree_thresh_default",
+    #     "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
+    #     "parameter": -3.0,
+    # },
+    # {
+    #     "name": "cheap_outdegree_thresh_M",
+    #     "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
+    #     "parameter": -2.0,
+    # },
+    # {
+    #     "name": "cheap_outdegree_thresh_6",
+    #     "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
+    #     "parameter": 6.0,
+    # },
+    # {
+    #     "name": "cheap_outdegree_thresh_10",
+    #     "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
+    #     "parameter": 10.0,
+    # },
+    # {
+    #     "name": "cheap_outdegree_thresh_12",
+    #     "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
+    #     "parameter": 12.0,
+    # },
+    # {
+    #     "name": "probabilistic_rank_1.0",
+    #     "base_heuristic": PruningHeuristic.PROBABILISTIC_RANK,
+    #     "parameter": 1.0,
+    # },
+    # {
+    #     "name": "neighborhood_overlap_0.8",
+    #     "base_heuristic": PruningHeuristic.NEIGHBORHOOD_OVERLAP,
+    #     "parameter": 0.8,
+    # },
+    # {
+    #     "name": "sigmoid_ratio_1.0",
+    #     "base_heuristic": PruningHeuristic.SIGMOID_RATIO,
+    #     "parameter": 1.0,
+    # },
+    # {
+    #     "name": "sigmoid_ratio_5.0",
+    #     "base_heuristic": PruningHeuristic.SIGMOID_RATIO,
+    #     "parameter": 5.0,
+    # },
+    # {
+    #     "name": "am_random_rejects_0.01",
+    #     "base_heuristic": PruningHeuristic.ARYA_MOUNT_RANDOM_ON_REJECTS,
+    #     "parameter": 0.01,
+    # },
+    # {
+    #     "name": "am_random_rejects_0.05",
+    #     "base_heuristic": PruningHeuristic.ARYA_MOUNT_RANDOM_ON_REJECTS,
+    #     "parameter": 0.05,
+    # },
+    # # Large Outdegree Conditional (Assuming C++ uses local calc or takes parameter)
+    # # Let's assume it takes a parameter like Cheap Outdegree for now
+    # # Special Value: -3.0 = Default Well Connected Threshold
+    # {
+    #     "name": "large_outdegree_thresh_default",
+    #     "base_heuristic": PruningHeuristic.LARGE_OUTDEGREE_CONDITIONAL,
+    #     "parameter": -3.0,
+    # },
+    # # Other
+    # {
+    #     "name": "one_spanner",
+    #     "base_heuristic": PruningHeuristic.ONE_SPANNER,
+    #     "parameter": None,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 0.001,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.01",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 0.01,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.1",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 0.1,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.5",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 0.5,
+    # },
+    # {
+    #     "name": "dpp_gamma_10",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 10.0,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001_beta_0.001",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 0.001,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001_beta_0.01",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 0.01,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001_beta_0.1",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 0.1,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001_beta_1.0",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 1.0,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001_beta_10.0",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 10.0,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001_beta_15.0",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 15.0,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001_beta_20.0",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 20.0,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001_beta_30.0",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 30.0,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001_beta_50.0",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 50.0,
+    # },
+    # {
+    #     "name": "dpp_gamma_0.001_beta_100.0",
+    #     "base_heuristic": PruningHeuristic.DPP,
+    #     "parameter": 100.0,
+    # }
+    # {
+    #     "name": "kernel_herding_alpha_0.5",
+    #     "base_heuristic": PruningHeuristic.KERNEL_HERDING,
+    #     "parameter": 0.5,
+    # },
+    # {
+    #     "name": "kernel_herding_alpha_0.75",
+    #     "base_heuristic": PruningHeuristic.KERNEL_HERDING,
+    #     "parameter": 0.75,
+    # },
+    # {
+    #     "name": "kernel_herding_alpha_1.2",
+    #     "base_heuristic": PruningHeuristic.KERNEL_HERDING,
+    #     "parameter": 1.2
+    # },
+    # {
+    #     "name": "kernel_herding_alpha_1.5",
+    #     "base_heuristic": PruningHeuristic.KERNEL_HERDING,
+    #     "parameter": 1.5
+    # },
+    # {
+    #     "name": "kernel_herding_alpha_2.0",
+    #     "base_heuristic": PruningHeuristic.KERNEL_HERDING,
+    #     "parameter": 2.0
+    # }
     {
-        "name": "arya_mount",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT,
-        "parameter": None,
-    },
-    {
-        "name": "arya_mount_sanity_check",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT_SANITY_CHECK,
-        "parameter": None,
-    },
-    {
-        "name": "arya_mount_reversed",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT_REVERSED,
-        "parameter": None,
-    },
-    {
-        "name": "arya_mount_shuffled",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT_SHUFFLED,
-        "parameter": None,
-    },
-    {
-        "name": "arya_mount_plus_spanner",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT_PLUS_SPANNER,
-        "parameter": None,
-    },
-    # Vamana Family (Assuming parameter distinguishes variants or C++ handles default)
-    {
-        "name": "vamana_alpha_1.2",
-        "base_heuristic": PruningHeuristic.VAMANA,
-        "parameter": 1.2,
-    },  # Example: pass desired alpha
-    {
-        "name": "vamana_alpha_0.83",
-        "base_heuristic": PruningHeuristic.VAMANA,
-        "parameter": 0.8333,
-    },  # Example: pass lower alpha
-    # Simple KNN
-    {
-        "name": "nearest_m",
-        "base_heuristic": PruningHeuristic.NEAREST_M,
-        "parameter": None,
-    },
-    {
-        "name": "furthest_m",
-        "base_heuristic": PruningHeuristic.FURTHEST_M,
-        "parameter": None,
-    },
-    # Adaptive / Baseline
-    {
-        "name": "median_adaptive",
-        "base_heuristic": PruningHeuristic.MEDIAN_ADAPTIVE,
-        "parameter": None,
-    },
-    {
-        "name": "top_m_median_adaptive",
-        "base_heuristic": PruningHeuristic.TOP_M_MEDIAN_ADAPTIVE,
-        "parameter": None,
-    },
-    {
-        "name": "mean_sorted_baseline",
-        "base_heuristic": PruningHeuristic.MEAN_SORTED_BASELINE,
-        "parameter": None,
-    },
-    {
-        "name": "geometric_mean",
-        "base_heuristic": PruningHeuristic.GEOMETRIC_MEAN,
-        "parameter": None,
-    },
-    # Parameterized (Single Base Enum)
-    {
-        "name": "quantile_not_min_0.2",
-        "base_heuristic": PruningHeuristic.QUANTILE_NOT_MIN,
-        "parameter": 0.2,
-    },
-    {
-        "name": "probabilistic_rank_1.0",
-        "base_heuristic": PruningHeuristic.PROBABILISTIC_RANK,
-        "parameter": 1.0,
-    },
-    {
-        "name": "neighborhood_overlap_0.8",
-        "base_heuristic": PruningHeuristic.NEIGHBORHOOD_OVERLAP,
-        "parameter": 0.8,
-    },
-    {
-        "name": "sigmoid_ratio_1.0",
-        "base_heuristic": PruningHeuristic.SIGMOID_RATIO,
-        "parameter": 1.0,
-    },
-    {
-        "name": "sigmoid_ratio_5.0",
-        "base_heuristic": PruningHeuristic.SIGMOID_RATIO,
-        "parameter": 5.0,
-    },
-    {
-        "name": "sigmoid_ratio_10.0",
-        "base_heuristic": PruningHeuristic.SIGMOID_RATIO,
-        "parameter": 10.0,
-    },
-    {
-        "name": "am_random_rejects_0.01",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT_RANDOM_ON_REJECTS,
-        "parameter": 0.01,
-    },
-    {
-        "name": "am_random_rejects_0.05",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT_RANDOM_ON_REJECTS,
-        "parameter": 0.05,
-    },
-    {
-        "name": "am_random_rejects_0.10",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT_RANDOM_ON_REJECTS,
-        "parameter": 0.10,
-    },
-    {
-        "name": "am_sigmoid_rejects_0.1",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT_SIGMOID_ON_REJECTS,
-        "parameter": 0.1,
-    },
-    {
-        "name": "am_sigmoid_rejects_5.0",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT_SIGMOID_ON_REJECTS,
-        "parameter": 5.0,
-    },
-    {
-        "name": "am_sigmoid_rejects_10.0",
-        "base_heuristic": PruningHeuristic.ARYA_MOUNT_SIGMOID_ON_REJECTS,
-        "parameter": 10.0,
-    },
-    # Cheap Outdegree Conditional (Using Parameter for threshold)
-    # Special Values: -3.0 = Default Edge Threshold, -2.0 = M
-    {
-        "name": "cheap_outdegree_thresh_default",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": -3.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_M",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": -2.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_2",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": 2.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_4",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": 4.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_6",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": 6.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_8",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": 8.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_10",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": 10.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_12",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": 12.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_14",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": 14.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_16",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": 16.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_20",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": 20.0,
-    },
-    {
-        "name": "cheap_outdegree_thresh_24",
-        "base_heuristic": PruningHeuristic.CHEAP_OUTDEGREE_CONDITIONAL,
-        "parameter": 24.0,
-    },
-    # Large Outdegree Conditional (Assuming C++ uses local calc or takes parameter)
-    # Let's assume it takes a parameter like Cheap Outdegree for now
-    # Special Value: -3.0 = Default Well Connected Threshold
-    {
-        "name": "large_outdegree_thresh_default",
-        "base_heuristic": PruningHeuristic.LARGE_OUTDEGREE_CONDITIONAL,
-        "parameter": -3.0,
-    },
-    # Other
-    {
-        "name": "one_spanner",
-        "base_heuristic": PruningHeuristic.ONE_SPANNER,
-        "parameter": None,
-    },
+        "name": "kernel_herding_gamma_0.9_D_rff_1000",
+        "base_heuristic": PruningHeuristic.KERNEL_HERDING,
+        "parameter": [0.9, 1000]  # Pass [gamma, D_rff] as a vector
+    }
 ]
+
+# Parameters for Determinantal point process (DPP)
+# GAMMA_VALUES = [0.001, 0.01]
+# BETA_VALUES = [0.001, 0.01, 0.1, 1.0, 10.0, 50.0, 100.0]
+# MCMC_STEPS = [1, 2, 5, 10, 20, 50, 100]
+
+
+# EXPERIMENTS_TO_RUN = []
+# for gamma in GAMMA_VALUES:
+#     for beta in BETA_VALUES:
+#         for mcmc_steps in MCMC_STEPS:
+#             experiment_name = f"dpp_gamma_{gamma}_beta_{beta}_mcmc_{mcmc_steps}"
+#             experiment_config = {
+#                 "name": experiment_name,
+#                 "base_heuristic": PruningHeuristic.DPP,
+#                 "parameter": [beta, gamma, mcmc_steps],
+#             }
+#             EXPERIMENTS_TO_RUN.append(experiment_config)
+
+
 
 
 def train_index(
@@ -353,6 +428,7 @@ def main(
     os.makedirs("pruning-results", exist_ok=True)
     results_path = f"pruning-results/{dataset_name}.json"
 
+    # Load existing results at the beginning
     if os.path.exists(results_path):
         with open(results_path, "r") as file:
             dataset_results = json.load(file)
@@ -363,7 +439,7 @@ def main(
         ef_cons: int,
         node_links: int,
         base_heuristic_enum: PruningHeuristic,
-        parameter_value: Optional[float],
+        parameter_value: Optional[Union[float, List[float]]],
         heuristic_display_name: str,
     ):
         """
@@ -373,38 +449,33 @@ def main(
 
         index = None
         allocator = None
-        log_heuristic_name = heuristic_display_name
 
         start = time.monotonic()
-        # Create index configuration and pre-allocate memory
-        params = BuildParameters(
-            dim=dim,
-            M=node_links,
-            dataset_size=dataset_size,
-            data_type=DataType.float32,
-            ef_construction=ef_cons,
-            pruning_heuristic=base_heuristic_enum,
-            # Pass the parameter value (can be None)
-            pruning_heuristic_parameter=parameter_value,
-        )
-        allocator = MemoryAllocator(params=params)
-
-        # Create the index instance
-        index = flatnav.index.create(
-            distance_type=distance_type,
-            params=params,
-            mem_allocator=allocator,
-            verbose=True,
-            collect_stats=True,
-        )
-
         try:
+            params = BuildParameters(
+                dim=dim,
+                M=node_links,
+                dataset_size=dataset_size,
+                data_type=DataType.float32,
+                ef_construction=ef_cons,
+                pruning_heuristic=base_heuristic_enum,
+                pruning_heuristic_parameter=parameter_value,
+            )
+            allocator = MemoryAllocator(params=params)
+            index = flatnav.index.create(
+                distance_type=distance_type,
+                params=params,
+                mem_allocator=allocator,
+                verbose=True,
+                collect_stats=True,
+            )
+
             index.set_num_threads(num_build_threads)
             index.add(data=train_dataset)
             index.set_num_threads(1)
             index.get_query_distance_computations()
 
-            results = compute_metrics(
+            results_by_ef_search = compute_metrics(
                 index=index,
                 queries=queries,
                 ground_truth=gtruth,
@@ -413,17 +484,32 @@ def main(
             )
 
             end = time.monotonic()
-            dataset_results[log_heuristic_name] = results
             print(f"Experiment took {end - start:.5f} seconds.")
 
-            # Save work incrementally
-            with open(results_path, "w") as file:
-                json.dump(dataset_results, file, indent=2)
-            print(f"✔ Saved {log_heuristic_name} results to {results_path}")
+            # Reload file to prevent overwriting others' results
+            if os.path.exists(results_path):
+                with open(results_path, "r") as f:
+                    dataset_results = json.load(f)
+            else:
+                dataset_results = {}
+
+            # Update nested structure
+            heuristic_results = dataset_results.setdefault(heuristic_display_name, {})
+            m_key = f"M={node_links}"
+            efc_key = f"efC={ef_cons}"
+            heuristic_results.setdefault(m_key, {})
+            heuristic_results[m_key].setdefault(efc_key, {})
+            for ef_search, metrics in results_by_ef_search.items():
+                heuristic_results[m_key][efc_key][f"efS={ef_search}"] = metrics
+
+            # Save to file
+            with open(results_path, "w") as f:
+                json.dump(dataset_results, f, indent=2)
+            print(f"✔ Saved {heuristic_display_name} results to {results_path}")
 
         except Exception as e:
             logging.error(
-                f"Failed to compute metrics for {log_heuristic_name}: {e}",
+                f"Failed to compute metrics for {heuristic_display_name} (M={node_links}, efC={ef_cons}): {e}",
                 exc_info=True,
             )
         finally:
@@ -431,11 +517,12 @@ def main(
             del allocator
             gc.collect()
 
+
     for experiment_config in EXPERIMENTS_TO_RUN:
         base_heuristic = experiment_config["base_heuristic"]
         parameter = experiment_config["parameter"]
         display_name = experiment_config["name"]
-
+        
         if display_name in dataset_results:
             print(f"Skipping {display_name} — already completed.")
             continue

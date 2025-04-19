@@ -15,6 +15,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/flatnav)
 # 2. Where to find header files for cereal
 include_directories(${CMAKE_SOURCE_DIR}/../include)
 include_directories(${CMAKE_SOURCE_DIR}/../external/cereal/include)
+include_directories(${CMAKE_SOURCE_DIR}/../external/eigen)
 
 # Option 1: Use pybind11 from Python environment
 # This requires setting the PYBIND11_INCLUDE_DIR variable before calling this

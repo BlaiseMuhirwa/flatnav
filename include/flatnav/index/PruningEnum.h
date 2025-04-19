@@ -23,6 +23,10 @@ enum class PruningHeuristic {
   CHEAP_OUTDEGREE_CONDITIONAL,  // Parameter: Threshold (e.g., 2, 4, ..., or special values for M/default)
   LARGE_OUTDEGREE_CONDITIONAL,  // Parameter: Threshold (uses local calculation for now)
   ONE_SPANNER,
-  ARYA_MOUNT_PLUS_SPANNER
+  ARYA_MOUNT_PLUS_SPANNER,
+  DPP,  // Parameter: beta, gamma, mcmc_steps_multiplier
+  KERNEL_HERDING,  // Parameter: gamma, D_rff
+  DIRECTIONAL_DIVERSITY,
+  COMPOSITE_DIVERSITY,
 };
 }

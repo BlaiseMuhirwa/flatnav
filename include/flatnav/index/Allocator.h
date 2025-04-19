@@ -9,6 +9,7 @@
 #include <cereal/cereal.hpp>
 #include <cereal/types/memory.hpp>
 #include <optional>
+#include <vector>
 #include <cereal/types/optional.hpp>
 #include <memory>
 
@@ -25,7 +26,7 @@ struct IndexBuildParameters {
   DataType data_type = DataType::float32;
   size_t ef_construction;
   PruningHeuristic pruning_heuristic;
-  std::optional<float> pruning_heuristic_parameter;
+  std::optional<std::vector<float>> pruning_heuristic_parameter;
 
   friend class cereal::access;
   IndexBuildParameters() = default;
@@ -33,14 +34,14 @@ struct IndexBuildParameters {
   IndexBuildParameters(size_t dim, size_t M, size_t dataset_size, DataType data_type,
                        size_t ef_construction,
                        PruningHeuristic heuristic = PruningHeuristic::ARYA_MOUNT,
-                       std::optional<float> parameter = std::nullopt)
+                       std::optional<std::vector<float>> parameter = std::nullopt)
       : dim(dim),
         M(M),
         dataset_size(dataset_size),
         data_type(data_type),
         ef_construction(ef_construction),
         pruning_heuristic(heuristic),
-        pruning_heuristic_parameter(parameter) {
+        pruning_heuristic_parameter(std::move(parameter)) {
     // TODO: This is not great because we are hardcoding the label_t to be int.
     // Figure out a better way to handle this.
     data_size_bytes = dim * flatnav::util::size(data_type);
@@ -49,8 +50,7 @@ struct IndexBuildParameters {
 
   template <class Archive>
   void serialize(Archive& archive) {
-    archive(dim, M, dataset_size, data_type, ef_construction, pruning_heuristic,
-           pruning_heuristic_parameter);
+    archive(dim, M, dataset_size, data_type, ef_construction, pruning_heuristic);
   }
 
   static std::shared_ptr<IndexBuildParameters> load(const std::string& filename) {

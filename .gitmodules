@@ -1,3 +1,6 @@
 [submodule "external/cereal"]
 	path = external/cereal
 	url = https://github.com/USCiLab/cereal.git
+[submodule "eigen"]
+	path = external/eigen
+	url = https://gitlab.com/libeigen/eigen.git

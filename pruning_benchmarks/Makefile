@@ -8,7 +8,7 @@ sift-pruning-job:
 		--gtruth ../data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
 		--dataset-name sift \
 		--metric l2 \
-		--num-node-links 16 32 \
+		--num-node-links 16 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 400 500 1000 2000 \
 		--k-neighbors 100 \
@@ -20,9 +20,9 @@ glove25-pruning-job:
 		--dataset ../data/glove-25-angular/glove-25-angular.train.npy \
 		--queries ../data/glove-25-angular/glove-25-angular.test.npy \
 		--gtruth ../data/glove-25-angular/glove-25-angular.gtruth.npy \
-		--dataset-name glove \
+		--dataset-name glove25 \
 		--metric l2 \
-		--num-node-links 16 32 \
+		--num-node-links 16 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 400 500 1000 2000 \
 		--k-neighbors 100 \
@@ -34,9 +34,9 @@ glove100-pruning-job:
 		--dataset ../data/glove-100-angular/glove-100-angular.train.npy \
 		--queries ../data/glove-100-angular/glove-100-angular.test.npy \
 		--gtruth ../data/glove-100-angular/glove-100-angular.gtruth.npy \
-		--dataset-name glove \
+		--dataset-name glove100 \
 		--metric l2 \
-		--num-node-links 16 32 \
+		--num-node-links 16 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 400 500 1000 2000 \
 		--k-neighbors 100 \
@@ -49,9 +49,9 @@ glove200-pruning-job:
 		--dataset ../data/glove-200-angular/glove-200-angular.train.npy \
 		--queries ../data/glove-200-angular/glove-200-angular.test.npy \
 		--gtruth ../data/glove-200-angular/glove-200-angular.gtruth.npy \
-		--dataset-name glove \
+		--dataset-name glove200 \
 		--metric l2 \
-		--num-node-links 16 32 \
+		--num-node-links 16 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 400 500 1000 2000 \
 		--k-neighbors 100 \
@@ -65,7 +65,7 @@ gist960-pruning-job:
 		--gtruth ../data/gist-960-euclidean/gist-960-euclidean.gtruth.npy \
 		--dataset-name gist \
 		--metric l2 \
-		--num-node-links 16 32 \
+		--num-node-links 16 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 400 500 1000 2000 \
 		--k-neighbors 100 \
@@ -79,7 +79,7 @@ mnist-pruning-job:
 		--gtruth ../data/mnist-784-euclidean/mnist-784-euclidean.gtruth.npy \
 		--dataset-name mnist \
 		--metric l2 \
-		--num-node-links 16 32 \
+		--num-node-links 16 \
 		--ef-construction 100 200 300 \
 		--ef-search 100 200 300 400 500 1000 2000 \
 		--k-neighbors 100 \
