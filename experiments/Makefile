@@ -587,6 +587,37 @@ nytimes-bench-hnsw:
 		--num-search-threads 1 \
 		--metric angular
 
+msmarco-bench-flatnav:
+	poetry run python run_benchmark.py \
+		--dataset /root/data/msmarco-384-euclidean/msmarco-384-euclidean.train.npy \
+		--queries /root/data/msmarco-384-euclidean/msmarco-384-euclidean.test.npy \
+		--gtruth /root/data/msmarco-384-euclidean/msmarco-384-euclidean.gtruth.npy \
+		--dataset-name msmarco-384-euclidean \
+		--index-type flatnav \
+		--use-hnsw-base-layer \
+		--hnsw-base-layer-filename msmarco.mtx \
+		--num-node-links 32 \
+		--ef-construction 30 40 50 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric l2
+
+
+msmarco-bench-hnsw:
+	poetry run python run_benchmark.py \
+		--dataset /root/data/msmarco-384-euclidean/msmarco-384-euclidean.train.npy \
+		--queries /root/data/msmarco-384-euclidean/msmarco-384-euclidean.test.npy \
+		--gtruth /root/data/msmarco-384-euclidean/msmarco-384-euclidean.gtruth.npy \
+		--dataset-name msmarco-384-euclidean \
+		--index-type hnsw \
+		--num-node-links 32 \
+		--ef-construction 30 40 50 100 200 300 \
+		--ef-search 100 200 300 500 1000 3000 \
+		--num-build-threads 16 \
+		--num-search-threads 1 \
+		--metric l2
+
 node-access-test:
 	poetry run python node-access-patterns.py \
 		--datasets mnist-784-euclidean sift-128-euclidean glove-25-angular glove-100-angular \

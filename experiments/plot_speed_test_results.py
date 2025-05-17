@@ -24,6 +24,7 @@ SYNTHETIC_DATASETS = [
     "normal-1024-euclidean",
     "normal-1536-angular",
     "normal-1536-euclidean",
+    "msmarco-384-euclidean",
 ]
 
 ANN_DATASETS = [
