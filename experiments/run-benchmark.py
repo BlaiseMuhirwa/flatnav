@@ -472,10 +472,10 @@ def parse_arguments() -> argparse.Namespace:
         default=[
             "recall",
             "qps",
-            "latency_p50",
-            "latency_p95",
-            "latency_p99",
-            "latency_p999",
+            # "latency_p50",
+            # "latency_p95",
+            # "latency_p99",
+            # "latency_p999",
             "distance_computations",
         ],
     )

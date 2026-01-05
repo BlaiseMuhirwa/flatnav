@@ -15,15 +15,14 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/cereal/include/)
 
 set(CMAKE_CXX_STANDARD 17)
-
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} \
     -Ofast \
     -DHAVE_CXX0X \
     -DNDEBUG \
-    -fopenmp \
     -fpic \
     -w \
+    -pthread \
     -ffast-math \
     -funroll-loops")
 
@@ -48,15 +47,15 @@ feature_summary(WHAT ALL)
 
 include_directories("${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}")
 
-find_package(OpenMP REQUIRED)
-if(OpenMP_FOUND)
-  message(STATUS "OpenMP Found. Building the Package using the system OpenMP.")
-else()
-  message(
-    FATAL_ERROR
-      "OpenMP Not Found. Building the Package using LLVM's OpenMP. This is slower than the system OpenMP."
-  )
-endif(OpenMP_FOUND)
+# find_package(OpenMP REQUIRED)
+# if(OpenMP_FOUND)
+#   message(STATUS "OpenMP Found. Building the Package using the system OpenMP.")
+# else()
+#   message(
+#     FATAL_ERROR
+#       "OpenMP Not Found. Building the Package using LLVM's OpenMP. This is slower than the system OpenMP."
+#   )
+# endif(OpenMP_FOUND)
 
 option(BUILD_TESTS "Build all tests")
 option(BUIL_EXAMPLES "Build examples")
@@ -98,8 +97,6 @@ add_library(FLAT_NAV_LIB INTERFACE)
 target_sources(FLAT_NAV_LIB INTERFACE ${HEADERS})
 target_include_directories(FLAT_NAV_LIB INTERFACE ${PROJECT_SOURCE_DIR})
 
-
-target_link_libraries(FLAT_NAV_LIB INTERFACE OpenMP::OpenMP_CXX)
 
 if(BUILD_EXAMPLES)
   message(STATUS "Building examples")

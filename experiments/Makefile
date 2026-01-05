@@ -21,6 +21,21 @@ bigann-100m-bench-flatnav:
 		--num-build-threads 32 \
 		--num-search-threads 1
 
+bigann-100m-two-pass-bench-flatnav:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/bigann-100m-euclidean/bigann_100m.train.npy \
+		--queries /root/data/bigann-100m-euclidean/bigann_100m.test.npy \
+		--gtruth /root/data/bigann-100m-euclidean/bigann_100m.gtruth.npy \
+		--strategies hubness edge_quality \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--M-pass1 10 \
+		--M-pass2 6 \
+		--hubness-penalty-weight 0.1 \
+		--pass2-candidate-method neighbor_expansion \
+		--neighbor-expansion-hops 2 \
+		--output /root/data/two-pass-construction/bigann-100m-two-pass-bench-flatnav.json
+
 bigann-100m-bench-hnsw: 
 	poetry run python run-benchmark.py \
 		--dataset-name bigann-100m \
@@ -166,7 +181,6 @@ bigann-10m-bench-hnsw:
 		--num-build-threads 32 \
 		--num-search-threads 1
 
-
 yandex-deep-10m-bench-flatnav:
 	poetry run python run-benchmark.py \
 		--dataset-name yandex-deep-10m \
@@ -277,7 +291,6 @@ deep-image-bench-flatnav:
 		--queries /root/data/deep-image-96-angular/deep-image-96-angular.test.npy \
 		--gtruth /root/data/deep-image-96-angular/deep-image-96-angular.gtruth.npy \
 		--index-type flatnav \
-		--use-hnsw-base-layer \
 		--hnsw-base-layer-filename deep-image.mtx \
 		--num-node-links 32 \
 		--ef-construction 30 40 50 100 200 300 \
@@ -375,6 +388,19 @@ sift-bench-flatnav:
 		--metric l2 \
 		--num-build-threads 16 \
 		--num-search-threads 1 
+
+sift-bench-two-pass-bench-flatnav:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--strategies baseline hubness edge_quality \
+		--num-threads 8 \
+		--M-baseline 16 \
+		--M-pass1 8 \
+		--M-pass2 8 \
+		--pass2-candidate-method neighbor_expansion \
+		--output /root/data/two-pass-construction/sift-bench-two-pass-bench-flatnav.json
 
 
 sift-bench-hnsw: 

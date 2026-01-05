@@ -31,10 +31,16 @@ using flatnav::util::DataType;
 
 namespace flatnav {
 
+// Forward declaration for friend access
+template <typename dist_t, typename label_t>
+class TwoPassBuilder;
+
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
 template <typename dist_t, typename label_t>
 class Index {
+  // Allow TwoPassBuilder to access private members for two-pass construction
+  friend class TwoPassBuilder<dist_t, label_t>;
   typedef std::pair<float, label_t> dist_label_t;
   // internal node numbering scheme. We might need to change this to uint64_t
   typedef uint32_t node_id_t;
@@ -100,7 +106,6 @@ class Index {
         _max_node_count(other._max_node_count),
         _cur_num_nodes(other._cur_num_nodes),
         _distance(std::move(other._distance)),
-        _index_data_guard(std::move(other._index_data_guard)),
         _num_threads(other._num_threads),
         _visited_set_pool(std::move(other._visited_set_pool)),
         _node_links_mutexes(std::move(other._node_links_mutexes)) {
@@ -120,7 +125,6 @@ class Index {
       _max_node_count = other._max_node_count;
       _cur_num_nodes = other._cur_num_nodes;
       _distance = std::move(other._distance);
-      _index_data_guard = std::move(other._index_data_guard);
       _num_threads = other._num_threads;
       _visited_set_pool = std::move(other._visited_set_pool);
       _node_links_mutexes = std::move(other._node_links_mutexes);

@@ -3,6 +3,8 @@
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/index/Index.h>
+#include <flatnav/index/TwoPassBuilder.h>
+#include <flatnav/index/TwoPassStrategy.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/Multithreading.h>
 #include <pybind11/numpy.h>
@@ -25,6 +27,10 @@
 
 
 using flatnav::Index;
+using flatnav::Pass2CandidateMethod;
+using flatnav::TwoPassBuilder;
+using flatnav::TwoPassConfig;
+using flatnav::TwoPassStrategy;
 using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
@@ -520,6 +526,102 @@ void defineDistanceEnums(py::module_& module) {
       .value("IP", flatnav::distances::MetricType::IP);
 }
 
+void defineTwoPassStrategyEnum(py::module_& module) {
+  py::enum_<TwoPassStrategy>(module, "TwoPassStrategy")
+      .value("NONE", TwoPassStrategy::NONE, "Standard single-pass construction")
+      .value("HUBNESS_SCORING", TwoPassStrategy::HUBNESS_SCORING,
+             "Collect k-occurrence in Pass 1, penalize hubs in Pass 2")
+      .value("EDGE_QUALITY_SCORING", TwoPassStrategy::EDGE_QUALITY_SCORING,
+             "Score edges by distance and diversity, use in Pass 2 pruning")
+      .value("INSERTION_ORDER_OPT", TwoPassStrategy::INSERTION_ORDER_OPT,
+             "Compute centrality in Pass 1, reorder insertions in Pass 2")
+      .export_values();
+}
+
+void definePass2CandidateMethodEnum(py::module_& module) {
+  py::enum_<Pass2CandidateMethod>(module, "Pass2CandidateMethod")
+      .value("BEAM_SEARCH", Pass2CandidateMethod::BEAM_SEARCH,
+             "Use beam search to find candidates (original method, slower but more thorough)")
+      .value("NEIGHBOR_EXPANSION", Pass2CandidateMethod::NEIGHBOR_EXPANSION,
+             "Use neighbor-of-neighbor expansion (faster at scale, O(M^2) per node)")
+      .export_values();
+}
+
+template <DataType data_type>
+py::object createTwoPassIndex(const std::string& distance_type, int dim, int dataset_size,
+                               TwoPassStrategy strategy, int M_pass1, int M_pass2,
+                               int ef_construction_pass1, int ef_construction_pass2,
+                               int num_initializations, float hubness_penalty_weight,
+                               float edge_quality_threshold, uint32_t num_threads,
+                               Pass2CandidateMethod pass2_candidate_method,
+                               int neighbor_expansion_hops,
+                               const py::array& data, py::object labels) {
+  validateDistanceType(distance_type);
+
+  // Create TwoPassConfig
+  TwoPassConfig config;
+  config.strategy = strategy;
+  config.M_pass1 = M_pass1;
+  config.M_pass2 = M_pass2;
+  config.ef_construction_pass1 = ef_construction_pass1;
+  config.ef_construction_pass2 = ef_construction_pass2;
+  config.num_initializations = num_initializations;
+  config.hubness_penalty_weight = hubness_penalty_weight;
+  config.edge_quality_threshold = edge_quality_threshold;
+  config.num_threads = num_threads;
+  config.pass2_candidate_method = pass2_candidate_method;
+  config.neighbor_expansion_hops = neighbor_expansion_hops;
+
+  // Get data info
+  auto casted_data = data.cast<py::array_t<float, py::array::c_style | py::array::forcecast>>();
+  auto num_vectors = casted_data.shape(0);
+  auto data_dim = casted_data.shape(1);
+
+  if (casted_data.ndim() != 2 || static_cast<int>(data_dim) != dim) {
+    throw std::invalid_argument("Data has incorrect dimensions.");
+  }
+
+  // Generate or use provided labels
+  std::vector<int> vec_labels;
+  if (labels.is_none()) {
+    vec_labels.resize(num_vectors);
+    std::iota(vec_labels.begin(), vec_labels.end(), 0);
+  } else {
+    vec_labels = py::cast<std::vector<int>>(labels);
+    if (vec_labels.size() != static_cast<size_t>(num_vectors)) {
+      throw std::invalid_argument("Incorrect number of labels.");
+    }
+  }
+
+  if (distance_type == "l2") {
+    auto distance = SquaredL2Distance<data_type>::create(dim);
+    TwoPassBuilder<SquaredL2Distance<data_type>, int> builder(
+        std::move(distance), dataset_size, config);
+
+    {
+      py::gil_scoped_release gil;
+      builder.template build<float>((void*)casted_data.data(0), vec_labels);
+    }
+
+    auto index = builder.releaseIndex();
+    auto py_index = std::make_shared<PyIndex<SquaredL2Distance<data_type>, int>>(std::move(index));
+    return py::cast(py_index);
+  }
+
+  auto distance = InnerProductDistance<data_type>::create(dim);
+  TwoPassBuilder<InnerProductDistance<data_type>, int> builder(
+      std::move(distance), dataset_size, config);
+
+  {
+    py::gil_scoped_release gil;
+    builder.template build<float>((void*)casted_data.data(0), vec_labels);
+  }
+
+  auto index = builder.releaseIndex();
+  auto py_index = std::make_shared<PyIndex<InnerProductDistance<data_type>, int>>(std::move(index));
+  return py::cast(py_index);
+}
+
 PYBIND11_MODULE(_core, module) {
 #ifdef VERSION_INFO
   module.attr("__version__") = TOSTRING(VERSION_INFO);
@@ -536,4 +638,88 @@ PYBIND11_MODULE(_core, module) {
   auto index_submodule = module.def_submodule("index");
   defineIndexSubmodule(index_submodule);
   defineDistanceEnums(module);
+
+  // Two-pass construction bindings
+  defineTwoPassStrategyEnum(module);
+  definePass2CandidateMethodEnum(module);
+
+  index_submodule.def(
+      "create_two_pass",
+      [](const std::string& distance_type, int dim, int dataset_size,
+         const py::array& data, TwoPassStrategy strategy,
+         int M_pass1, int M_pass2, int ef_construction_pass1, int ef_construction_pass2,
+         int num_initializations, float hubness_penalty_weight, float edge_quality_threshold,
+         uint32_t num_threads, Pass2CandidateMethod pass2_candidate_method,
+         int neighbor_expansion_hops, py::object labels) {
+        // For now, only support float32 data type for two-pass construction
+        return createTwoPassIndex<DataType::float32>(
+            distance_type, dim, dataset_size, strategy, M_pass1, M_pass2,
+            ef_construction_pass1, ef_construction_pass2, num_initializations,
+            hubness_penalty_weight, edge_quality_threshold, num_threads,
+            pass2_candidate_method, neighbor_expansion_hops, data, labels);
+      },
+      py::arg("distance_type"),
+      py::arg("dim"),
+      py::arg("dataset_size"),
+      py::arg("data"),
+      py::arg("strategy") = TwoPassStrategy::HUBNESS_SCORING,
+      py::arg("M_pass1") = 4,
+      py::arg("M_pass2") = 4,
+      py::arg("ef_construction_pass1") = 10,
+      py::arg("ef_construction_pass2") = 100,
+      py::arg("num_initializations") = 100,
+      py::arg("hubness_penalty_weight") = 0.1f,
+      py::arg("edge_quality_threshold") = 0.5f,
+      py::arg("num_threads") = 1,
+      py::arg("pass2_candidate_method") = Pass2CandidateMethod::BEAM_SEARCH,
+      py::arg("neighbor_expansion_hops") = 2,
+      py::arg("labels") = py::none(),
+      R"doc(
+Create an index using two-pass construction.
+
+Two-pass construction builds a cheap initial graph (Pass 1) to collect
+statistics, then rebuilds with strategy-specific modifications (Pass 2).
+
+Parameters
+----------
+distance_type : str
+    Distance metric: 'l2' or 'angular'
+dim : int
+    Dimension of the vectors
+dataset_size : int
+    Number of vectors to index
+data : numpy.ndarray
+    2D array of vectors to index (shape: [dataset_size, dim])
+strategy : TwoPassStrategy
+    Construction strategy to use (default: HUBNESS_SCORING)
+M_pass1 : int
+    Maximum edges per node in Pass 1 (default: 4)
+M_pass2 : int
+    Maximum edges per node in Pass 2 (default: 4)
+ef_construction_pass1 : int
+    ef_construction for Pass 1 (default: 10)
+ef_construction_pass2 : int
+    ef_construction for Pass 2 (default: 100)
+num_initializations : int
+    Number of random entry points for search (default: 100)
+hubness_penalty_weight : float
+    Weight for hubness penalty (HUBNESS_SCORING only, default: 0.1)
+edge_quality_threshold : float
+    Threshold for edge quality (EDGE_QUALITY_SCORING only, default: 0.5)
+num_threads : int
+    Number of threads for parallel construction (default: 1)
+pass2_candidate_method : Pass2CandidateMethod
+    Method for finding Pass 2 candidates (default: BEAM_SEARCH)
+    - BEAM_SEARCH: Original method, slower but explores more graph
+    - NEIGHBOR_EXPANSION: Faster O(M^2) method using 2-hop neighborhood
+neighbor_expansion_hops : int
+    Number of hops for NEIGHBOR_EXPANSION (2 or 3, default: 2)
+labels : array-like, optional
+    Labels for each vector (default: auto-generated 0 to N-1)
+
+Returns
+-------
+Index
+    The constructed index
+)doc");
 }
