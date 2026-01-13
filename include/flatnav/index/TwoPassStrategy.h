@@ -24,7 +24,13 @@ enum class TwoPassStrategy {
 
   /// Compute node centrality from Pass 1 graph, reinsert nodes in Pass 2
   /// in order of increasing centrality (peripheral nodes first)
-  INSERTION_ORDER_OPT
+  INSERTION_ORDER_OPT,
+
+  /// Full re-pruning: Use Pass 1 graph only for navigation, then replace
+  /// ALL edges in Pass 2 using neighbor expansion + statistics-guided pruning.
+  /// This allows reconsidering all edges with full information, unlike additive
+  /// strategies that lock in Pass 1 edges.
+  RE_PRUNE_FULL
 };
 
 /**

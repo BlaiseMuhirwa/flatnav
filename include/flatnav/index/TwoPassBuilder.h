@@ -303,6 +303,11 @@ private:
       computeCentralityScores(num_nodes);
       break;
 
+    case TwoPassStrategy::RE_PRUNE_FULL:
+      // Collect hubness stats for guiding the full re-pruning
+      computeIndegrees(num_nodes);
+      break;
+
     default:
       // NONE strategy - no stats needed
       break;
@@ -449,8 +454,17 @@ private:
    * Unlike the old approach that reset and rebuilt the graph, this adds
    * edges to the remaining slots (M_pass1 to M_pass1+M_pass2-1) while
    * preserving Pass 1 connectivity and applying hub penalties.
+   *
+   * For RE_PRUNE_FULL strategy, this instead replaces ALL edges using
+   * the Pass 1 graph only for navigation.
    */
   template <typename data_type> void runPass2(void *data) {
+    // Dispatch to re-pruning method for RE_PRUNE_FULL strategy
+    if (_config.strategy == TwoPassStrategy::RE_PRUNE_FULL) {
+      runPass2RePruneFull<data_type>(data);
+      return;
+    }
+
     uint32_t total_num_nodes = _index->currentNumNodes();
     uint32_t data_dimension = _index->_distance->dimension();
 
@@ -651,6 +665,291 @@ private:
 
       slot++;
       neighbors.pop();
+    }
+  }
+
+  /**
+   * @brief Pass 2 with full re-pruning: Replace ALL edges using statistics.
+   *
+   * Unlike additive strategies that preserve Pass 1 edges, this method:
+   * 1. Uses Pass 1 graph ONLY for navigation (neighbor expansion)
+   * 2. Selects FULL M neighbors with hubness-guided pruning
+   * 3. REPLACES all edges, allowing suboptimal Pass 1 edges to be reconsidered
+   * 4. Adds back-connections to ensure bidirectional navigability
+   *
+   * This should achieve recall comparable to baseline while being faster
+   * because Pass 1 can use very low ef_construction.
+   */
+  template <typename data_type> void runPass2RePruneFull(void *data) {
+    uint32_t total_num_nodes = _index->currentNumNodes();
+    uint32_t data_dimension = _index->_distance->dimension();
+    int full_M = _config.M_pass1 + _config.M_pass2;
+
+    // Phase 1: Each node selects its new neighbors (parallel, no conflicts)
+    // Store the new edges temporarily
+    std::vector<std::vector<node_id_t>> new_edges(total_num_nodes);
+
+    auto selectNewNeighbors = [&](uint32_t node_id) {
+      uint64_t offset =
+          static_cast<uint64_t>(node_id) * static_cast<uint64_t>(data_dimension);
+      void *node_data = reinterpret_cast<data_type *>(data) + offset;
+
+      // Find candidates using neighbor expansion on Pass 1 graph
+      PriorityQueue candidates =
+          findCandidatesForRePrune(node_data, node_id, full_M);
+
+      if (candidates.size() == 0) {
+        // Keep existing edges
+        node_id_t *links = _index->getNodeLinks(node_id);
+        for (int j = 0; j < full_M; j++) {
+          if (links[j] != node_id) {
+            new_edges[node_id].push_back(links[j]);
+          }
+        }
+        return;
+      }
+
+      // Select full M neighbors with hubness-guided pruning
+      selectNeighborsForRePrune(candidates, full_M, node_id);
+
+      // Store selected neighbors
+      new_edges[node_id].reserve(candidates.size());
+      while (candidates.size() > 0) {
+        new_edges[node_id].push_back(candidates.top().second);
+        candidates.pop();
+      }
+    };
+
+    if (_config.num_threads == 1) {
+      for (uint32_t node_id = 0; node_id < total_num_nodes; node_id++) {
+        selectNewNeighbors(node_id);
+      }
+    } else {
+      flatnav::executeInParallel(0, total_num_nodes, _config.num_threads,
+                                 selectNewNeighbors);
+    }
+
+    // Phase 2: Write forward edges (parallel - each node writes to its own slots)
+    auto writeForwardEdges = [&](uint32_t node_id) {
+      node_id_t *links = _index->getNodeLinks(node_id);
+      int slot = 0;
+      for (node_id_t neighbor_id : new_edges[node_id]) {
+        if (slot >= full_M) break;
+        links[slot++] = neighbor_id;
+      }
+      // Fill remaining slots with self-loops
+      while (slot < full_M) {
+        links[slot++] = node_id;
+      }
+    };
+
+    if (_config.num_threads == 1) {
+      for (uint32_t node_id = 0; node_id < total_num_nodes; node_id++) {
+        writeForwardEdges(node_id);
+      }
+    } else {
+      flatnav::executeInParallel(0, total_num_nodes, _config.num_threads,
+                                 writeForwardEdges);
+    }
+
+    // Phase 3: Add back-connections (parallel with per-node locking)
+    auto addBackConnections = [&](uint32_t node_id) {
+      for (node_id_t neighbor_id : new_edges[node_id]) {
+        addBackConnectionLocked(node_id, neighbor_id, full_M);
+      }
+    };
+
+    if (_config.num_threads == 1) {
+      for (uint32_t node_id = 0; node_id < total_num_nodes; node_id++) {
+        addBackConnections(node_id);
+      }
+    } else {
+      flatnav::executeInParallel(0, total_num_nodes, _config.num_threads,
+                                 addBackConnections);
+    }
+  }
+
+  /**
+   * @brief Add a back-connection from neighbor to node (thread-safe version).
+   *
+   * Uses mutex locking to allow parallel back-connection updates.
+   * If neighbor has an empty slot, add the connection directly.
+   * Otherwise, check if this connection improves the neighbor's edges.
+   */
+  void addBackConnectionLocked(node_id_t node_id, node_id_t neighbor_id, int full_M) {
+    std::unique_lock<std::mutex> lock(_index->_node_links_mutexes[neighbor_id]);
+
+    node_id_t *neighbor_links = _index->getNodeLinks(neighbor_id);
+
+    // Check if connection already exists or find empty slot
+    for (int j = 0; j < full_M; j++) {
+      if (neighbor_links[j] == node_id) {
+        return; // Already connected
+      }
+      if (neighbor_links[j] == neighbor_id) {
+        // Found empty slot (self-loop), use it
+        neighbor_links[j] = node_id;
+        return;
+      }
+    }
+
+    // No empty slot - need to decide if we should replace an existing edge
+    // Use distance-based replacement: replace if this is closer than the worst edge
+    float dist_to_node = _index->_distance->distance(
+        _index->getNodeData(neighbor_id), _index->getNodeData(node_id));
+
+    int worst_slot = -1;
+    float worst_dist = dist_to_node;
+
+    for (int j = 0; j < full_M; j++) {
+      if (neighbor_links[j] != neighbor_id) {
+        float dist = _index->_distance->distance(
+            _index->getNodeData(neighbor_id),
+            _index->getNodeData(neighbor_links[j]));
+        if (dist > worst_dist) {
+          worst_dist = dist;
+          worst_slot = j;
+        }
+      }
+    }
+
+    if (worst_slot >= 0) {
+      neighbor_links[worst_slot] = node_id;
+    }
+  }
+
+  /**
+   * @brief Find candidate neighbors for re-pruning using seeded beam search.
+   *
+   * Instead of pure neighbor expansion (which doesn't scale), this uses
+   * beam search seeded from the node's Pass 1 neighbors. This explores
+   * O(ef × log N) nodes instead of O(M²), making it effective at 100M+ scale.
+   */
+  PriorityQueue findCandidatesForRePrune(void *node_data, node_id_t node_id,
+                                         int target_M) {
+    node_id_t *links = _index->getNodeLinks(node_id);
+
+    // Find the best Pass 1 neighbor to use as entry point
+    node_id_t best_entry = node_id;
+    float best_dist = std::numeric_limits<float>::max();
+
+    for (int j = 0; j < _config.M_pass1; j++) {
+      if (links[j] != node_id) {
+        float dist = _index->_distance->distance(node_data,
+                                                  _index->getNodeData(links[j]));
+        if (dist < best_dist) {
+          best_dist = dist;
+          best_entry = links[j];
+        }
+      }
+    }
+
+    // If no Pass 1 neighbors, use random initialization
+    if (best_entry == node_id) {
+      best_entry = _index->initializeSearch(node_data, PASS2_NUM_INITIALIZATIONS);
+    }
+
+    // Use beam search with Pass 2 ef_construction to find candidates
+    // This explores O(ef × log N) nodes, which scales to 100M+
+    PriorityQueue candidates = _index->beamSearch(
+        node_data, best_entry, _config.ef_construction_pass2);
+
+    // Remove self from candidates if present
+    PriorityQueue filtered;
+    while (candidates.size() > 0) {
+      auto [dist, id] = candidates.top();
+      candidates.pop();
+      if (id != node_id) {
+        filtered.emplace(dist, id);
+      }
+    }
+
+    return filtered;
+  }
+
+  /**
+   * @brief Select neighbors for re-pruning with hubness-guided pruning.
+   *
+   * Uses the standard greedy pruning algorithm but applies a penalty to
+   * high-hubness nodes, encouraging diverse connectivity.
+   */
+  void selectNeighborsForRePrune(PriorityQueue &neighbors, int M,
+                                 node_id_t node_id) {
+    if (neighbors.size() <= static_cast<size_t>(M)) {
+      return;
+    }
+
+    std::priority_queue<std::pair<float, node_id_t>> candidates;
+    std::vector<dist_node_t> saved_candidates;
+    saved_candidates.reserve(M);
+
+    // Convert max-heap to min-heap by negating distances
+    while (neighbors.size() > 0) {
+      auto [distance, id] = neighbors.top();
+      candidates.emplace(-distance, id);
+      neighbors.pop();
+    }
+
+    while (candidates.size() > 0) {
+      if (static_cast<int>(saved_candidates.size()) >= M) {
+        break;
+      }
+
+      auto [neg_distance, current_node_id] = candidates.top();
+      float distance_to_query = -neg_distance;
+      candidates.pop();
+
+      bool should_keep = true;
+
+      for (const auto &[saved_dist, saved_node_id] : saved_candidates) {
+        float cur_dist = _index->_distance->distance(
+            _index->getNodeData(saved_node_id),
+            _index->getNodeData(current_node_id));
+
+        // Apply hubness penalty to the threshold
+        float threshold = distance_to_query;
+        if (!_indegree_cache.empty()) {
+          threshold = applyHubnessPenalty(threshold, current_node_id, saved_node_id);
+        }
+
+        if (cur_dist < threshold) {
+          should_keep = false;
+          break;
+        }
+      }
+
+      if (should_keep) {
+        saved_candidates.push_back({distance_to_query, current_node_id});
+      }
+    }
+
+    // Reconstruct neighbors queue
+    for (const auto &[dist, id] : saved_candidates) {
+      neighbors.emplace(dist, id);
+    }
+  }
+
+  /**
+   * @brief Replace all edges for a node with the selected neighbors.
+   *
+   * Unlike connectNeighborsPass2 which only fills Pass 2 slots, this
+   * replaces ALL M slots. No back-connection is done to avoid conflicts
+   * during parallel re-pruning (each node handles its own edges).
+   */
+  void replaceAllEdges(PriorityQueue &neighbors, node_id_t node_id, int full_M) {
+    std::unique_lock<std::mutex> lock(_index->_node_links_mutexes[node_id]);
+
+    node_id_t *links = _index->getNodeLinks(node_id);
+    int slot = 0;
+
+    while (neighbors.size() > 0 && slot < full_M) {
+      links[slot++] = neighbors.top().second;
+      neighbors.pop();
+    }
+
+    // Fill remaining slots with self-loops
+    while (slot < full_M) {
+      links[slot++] = node_id;
     }
   }
 

@@ -535,6 +535,9 @@ void defineTwoPassStrategyEnum(py::module_& module) {
              "Score edges by distance and diversity, use in Pass 2 pruning")
       .value("INSERTION_ORDER_OPT", TwoPassStrategy::INSERTION_ORDER_OPT,
              "Compute centrality in Pass 1, reorder insertions in Pass 2")
+      .value("RE_PRUNE_FULL", TwoPassStrategy::RE_PRUNE_FULL,
+             "Use Pass 1 for navigation only, replace ALL edges in Pass 2 with "
+             "hubness-guided pruning. Best for matching baseline recall.")
       .export_values();
 }
 

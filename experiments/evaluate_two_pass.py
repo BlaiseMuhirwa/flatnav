@@ -179,6 +179,7 @@ def build_two_pass_index(
         "hubness": TwoPassStrategy.HUBNESS_SCORING,
         "edge_quality": TwoPassStrategy.EDGE_QUALITY_SCORING,
         "insertion_order": TwoPassStrategy.INSERTION_ORDER_OPT,
+        "re_prune": TwoPassStrategy.RE_PRUNE_FULL,
     }
 
     strategy_enum = strategy_map.get(strategy)
@@ -306,8 +307,8 @@ def main():
     )
     parser.add_argument(
         "--strategies", type=str, nargs="+",
-        default=["baseline", "hubness", "edge_quality", "insertion_order"],
-        help="Strategies to evaluate"
+        default=["baseline", "hubness", "edge_quality", "insertion_order", "re_prune"],
+        help="Strategies to evaluate (baseline, hubness, edge_quality, insertion_order, re_prune)"
     )
     parser.add_argument(
         "--distance-type", type=str, default="l2",

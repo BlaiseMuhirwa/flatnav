@@ -26,14 +26,13 @@ bigann-100m-two-pass-bench-flatnav:
 		--dataset /root/data/bigann-100m-euclidean/bigann_100m.train.npy \
 		--queries /root/data/bigann-100m-euclidean/bigann_100m.test.npy \
 		--gtruth /root/data/bigann-100m-euclidean/bigann_100m.gtruth.npy \
-		--strategies hubness edge_quality \
+		--strategies re_prune \
 		--num-threads 32 \
 		--M-baseline 16 \
-		--M-pass1 10 \
-		--M-pass2 6 \
-		--hubness-penalty-weight 0.1 \
-		--pass2-candidate-method neighbor_expansion \
-		--neighbor-expansion-hops 2 \
+		--M-pass1 8 \
+		--M-pass2 8 \
+		--ef-construction-pass1 50 \
+		--ef-construction-pass2 50 \
 		--output /root/data/two-pass-construction/bigann-100m-two-pass-bench-flatnav.json
 
 bigann-100m-bench-hnsw: 
@@ -394,12 +393,13 @@ sift-bench-two-pass-bench-flatnav:
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
-		--strategies baseline hubness edge_quality \
+		--strategies re_prune \
 		--num-threads 8 \
 		--M-baseline 16 \
 		--M-pass1 8 \
 		--M-pass2 8 \
-		--pass2-candidate-method neighbor_expansion \
+		--ef-construction-pass1 50 \
+		--ef-construction-pass2 50 \
 		--output /root/data/two-pass-construction/sift-bench-two-pass-bench-flatnav.json
 
 
