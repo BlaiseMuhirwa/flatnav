@@ -31,9 +31,12 @@ using flatnav::util::DataType;
 
 namespace flatnav {
 
-// Forward declaration for friend access
+// Forward declarations for friend access
 template <typename dist_t, typename label_t>
 class TwoPassBuilder;
+
+template <typename dist_t, typename label_t>
+class EnsembleBuilder;
 
 // dist_t: A distance function implementing DistanceInterface.
 // label_t: A fixed-width data type for the label (meta-data) of each point.
@@ -41,6 +44,8 @@ template <typename dist_t, typename label_t>
 class Index {
   // Allow TwoPassBuilder to access private members for two-pass construction
   friend class TwoPassBuilder<dist_t, label_t>;
+  // Allow EnsembleBuilder to access private members for ensemble construction
+  friend class EnsembleBuilder<dist_t, label_t>;
   typedef std::pair<float, label_t> dist_label_t;
   // internal node numbering scheme. We might need to change this to uint64_t
   typedef uint32_t node_id_t;

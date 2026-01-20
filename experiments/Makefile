@@ -35,6 +35,22 @@ bigann-100m-two-pass-bench-flatnav:
 		--ef-construction-pass2 50 \
 		--output /root/data/two-pass-construction/bigann-100m-two-pass-bench-flatnav.json
 
+bigann-100m-ensemble-bench:
+	poetry run python evaluate_ensemble.py \
+		--dataset /root/data/bigann-100m-euclidean/bigann_100m.train.npy \
+		--queries /root/data/bigann-100m-euclidean/bigann_100m.test.npy \
+		--gtruth /root/data/bigann-100m-euclidean/bigann_100m.gtruth.npy \
+		--variants baseline two_pass incremental reset \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--M-final 16 \
+		--M-per-graph 8 \
+		--num-graphs 2 \
+		--ef-construction-baseline 100 \
+		--ef-construction-per-graph 25 \
+		--ef-construction-final 100 \
+		--output /root/data/ensemble-construction/bigann-100m-ensemble-bench.json
+
 bigann-100m-bench-hnsw: 
 	poetry run python run-benchmark.py \
 		--dataset-name bigann-100m \
@@ -402,6 +418,21 @@ sift-bench-two-pass-bench-flatnav:
 		--ef-construction-pass2 50 \
 		--output /root/data/two-pass-construction/sift-bench-two-pass-bench-flatnav.json
 
+sift-ensemble-bench:
+	poetry run python evaluate_ensemble.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--variants baseline two_pass incremental reset \
+		--num-threads 8 \
+		--M-baseline 16 \
+		--M-final 16 \
+		--M-per-graph 8 \
+		--num-graphs 2 \
+		--ef-construction-baseline 100 \
+		--ef-construction-per-graph 25 \
+		--ef-construction-final 100 \
+		--output /root/data/ensemble-construction/sift-ensemble-bench.json
 
 sift-bench-hnsw: 
 	poetry run python run-benchmark.py \

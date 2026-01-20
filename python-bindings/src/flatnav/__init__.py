@@ -3,6 +3,7 @@ from ._core import (
     MetricType,
     TwoPassStrategy,
     Pass2CandidateMethod,
+    EnsembleVariant,
     data_type,
     __version__,
     __doc__
@@ -22,6 +23,7 @@ class _IndexModule:
         IndexIPInt8,
         create,
         create_two_pass,
+        create_ensemble,
     )
 
 
@@ -33,6 +35,7 @@ __all__ = [
     'MetricType',
     'TwoPassStrategy',
     'Pass2CandidateMethod',
+    'EnsembleVariant',
     'data_type',
     'index',
     '__version__',

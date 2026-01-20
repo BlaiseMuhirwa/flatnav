@@ -5,6 +5,7 @@
 #include <flatnav/index/Index.h>
 #include <flatnav/index/TwoPassBuilder.h>
 #include <flatnav/index/TwoPassStrategy.h>
+#include <flatnav/index/EnsembleBuilder.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/Multithreading.h>
 #include <pybind11/numpy.h>
@@ -31,6 +32,9 @@ using flatnav::Pass2CandidateMethod;
 using flatnav::TwoPassBuilder;
 using flatnav::TwoPassConfig;
 using flatnav::TwoPassStrategy;
+using flatnav::EnsembleBuilder;
+using flatnav::EnsembleConfig;
+using flatnav::EnsembleVariant;
 using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
@@ -550,6 +554,92 @@ void definePass2CandidateMethodEnum(py::module_& module) {
       .export_values();
 }
 
+void defineEnsembleVariantEnum(py::module_& module) {
+  py::enum_<EnsembleVariant>(module, "EnsembleVariant")
+      .value("MULTI_ORDER_INCREMENTAL", EnsembleVariant::MULTI_ORDER_INCREMENTAL,
+             "Build k graphs with different insertion orders, keeping edges for routing (faster)")
+      .value("MULTI_ORDER_RESET", EnsembleVariant::MULTI_ORDER_RESET,
+             "Build k graphs with different insertion orders, resetting edges between (more diverse)")
+      .value("MULTI_SEED", EnsembleVariant::MULTI_SEED,
+             "Build k graphs with different random seeds for entry points (lighter variation)")
+      .export_values();
+}
+
+template <DataType data_type>
+py::object createEnsembleIndex(const std::string& distance_type, int dim, int dataset_size,
+                                EnsembleVariant variant, int num_graphs, int M_per_graph,
+                                int M_final, int ef_construction_per_graph, int ef_construction_final,
+                                int num_initializations, float hubness_penalty_weight,
+                                uint32_t num_threads, uint64_t seed_base,
+                                bool use_neighbor_expansion, int neighbor_expansion_hops,
+                                const py::array& data, py::object labels) {
+  validateDistanceType(distance_type);
+
+  // Create EnsembleConfig
+  EnsembleConfig config;
+  config.variant = variant;
+  config.num_graphs = num_graphs;
+  config.M_per_graph = M_per_graph;
+  config.M_final = M_final;
+  config.ef_construction_per_graph = ef_construction_per_graph;
+  config.ef_construction_final = ef_construction_final;
+  config.num_initializations = num_initializations;
+  config.hubness_penalty_weight = hubness_penalty_weight;
+  config.num_threads = num_threads;
+  config.seed_base = seed_base;
+  config.use_neighbor_expansion = use_neighbor_expansion;
+  config.neighbor_expansion_hops = neighbor_expansion_hops;
+
+  // Get data info
+  auto casted_data = data.cast<py::array_t<float, py::array::c_style | py::array::forcecast>>();
+  auto num_vectors = casted_data.shape(0);
+  auto data_dim = casted_data.shape(1);
+
+  if (casted_data.ndim() != 2 || static_cast<int>(data_dim) != dim) {
+    throw std::invalid_argument("Data has incorrect dimensions.");
+  }
+
+  // Generate or use provided labels
+  std::vector<int> vec_labels;
+  if (labels.is_none()) {
+    vec_labels.resize(num_vectors);
+    std::iota(vec_labels.begin(), vec_labels.end(), 0);
+  } else {
+    vec_labels = py::cast<std::vector<int>>(labels);
+    if (vec_labels.size() != static_cast<size_t>(num_vectors)) {
+      throw std::invalid_argument("Incorrect number of labels.");
+    }
+  }
+
+  if (distance_type == "l2") {
+    auto distance = SquaredL2Distance<data_type>::create(dim);
+    EnsembleBuilder<SquaredL2Distance<data_type>, int> builder(
+        std::move(distance), dataset_size, config);
+
+    {
+      py::gil_scoped_release gil;
+      builder.template build<float>((void*)casted_data.data(0), vec_labels);
+    }
+
+    auto index = builder.releaseIndex();
+    auto py_index = std::make_shared<PyIndex<SquaredL2Distance<data_type>, int>>(std::move(index));
+    return py::cast(py_index);
+  }
+
+  auto distance = InnerProductDistance<data_type>::create(dim);
+  EnsembleBuilder<InnerProductDistance<data_type>, int> builder(
+      std::move(distance), dataset_size, config);
+
+  {
+    py::gil_scoped_release gil;
+    builder.template build<float>((void*)casted_data.data(0), vec_labels);
+  }
+
+  auto index = builder.releaseIndex();
+  auto py_index = std::make_shared<PyIndex<InnerProductDistance<data_type>, int>>(std::move(index));
+  return py::cast(py_index);
+}
+
 template <DataType data_type>
 py::object createTwoPassIndex(const std::string& distance_type, int dim, int dataset_size,
                                TwoPassStrategy strategy, int M_pass1, int M_pass2,
@@ -645,6 +735,7 @@ PYBIND11_MODULE(_core, module) {
   // Two-pass construction bindings
   defineTwoPassStrategyEnum(module);
   definePass2CandidateMethodEnum(module);
+  defineEnsembleVariantEnum(module);
 
   index_submodule.def(
       "create_two_pass",
@@ -717,6 +808,97 @@ pass2_candidate_method : Pass2CandidateMethod
     - NEIGHBOR_EXPANSION: Faster O(M^2) method using 2-hop neighborhood
 neighbor_expansion_hops : int
     Number of hops for NEIGHBOR_EXPANSION (2 or 3, default: 2)
+labels : array-like, optional
+    Labels for each vector (default: auto-generated 0 to N-1)
+
+Returns
+-------
+Index
+    The constructed index
+)doc");
+
+  // Ensemble construction bindings
+  index_submodule.def(
+      "create_ensemble",
+      [](const std::string& distance_type, int dim, int dataset_size,
+         const py::array& data, EnsembleVariant variant, int num_graphs,
+         int M_per_graph, int M_final, int ef_construction_per_graph,
+         int ef_construction_final, int num_initializations,
+         float hubness_penalty_weight, uint32_t num_threads, uint64_t seed_base,
+         bool use_neighbor_expansion, int neighbor_expansion_hops,
+         py::object labels) {
+        // For now, only support float32 data type for ensemble construction
+        return createEnsembleIndex<DataType::float32>(
+            distance_type, dim, dataset_size, variant, num_graphs, M_per_graph,
+            M_final, ef_construction_per_graph, ef_construction_final,
+            num_initializations, hubness_penalty_weight, num_threads, seed_base,
+            use_neighbor_expansion, neighbor_expansion_hops, data, labels);
+      },
+      py::arg("distance_type"),
+      py::arg("dim"),
+      py::arg("dataset_size"),
+      py::arg("data"),
+      py::arg("variant") = EnsembleVariant::MULTI_ORDER_INCREMENTAL,
+      py::arg("num_graphs") = 2,
+      py::arg("M_per_graph") = 8,
+      py::arg("M_final") = 16,
+      py::arg("ef_construction_per_graph") = 25,
+      py::arg("ef_construction_final") = 100,
+      py::arg("num_initializations") = 100,
+      py::arg("hubness_penalty_weight") = 0.1f,
+      py::arg("num_threads") = 1,
+      py::arg("seed_base") = 42,
+      py::arg("use_neighbor_expansion") = true,
+      py::arg("neighbor_expansion_hops") = 2,
+      py::arg("labels") = py::none(),
+      R"doc(
+Create an index using ensemble construction.
+
+Ensemble construction builds multiple cheap graphs with different random
+seeds/insertion orders, then unions their edges and prunes to the final M.
+
+The key insight is that different random orderings produce different local
+optima in the graph structure. By combining candidates from multiple builds
+and re-pruning, we can approximate the quality of a single expensive build
+while maintaining the speed of cheap builds.
+
+Parameters
+----------
+distance_type : str
+    Distance metric: 'l2' or 'angular'
+dim : int
+    Dimension of the vectors
+dataset_size : int
+    Number of vectors to index
+data : numpy.ndarray
+    2D array of vectors to index (shape: [dataset_size, dim])
+variant : EnsembleVariant
+    Ensemble construction variant (default: MULTI_ORDER_INCREMENTAL)
+    - MULTI_ORDER_INCREMENTAL: Keep edges for routing between graphs (faster)
+    - MULTI_ORDER_RESET: Reset edges between graphs (more diverse candidates)
+    - MULTI_SEED: Same order, different random seeds for entry points
+num_graphs : int
+    Number of graphs in the ensemble (default: 2, typically 2-4)
+M_per_graph : int
+    Edges per node for each cheap graph (default: 8)
+M_final : int
+    Final edges per node after pruning (default: 16)
+ef_construction_per_graph : int
+    ef_construction for each cheap graph (default: 25)
+ef_construction_final : int
+    ef_construction for final pruning (default: 100)
+num_initializations : int
+    Number of random entry points for search (default: 100)
+hubness_penalty_weight : float
+    Weight for hubness penalty during final pruning (default: 0.1)
+num_threads : int
+    Number of threads for parallel construction (default: 1)
+seed_base : int
+    Random seed base (each graph uses seed_base + graph_index, default: 42)
+use_neighbor_expansion : bool
+    Whether to collect neighbors-of-neighbors as candidates (default: True)
+neighbor_expansion_hops : int
+    Number of hops for neighbor expansion (2 or 3, default: 2)
 labels : array-like, optional
     Labels for each vector (default: auto-generated 0 to N-1)
 
