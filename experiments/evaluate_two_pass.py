@@ -5,16 +5,20 @@ Evaluate two-pass construction strategies on large-scale benchmarks.
 This script compares:
 - Baseline: Single-pass construction with M=8
 - Two-pass strategies: M=4 + M=4 with different optimization strategies
+- Anchor construction: Build high-quality graph on a small subset, use it
+  as a navigation layer for bulk insertion
 
 Hypothesis: Two-pass with M=4+M=4 achieves similar recall to single-pass M=8
 but with faster construction time due to cheaper graph maintenance.
+Anchor construction should be fastest at large scale due to avoiding random
+initializeSearch across the full dataset.
 
 Usage:
     python evaluate_two_pass.py \
         --dataset /path/to/train.npy \
         --queries /path/to/queries.npy \
         --gtruth /path/to/ground_truth.npy \
-        --strategies hubness edge_quality insertion_order \
+        --strategies baseline anchor hubness \
         --output results.json
 """
 
@@ -30,6 +34,7 @@ import numpy as np
 import flatnav
 from flatnav import index as flatnav_index
 from flatnav import TwoPassStrategy, Pass2CandidateMethod
+from data_loader import get_data_loader
 
 @dataclass
 class BenchmarkResult:
@@ -71,6 +76,14 @@ class ExperimentConfig:
     # Pass 2 candidate method parameters
     pass2_candidate_method: str = "beam_search"  # "beam_search" or "neighbor_expansion"
     neighbor_expansion_hops: int = 2  # 2 or 3
+
+    # Anchor construction parameters
+    anchor_fraction: float = 0.01       # Fraction of data as anchors (1%)
+    anchor_M: int = 16                  # M for anchor index (same for all nodes)
+    anchor_ef_construction: int = 500   # ef for anchor graph (high quality)
+    bulk_ef_construction: int = 80      # ef for bulk insertion
+    num_anchor_probes: int = 10         # Number of anchor probes for entry point finding
+    anchor_seed: int = 42               # Random seed for anchor selection
 
     # Search parameters
     ef_search_values: List[int] = None
@@ -217,6 +230,36 @@ def build_two_pass_index(
     return index
 
 
+def build_anchor_index(
+    data: np.ndarray,
+    config: ExperimentConfig,
+    distance_type: str = "l2"
+) -> Any:
+    """Build an index using anchor-based two-pass construction.
+
+    Pass 1: Build a high-quality graph on anchor_fraction of the data.
+    Pass 2: Insert remaining data using the anchor graph for entry point finding.
+    """
+    num_vectors, dim = data.shape
+
+    index = flatnav_index.create_anchor(
+        distance_type=distance_type,
+        dim=dim,
+        dataset_size=num_vectors,
+        data=data,
+        anchor_fraction=config.anchor_fraction,
+        M=config.anchor_M,
+        anchor_ef_construction=config.anchor_ef_construction,
+        bulk_ef_construction=config.bulk_ef_construction,
+        num_anchor_probes=config.num_anchor_probes,
+        num_initializations=config.num_initializations,
+        num_threads=config.num_threads,
+        seed=config.anchor_seed,
+    )
+
+    return index
+
+
 def evaluate_index(
     index,
     queries: np.ndarray,
@@ -263,6 +306,10 @@ def run_benchmark(
         index = build_baseline_index(data, config, distance_type)
         M_total = config.M_baseline
         ef_total = config.ef_construction_baseline
+    elif strategy == "anchor":
+        index = build_anchor_index(data, config, distance_type)
+        M_total = config.anchor_M
+        ef_total = config.anchor_ef_construction
     else:
         index = build_two_pass_index(data, config, strategy, distance_type)
         M_total = config.M_pass1 + config.M_pass2
@@ -306,9 +353,15 @@ def main():
         help="Path to ground truth (.npy file)"
     )
     parser.add_argument(
+        "--range", type=int, required=False,
+        default=None,
+        nargs="+",
+        help="The first element is the start index and the second element is the end index. Must be two integers.",
+    )
+    parser.add_argument(
         "--strategies", type=str, nargs="+",
-        default=["baseline", "hubness", "edge_quality", "insertion_order", "re_prune"],
-        help="Strategies to evaluate (baseline, hubness, edge_quality, insertion_order, re_prune)"
+        default=["baseline", "hubness", "edge_quality", "insertion_order", "re_prune", "anchor"],
+        help="Strategies to evaluate (baseline, hubness, edge_quality, insertion_order, re_prune, anchor)"
     )
     parser.add_argument(
         "--distance-type", type=str, default="l2",
@@ -361,20 +414,51 @@ def main():
         help="Weight for hubness penalty in HUBNESS_SCORING strategy (default: 0.1)"
     )
 
+    # Anchor construction arguments
+    parser.add_argument(
+        "--anchor-fraction", type=float, default=0.01,
+        help="Fraction of data to use as anchors (default: 0.01 = 1%%)"
+    )
+    parser.add_argument(
+        "--anchor-M", type=int, default=32,
+        help="M (edges per node) for anchor construction (default: 32)"
+    )
+    parser.add_argument(
+        "--anchor-ef-construction", type=int, default=500,
+        help="ef_construction for anchor graph (default: 500)"
+    )
+    parser.add_argument(
+        "--bulk-ef-construction", type=int, default=80,
+        help="ef_construction for bulk insertion in anchor mode (default: 80)"
+    )
+    parser.add_argument(
+        "--num-anchor-probes", type=int, default=10,
+        help="Number of anchor probes for initial seeding (default: 10)"
+    )
+    parser.add_argument(
+        "--anchor-seed", type=int, default=42,
+        help="Random seed for anchor selection (default: 42)"
+    )
+
     args = parser.parse_args()
 
-    # Load data
-    print(f"Loading dataset from {args.dataset}...")
-    data = np.load(args.dataset)
-    print(f"  Shape: {data.shape}")
+    if args.range is not None:
+        data_loader = get_data_loader(
+            train_dataset_path=args.dataset,
+            queries_path=args.queries,
+            ground_truth_path=args.gtruth,
+            range=args.range,
+        )
+        data, queries, ground_truth = data_loader.load_data()
+    else:
+        data = np.load(args.dataset)
+        queries = np.load(args.queries)
+        ground_truth = np.load(args.gtruth)
 
-    print(f"Loading queries from {args.queries}...")
-    queries = np.load(args.queries)
-    print(f"  Shape: {queries.shape}")
-
-    print(f"Loading ground truth from {args.gtruth}...")
-    ground_truth = np.load(args.gtruth)
-    print(f"  Shape: {ground_truth.shape}")
+    # Print the shape of each numpy array above 
+    print(f"  Shape of data: {data.shape}")
+    print(f"  Shape of queries: {queries.shape}")
+    print(f"  Shape of ground_truth: {ground_truth.shape}")
 
     # Create config
     config = ExperimentConfig(
@@ -388,6 +472,12 @@ def main():
         pass2_candidate_method=args.pass2_candidate_method,
         neighbor_expansion_hops=args.neighbor_expansion_hops,
         hubness_penalty_weight=args.hubness_penalty_weight,
+        anchor_fraction=args.anchor_fraction,
+        anchor_M=args.anchor_M,
+        anchor_ef_construction=args.anchor_ef_construction,
+        bulk_ef_construction=args.bulk_ef_construction,
+        num_anchor_probes=args.num_anchor_probes,
+        anchor_seed=args.anchor_seed,
     )
 
     # Run benchmarks

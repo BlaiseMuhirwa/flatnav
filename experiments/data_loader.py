@@ -234,6 +234,8 @@ def get_data_loader(**kwargs) -> DatasetLoader:
         ".fbin": lambda **kw: BinaryDatasetLoader(dtype=np.float32, **kw),
         ".u8bin": lambda **kw: BinaryDatasetLoader(dtype=np.uint8, **kw),
         ".i8bin": lambda **kw: BinaryDatasetLoader(dtype=np.int8, **kw),
+        # SpaceV's dataset ends in ".bin", but we know it's int8, so we will also use the BinaryDatasetLoader with dtype=np.int8
+        ".bin": lambda **kw: BinaryDatasetLoader(dtype=np.int8, **kw),
     }
 
     for extension, loader in file_extension_to_loader.items():

@@ -24,6 +24,7 @@ class _IndexModule:
         create,
         create_two_pass,
         create_ensemble,
+        create_anchor,
     )
 
 

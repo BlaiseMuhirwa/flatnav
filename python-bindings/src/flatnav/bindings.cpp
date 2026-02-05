@@ -6,6 +6,7 @@
 #include <flatnav/index/TwoPassBuilder.h>
 #include <flatnav/index/TwoPassStrategy.h>
 #include <flatnav/index/EnsembleBuilder.h>
+#include <flatnav/index/AnchorBuilder.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/Multithreading.h>
 #include <pybind11/numpy.h>
@@ -35,6 +36,8 @@ using flatnav::TwoPassStrategy;
 using flatnav::EnsembleBuilder;
 using flatnav::EnsembleConfig;
 using flatnav::EnsembleVariant;
+using flatnav::AnchorBuilder;
+using flatnav::AnchorConfig;
 using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
@@ -715,6 +718,76 @@ py::object createTwoPassIndex(const std::string& distance_type, int dim, int dat
   return py::cast(py_index);
 }
 
+template <DataType data_type>
+py::object createAnchorIndex(const std::string& distance_type, int dim, int dataset_size,
+                              float anchor_fraction, int M, int anchor_ef_construction,
+                              int bulk_ef_construction,
+                              int num_anchor_probes, int num_initializations,
+                              uint32_t num_threads, int64_t seed,
+                              const py::array& data, py::object labels) {
+  validateDistanceType(distance_type);
+
+  // Create AnchorConfig
+  AnchorConfig config;
+  config.anchor_fraction = anchor_fraction;
+  config.M = M;
+  config.anchor_ef_construction = anchor_ef_construction;
+  config.bulk_ef_construction = bulk_ef_construction;
+  config.num_anchor_probes = num_anchor_probes;
+  config.num_initializations = num_initializations;
+  config.num_threads = num_threads;
+  config.seed = seed;
+
+  // Get data info
+  auto casted_data = data.cast<py::array_t<float, py::array::c_style | py::array::forcecast>>();
+  auto num_vectors = casted_data.shape(0);
+  auto data_dim = casted_data.shape(1);
+
+  if (casted_data.ndim() != 2 || static_cast<int>(data_dim) != dim) {
+    throw std::invalid_argument("Data has incorrect dimensions.");
+  }
+
+  // Generate or use provided labels
+  std::vector<int> vec_labels;
+  if (labels.is_none()) {
+    vec_labels.resize(num_vectors);
+    std::iota(vec_labels.begin(), vec_labels.end(), 0);
+  } else {
+    vec_labels = py::cast<std::vector<int>>(labels);
+    if (vec_labels.size() != static_cast<size_t>(num_vectors)) {
+      throw std::invalid_argument("Incorrect number of labels.");
+    }
+  }
+
+  if (distance_type == "l2") {
+    auto distance = SquaredL2Distance<data_type>::create(dim);
+    AnchorBuilder<SquaredL2Distance<data_type>, int> builder(
+        std::move(distance), dataset_size, config);
+
+    {
+      py::gil_scoped_release gil;
+      builder.template build<float>((void*)casted_data.data(0), vec_labels);
+    }
+
+    auto index = builder.releaseIndex();
+    auto py_index = std::make_shared<PyIndex<SquaredL2Distance<data_type>, int>>(std::move(index));
+    return py::cast(py_index);
+  }
+
+  auto distance = InnerProductDistance<data_type>::create(dim);
+  AnchorBuilder<InnerProductDistance<data_type>, int> builder(
+      std::move(distance), dataset_size, config);
+
+  {
+    py::gil_scoped_release gil;
+    builder.template build<float>((void*)casted_data.data(0), vec_labels);
+  }
+
+  auto index = builder.releaseIndex();
+  auto py_index = std::make_shared<PyIndex<InnerProductDistance<data_type>, int>>(std::move(index));
+  return py::cast(py_index);
+}
+
 PYBIND11_MODULE(_core, module) {
 #ifdef VERSION_INFO
   module.attr("__version__") = TOSTRING(VERSION_INFO);
@@ -899,6 +972,82 @@ use_neighbor_expansion : bool
     Whether to collect neighbors-of-neighbors as candidates (default: True)
 neighbor_expansion_hops : int
     Number of hops for neighbor expansion (2 or 3, default: 2)
+labels : array-like, optional
+    Labels for each vector (default: auto-generated 0 to N-1)
+
+Returns
+-------
+Index
+    The constructed index
+)doc");
+
+  // Anchor construction bindings
+  index_submodule.def(
+      "create_anchor",
+      [](const std::string& distance_type, int dim, int dataset_size,
+         const py::array& data, float anchor_fraction, int M,
+         int anchor_ef_construction, int bulk_ef_construction,
+         int num_anchor_probes,
+         int num_initializations, uint32_t num_threads,
+         int64_t seed,
+         py::object labels) {
+        return createAnchorIndex<DataType::float32>(
+            distance_type, dim, dataset_size, anchor_fraction, M,
+            anchor_ef_construction, bulk_ef_construction,
+            num_anchor_probes, num_initializations, num_threads, seed,
+            data, labels);
+      },
+      py::arg("distance_type"),
+      py::arg("dim"),
+      py::arg("dataset_size"),
+      py::arg("data"),
+      py::arg("anchor_fraction") = 0.01f,
+      py::arg("M") = 16,
+      py::arg("anchor_ef_construction") = 500,
+      py::arg("bulk_ef_construction") = 80,
+      py::arg("num_anchor_probes") = 10,
+      py::arg("num_initializations") = 100,
+      py::arg("num_threads") = 1,
+      py::arg("seed") = 42,
+      py::arg("labels") = py::none(),
+      R"doc(
+Create an index using anchor-based two-pass construction.
+
+Anchor construction builds a high-quality graph on a small subset (the
+"anchors") of the data, then uses this anchor graph as a navigation layer
+to efficiently find entry points when inserting the remaining bulk data.
+
+This is designed for billion-scale datasets where the standard random
+initializeSearch becomes a bottleneck due to cold memory accesses across
+the full dataset. The anchor graph stays hot in cache and provides
+high-quality entry points via a short beam search.
+
+Parameters
+----------
+distance_type : str
+    Distance metric: 'l2' or 'angular'
+dim : int
+    Dimension of the vectors
+dataset_size : int
+    Number of vectors to index
+data : numpy.ndarray
+    2D array of vectors to index (shape: [dataset_size, dim])
+anchor_fraction : float
+    Fraction of data to use as anchors (default: 0.01 = 1%)
+M : int
+    Maximum edges per node (default: 32)
+anchor_ef_construction : int
+    ef_construction for anchor graph (default: 500, high for quality)
+bulk_ef_construction : int
+    ef_construction for bulk insertion (default: 80)
+num_anchor_probes : int
+    Number of anchor probes for entry point finding (default: 10)
+num_initializations : int
+    Number of random entry points for anchor construction (default: 100)
+num_threads : int
+    Number of threads for parallel construction (default: 1)
+seed : int
+    Random seed for anchor selection (default: 42)
 labels : array-like, optional
     Labels for each vector (default: auto-generated 0 to N-1)
 

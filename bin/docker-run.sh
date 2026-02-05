@@ -72,15 +72,43 @@ if [ ! -d "$DATA_DIR" ]; then
 fi
 mkdir -p $METRICS_DIR
 
-# Clean up existing docker images matching "flatnav" if any 
+# Parse arguments
+PRIVILEGED_FLAG=""
+PERF_COUNTERS_FLAG=""
+MAKE_TARGET=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --privileged)
+            PRIVILEGED_FLAG="--privileged"
+            shift
+            ;;
+        --perf-counters)
+            # Enable perf counter instrumentation (implies --privileged)
+            PERF_COUNTERS_FLAG="1"
+            PRIVILEGED_FLAG="--privileged"
+            shift
+            ;;
+        *)
+            MAKE_TARGET="$1"
+            shift
+            ;;
+    esac
+done
+
+# Build Docker image
+# Clean up existing docker images matching "flatnav" if any
 docker rmi -f $(docker images --filter=reference="flatnav" -q) &> /dev/null || true
 
-docker build --tag flatnav:$TAG_NAME -f Dockerfile .
+if [ "$PERF_COUNTERS_FLAG" = "1" ]; then
+    echo "Building with FLATNAV_PERF_COUNTERS=1 for hardware counter instrumentation"
+    docker build --build-arg FLATNAV_PERF_COUNTERS=1 --tag flatnav:$TAG_NAME -f Dockerfile .
+else
+    docker build --tag flatnav:$TAG_NAME -f Dockerfile .
+fi
 
-# Check if the first argument is set. If it is, then run docker container with the 
-# first argument as the make target. If not, then run the container with the default
-# make target
-if [ -z "$1" ]
+# Check if make target is set
+if [ -z "$MAKE_TARGET" ]
 then
     # This will build the image and run the container with the default make target
     # (i.e., print help message)
@@ -89,13 +117,17 @@ then
 fi
 
 # Run the container and mount the data/ directory as volume to /root/data
-# Pass the make target as argument to the container. 
+# Pass the make target as argument to the container.
 # NOTE: Mounting the ~/.aws directory so that the container can access the aws credentials
 # to upload the indexes to s3. This is not the most secure thing to do, but it's the easiest.
+# NOTE: Use --privileged flag for perf stat access to hardware counters
+NODE_ACCESS_DISTRIBUTIONS_DIR=${NODE_ACCESS_DISTRIBUTIONS_DIR:-$(pwd)/node-access-distributions}
 docker run \
         --name $CONTAINER_NAME \
         -it \
+        $PRIVILEGED_FLAG \
         --volume ${DATA_DIR}:/root/data \
         --volume ${METRICS_DIR}:/root/metrics \
+        --volume ${NODE_ACCESS_DISTRIBUTIONS_DIR}:/root/node-access-distributions \
         --rm flatnav:$TAG_NAME \
-        make $1
+        make $MAKE_TARGET

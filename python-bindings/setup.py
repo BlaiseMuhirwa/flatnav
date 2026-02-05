@@ -105,6 +105,11 @@ def construct_cmake_args() -> List[str]:
             else:
                 compile_args.append("-ftree-vectorize")
 
+    # Add perf counter instrumentation if requested
+    # Usage: FLATNAV_PERF_COUNTERS=1 pip install .
+    if int(os.environ.get("FLATNAV_PERF_COUNTERS", "0")):
+        compile_args.append("-DFLATNAV_PERF_COUNTERS")
+
     cmake_args = []
     cmake_args.append(f"-DCMAKE_INCLUDE_PATH={';'.join(cmake_include_directories)}")
     cmake_args.append(f"-DCMAKE_CXX_FLAGS={' '.join(compile_args)}")

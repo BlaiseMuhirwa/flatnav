@@ -2,6 +2,14 @@
 # The main configurable parameter is the type of index: --index-type (hnsw, flatnav)
 # We use dataset-name for the name of the plots.
 
+delete:
+	echo "Deleting node access distributions..."
+	pwd
+	ls -l /root 
+	ls -l /root/data
+	ls -l /
+	rm -rf /root/node-access-distributions/*
+
 ################################
 # Begin 100-Million Scale Benchmarks
 # ################################
@@ -34,6 +42,21 @@ bigann-100m-two-pass-bench-flatnav:
 		--ef-construction-pass1 50 \
 		--ef-construction-pass2 50 \
 		--output /root/data/two-pass-construction/bigann-100m-two-pass-bench-flatnav.json
+
+bigann-100m-anchor-bench:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/bigann-100m-euclidean/bigann_100m.train.npy \
+		--queries /root/data/bigann-100m-euclidean/bigann_100m.test.npy \
+		--gtruth /root/data/bigann-100m-euclidean/bigann_100m.gtruth.npy \
+		--strategies baseline anchor \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--output /root/data/anchor-construction/bigann-100m-anchor-bench.json
 
 bigann-100m-ensemble-bench:
 	poetry run python evaluate_ensemble.py \
@@ -82,6 +105,22 @@ yandex-deep-100m-bench-flatnav:
 		--num-search-threads 1
 
 
+yandex-deep-100m-anchor-bench:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/yandex-deep-100m/yandex_100m.train.npy \
+		--queries /root/data/yandex-deep-100m/yandex_100m.test.npy \
+		--gtruth /root/data/yandex-deep-100m/yandex_100m.gtruth.npy \
+		--strategies baseline anchor \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--output /root/data/anchor-construction/yandex-deep-100m-anchor-bench.json
+
+
 yandex-deep-100m-bench-hnsw:
 	poetry run python run-benchmark.py \
 		--dataset-name yandex-deep-100m \
@@ -112,6 +151,39 @@ spacev-100m-bench-flatnav:
 		--metric l2 \
 		--num-build-threads 32 \
 		--num-search-threads 1
+
+spacev-100m-anchor-bench:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/SPTAG/datasets/SPACEV1B/collection.npy \
+		--queries /root/data/SPTAG/datasets/SPACEV1B/spacev_100m.test.npy \
+		--gtruth /root/data/SPTAG/datasets/SPACEV1B/spacev_100m.gtruth.npy \
+		--range 0 100000000 \
+		--strategies baseline anchor \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--output /root/data/anchor-construction/spacev-100m-anchor-bench.json
+
+spacev-100m-anchor-bench-with-data-loader:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/SPTAG/datasets/SPACEV1B/vectors.bin \
+		--queries /root/data/SPTAG/datasets/SPACEV1B/query.bin \
+		--gtruth /root/data/SPTAG/datasets/SPACEV1B/truth.bin \
+		--range 0 100000000 \
+		--strategies baseline anchor \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--output /root/data/anchor-construction/spacev-100m-anchor-bench.json
+
 
 spacev-100m-bench-hnsw:
 	poetry run python run-benchmark.py \
@@ -157,6 +229,22 @@ tti-100m-bench-hnsw:
 		--metric angular \
 		--num-build-threads 32 \
 		--num-search-threads 1
+
+
+tti-100m-anchor-bench:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/SPTAG/datasets/SPACEV1B/spacev_100m.train.npy \
+		--queries /root/data/SPTAG/datasets/SPACEV1B/spacev_100m.test.npy \
+		--gtruth /root/data/SPTAG/datasets/SPACEV1B/spacev_100m.gtruth.npy \
+		--strategies baseline anchor \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--output /root/data/anchor-construction/spacev-100m-anchor-bench.json
 
 ################################
 # End 100-Million Scale Benchmarks
@@ -390,7 +478,7 @@ gist-bench-hnsw:
 		--num-search-threads 1 
 
 
-sift-bench-flatnav: 
+sift-bench-flatnav:
 	poetry run python run-benchmark.py \
 		--dataset-name sift \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
@@ -402,7 +490,22 @@ sift-bench-flatnav:
 		--ef-search 100 200 300 500 1000 3000 \
 		--metric l2 \
 		--num-build-threads 16 \
-		--num-search-threads 1 
+		--num-search-threads 1
+
+sift-bench-flatnav-cachegrind:
+	valgrind --tool=cachegrind --cachegrind-out-file=cachegrind.baseline.out \
+		poetry run python run-benchmark.py \
+		--dataset-name sift \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--index-type flatnav \
+		--num-node-links 16 \
+		--ef-construction 100 \
+		--ef-search 100 \
+		--metric l2 \
+		--num-build-threads 1 \
+		--num-search-threads 1
 
 sift-bench-two-pass-bench-flatnav:
 	poetry run python evaluate_two_pass.py \
@@ -411,6 +514,36 @@ sift-bench-two-pass-bench-flatnav:
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
 		--strategies re_prune \
 		--num-threads 8 \
+		--M-baseline 16 \
+		--M-pass1 8 \
+		--M-pass2 8 \
+		--ef-construction-pass1 50 \
+		--ef-construction-pass2 50 \
+		--output /root/data/two-pass-construction/sift-bench-two-pass-bench-flatnav.json
+
+sift-anchor-bench:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--strategies baseline anchor \
+		--num-threads 8 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--output /root/data/anchor-construction/sift-anchor-bench.json
+
+sift-bench-two-pass-bench-flatnav-cachegrind:
+	valgrind --tool=cachegrind --cachegrind-out-file=cachegrind.two_pass.out \
+		poetry run python evaluate_two_pass.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--strategies re_prune \
+		--num-threads 1 \
 		--M-baseline 16 \
 		--M-pass1 8 \
 		--M-pass2 8 \
@@ -433,6 +566,217 @@ sift-ensemble-bench:
 		--ef-construction-per-graph 25 \
 		--ef-construction-final 100 \
 		--output /root/data/ensemble-construction/sift-ensemble-bench.json
+
+sift-ensemble-bench-cachegrind:
+	valgrind --tool=cachegrind --cachegrind-out-file=cachegrind.ensemble.out \
+		poetry run python evaluate_ensemble.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--variants baseline two_pass incremental reset \
+		--num-threads 1 \
+		--M-baseline 16 \
+		--M-final 16 \
+		--M-per-graph 8 \
+		--num-graphs 2 \
+		--ef-construction-baseline 100 \
+		--ef-construction-per-graph 25 \
+		--ef-construction-final 100 \
+		--output /root/data/ensemble-construction/sift-ensemble-bench.json
+
+# Perf-based cache analysis (requires --privileged container)
+# Output saved to /root/metrics/ (mount a volume there)
+# To see available events on your CPU, run: perf list cache
+sift-bench-flatnav-perf:
+	perf stat -o /root/metrics/perf-baseline.txt \
+		-e cache-misses,cache-references,L1-dcache-load-misses,L1-dcache-loads,L1-dcache-prefetches,dTLB-load-misses,dTLB-loads,instructions,cycles \
+		poetry run python run-benchmark.py \
+		--dataset-name sift \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--index-type flatnav \
+		--num-node-links 16 \
+		--ef-construction 100 \
+		--ef-search 100 \
+		--metric l2 \
+		--num-build-threads 8 \
+		--num-search-threads 1
+
+perf-listing: 
+	perf list cache
+
+sift-bench-two-pass-bench-flatnav-perf:
+	perf stat -o /root/metrics/perf-two-pass.txt \
+		-e cache-misses,cache-references,L1-dcache-load-misses,L1-dcache-loads,L1-dcache-prefetches,dTLB-load-misses,dTLB-loads,instructions,cycles \
+		poetry run python evaluate_two_pass.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--strategies re_prune \
+		--num-threads 8 \
+		--M-baseline 16 \
+		--M-pass1 8 \
+		--M-pass2 8 \
+		--ef-construction-pass1 50 \
+		--ef-construction-pass2 50 \
+		--output /root/data/two-pass-construction/sift-bench-two-pass-bench-flatnav.json
+
+sift-ensemble-bench-perf:
+	perf stat -o /root/metrics/perf-ensemble.txt \
+		-e cache-misses,cache-references,L1-dcache-load-misses,L1-dcache-loads,L1-dcache-prefetches,dTLB-load-misses,dTLB-loads,instructions,cycles \
+		poetry run python evaluate_ensemble.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--variants baseline two_pass incremental reset \
+		--num-threads 8 \
+		--M-baseline 16 \
+		--M-final 16 \
+		--M-per-graph 8 \
+		--num-graphs 2 \
+		--ef-construction-baseline 100 \
+		--ef-construction-per-graph 25 \
+		--ef-construction-final 100 \
+		--output /root/data/ensemble-construction/sift-ensemble-bench.json
+
+################################
+# Anchor Construction Perf Analysis
+# Run with: ./bin/docker-run.sh --privileged <target>
+# These targets collect comprehensive cache/memory statistics to validate
+# the hypothesis that anchor nodes at the start of the index improve cache locality.
+################################
+
+# Common perf events for cache analysis:
+# - cache-misses/cache-references: Overall cache miss rate
+# - L1-dcache-load-misses/loads: L1 data cache (fastest, 1-4 cycles)
+# - LLC-load-misses/LLC-loads: Last Level Cache misses go to DRAM (~100+ cycles)
+# - dTLB-load-misses/loads: TLB misses trigger page table walks
+# - page-faults: Page faults (major = disk, minor = already in memory)
+# - instructions/cycles: For computing IPC (instructions per cycle)
+
+PERF_EVENTS_CACHE = cache-misses,cache-references,L1-dcache-load-misses,L1-dcache-loads,LLC-load-misses,LLC-loads,dTLB-load-misses,dTLB-loads,page-faults,instructions,cycles
+
+# SIFT-scale anchor perf (1M vectors - quick validation)
+sift-anchor-bench-perf:
+	@echo "=== Running baseline construction with perf ==="
+	perf stat -o /root/metrics/perf-anchor-baseline.txt \
+		-e $(PERF_EVENTS_CACHE) \
+		poetry run python evaluate_two_pass.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--strategies baseline \
+		--num-threads 1 \
+		--M-baseline 16 \
+		--output /root/data/anchor-construction/sift-anchor-baseline-perf.json
+	@echo "=== Running anchor construction with perf ==="
+	perf stat -o /root/metrics/perf-anchor-anchor.txt \
+		-e $(PERF_EVENTS_CACHE) \
+		poetry run python evaluate_two_pass.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--strategies anchor \
+		--num-threads 1 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--output /root/data/anchor-construction/sift-anchor-anchor-perf.json
+	@echo "=== Perf results saved to /root/metrics/perf-anchor-*.txt ==="
+
+# BigANN 100M anchor perf (100M vectors - full scale validation)
+# Use single thread to get cleaner per-operation measurements
+bigann-100m-anchor-bench-perf:
+	@echo "=== Running baseline construction with perf (100M) ==="
+	perf stat -o /root/metrics/perf-bigann100m-baseline.txt \
+		-e $(PERF_EVENTS_CACHE) \
+		poetry run python evaluate_two_pass.py \
+		--dataset /root/data/bigann-100m-euclidean/bigann_100m.train.npy \
+		--queries /root/data/bigann-100m-euclidean/bigann_100m.test.npy \
+		--gtruth /root/data/bigann-100m-euclidean/bigann_100m.gtruth.npy \
+		--strategies baseline \
+		--num-threads 1 \
+		--M-baseline 16 \
+		--output /root/data/anchor-construction/bigann-100m-baseline-perf.json
+	@echo "=== Running anchor construction with perf (100M) ==="
+	perf stat -o /root/metrics/perf-bigann100m-anchor.txt \
+		-e $(PERF_EVENTS_CACHE) \
+		poetry run python evaluate_two_pass.py \
+		--dataset /root/data/bigann-100m-euclidean/bigann_100m.train.npy \
+		--queries /root/data/bigann-100m-euclidean/bigann_100m.test.npy \
+		--gtruth /root/data/bigann-100m-euclidean/bigann_100m.gtruth.npy \
+		--strategies anchor \
+		--num-threads 1 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--output /root/data/anchor-construction/bigann-100m-anchor-perf.json
+	@echo "=== Perf results saved to /root/metrics/perf-bigann100m-*.txt ==="
+
+# Parallel construction perf (to see if cache benefits scale with threads)
+bigann-100m-anchor-bench-perf-parallel:
+	@echo "=== Running baseline construction with perf (100M, 32 threads) ==="
+	perf stat -o /root/metrics/perf-bigann100m-baseline-parallel.txt \
+		-e $(PERF_EVENTS_CACHE) \
+		poetry run python evaluate_two_pass.py \
+		--dataset /root/data/bigann-100m-euclidean/bigann_100m.train.npy \
+		--queries /root/data/bigann-100m-euclidean/bigann_100m.test.npy \
+		--gtruth /root/data/bigann-100m-euclidean/bigann_100m.gtruth.npy \
+		--strategies baseline \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--output /root/data/anchor-construction/bigann-100m-baseline-parallel-perf.json
+	@echo "=== Running anchor construction with perf (100M, 32 threads) ==="
+	perf stat -o /root/metrics/perf-bigann100m-anchor-parallel.txt \
+		-e $(PERF_EVENTS_CACHE) \
+		poetry run python evaluate_two_pass.py \
+		--dataset /root/data/bigann-100m-euclidean/bigann_100m.train.npy \
+		--queries /root/data/bigann-100m-euclidean/bigann_100m.test.npy \
+		--gtruth /root/data/bigann-100m-euclidean/bigann_100m.gtruth.npy \
+		--strategies anchor \
+		--num-threads 32 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--output /root/data/anchor-construction/bigann-100m-anchor-parallel-perf.json
+	@echo "=== Perf results saved to /root/metrics/perf-bigann100m-*-parallel.txt ==="
+
+# Helper to print a summary comparison of perf results
+perf-anchor-summary:
+	@echo "=== Cache Statistics Summary ==="
+	@echo ""
+	@echo "--- Baseline ---"
+	@cat /root/metrics/perf-anchor-baseline.txt 2>/dev/null || cat /root/metrics/perf-bigann100m-baseline.txt 2>/dev/null || echo "No baseline perf data found"
+	@echo ""
+	@echo "--- Anchor ---"
+	@cat /root/metrics/perf-anchor-anchor.txt 2>/dev/null || cat /root/metrics/perf-bigann100m-anchor.txt 2>/dev/null || echo "No anchor perf data found"
+
+################################
+# End Anchor Construction Perf Analysis
+################################
+
+# Cachegrind analysis helpers
+cachegrind-annotate-baseline:
+	cg_annotate cachegrind.baseline.out
+
+cachegrind-annotate-two-pass:
+	cg_annotate cachegrind.two_pass.out
+
+cachegrind-annotate-ensemble:
+	cg_annotate cachegrind.ensemble.out
+
+cachegrind-diff-two-pass:
+	cg_diff cachegrind.baseline.out cachegrind.two_pass.out
+
+cachegrind-diff-ensemble:
+	cg_diff cachegrind.baseline.out cachegrind.ensemble.out
 
 sift-bench-hnsw: 
 	poetry run python run-benchmark.py \

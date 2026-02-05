@@ -1,6 +1,6 @@
-# Build arguments 
-# debian:buster-slim is much smaller than ubuntu 22
-ARG BASE_IMAGE=debian:buster-slim
+# Build arguments
+# debian:bookworm-slim is much smaller than ubuntu 22
+ARG BASE_IMAGE=debian:bookworm-slim
 
 FROM ${BASE_IMAGE} AS base
 
@@ -9,6 +9,8 @@ ARG PYTHON_VERSION=3.11.6
 ARG POETRY_HOME="/opt/poetry"
 ARG ROOT_DIR="/root"
 ARG FLATNAV_PATH="${ROOT_DIR}/flatnavlib"
+# Set to 1 to enable hardware performance counter instrumentation
+ARG FLATNAV_PERF_COUNTERS=0
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -39,9 +41,15 @@ RUN apt-get update -y \
         gcc \
         g++ \
         apt-utils \
+        valgrind \
+        linux-perf \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /tmp/*
+    && rm -rf /tmp/* \
+    # Create symlink for perf if it doesn't exist (Debian installs as perf_<version>)
+    && if [ ! -f /usr/bin/perf ] && ls /usr/bin/perf_* 1>/dev/null 2>&1; then \
+        ln -s $(ls /usr/bin/perf_* | head -1) /usr/bin/perf; \
+    fi
 
 # Install python 
 # We use pyenv to manage python versions 
@@ -87,8 +95,11 @@ COPY external/ ./external/
 
 # Build flatnav wheel from source
 WORKDIR ${FLATNAV_PATH}/python-bindings
+ARG FLATNAV_PERF_COUNTERS
 RUN pip install scikit-build cmake ninja numpy \
-    && CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5" python setup.py bdist_wheel
+    && CMAKE_ARGS="-DCMAKE_POLICY_VERSION_MINIMUM=3.5" \
+       FLATNAV_PERF_COUNTERS=${FLATNAV_PERF_COUNTERS} \
+       python setup.py bdist_wheel
 
 # Get the flatnav wheel path
 ENV FLATNAV_WHEEL=${FLATNAV_PATH}/python-bindings/dist/*.whl
