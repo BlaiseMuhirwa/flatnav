@@ -8,6 +8,7 @@ from ._core import (
     __version__,
     __doc__
 )
+from ._core.perf import reset_perf_counters, get_perf_counters
 
 class _DataTypeModule:
     from ._core.data_type import DataType
@@ -39,6 +40,8 @@ __all__ = [
     'EnsembleVariant',
     'data_type',
     'index',
+    'reset_perf_counters',
+    'get_perf_counters',
     '__version__',
     '__doc__'
 ]

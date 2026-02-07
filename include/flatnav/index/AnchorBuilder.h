@@ -142,10 +142,7 @@ public:
   template <typename data_type>
   void build(void *data, std::vector<label_t> &labels) {
 #ifdef FLATNAV_PERF_COUNTERS
-    // Reset global stats before starting
     perf::globalStats().reset();
-    // Initialize counters for the main thread
-    perf::initThreadCounters();
 #endif
 
     // Pass 1: Insert anchor nodes with high-quality parameters
@@ -153,11 +150,6 @@ public:
 
     // Pass 2: Insert remaining nodes using anchor graph for entry points
     insertBulk<data_type>(data, labels);
-
-#ifdef FLATNAV_PERF_COUNTERS
-    // Print performance counter statistics
-    perf::globalStats().print();
-#endif
   }
 
   /**
@@ -217,6 +209,13 @@ private:
     uint32_t data_dimension = _index->_distance->dimension();
 
     auto insertAnchor = [&](uint32_t i) {
+#ifdef FLATNAV_PERF_COUNTERS
+      thread_local bool initialized = false;
+      if (!initialized) {
+        perf::initThreadCounters();
+        initialized = true;
+      }
+#endif
       uint32_t data_idx = _anchor_indices[i];
       uint64_t offset = static_cast<uint64_t>(data_idx) *
                         static_cast<uint64_t>(data_dimension);

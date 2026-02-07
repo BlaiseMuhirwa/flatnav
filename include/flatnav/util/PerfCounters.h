@@ -397,6 +397,68 @@ public:
   }
 
   /**
+   * @brief Export all statistics as a nested map.
+   *
+   * Returns a map of { section_name -> { metric_name -> value } }.
+   * Automatically convertible to a Python dict by pybind11/stl.h.
+   */
+  std::unordered_map<std::string, std::unordered_map<std::string, double>>
+  toMap() const {
+    std::lock_guard<std::mutex> lock(_mutex);
+    std::unordered_map<std::string, std::unordered_map<std::string, double>>
+        result;
+
+    for (const auto &[name, stats] : _stats) {
+      std::unordered_map<std::string, double> m;
+      auto &t = stats.total;
+
+      m["call_count"] = static_cast<double>(stats.call_count);
+
+      // Totals
+      m["llc_load_misses"] = static_cast<double>(t.llc_load_misses);
+      m["llc_loads"] = static_cast<double>(t.llc_loads);
+      m["l1d_load_misses"] = static_cast<double>(t.l1d_load_misses);
+      m["l1d_loads"] = static_cast<double>(t.l1d_loads);
+      m["dtlb_load_misses"] = static_cast<double>(t.dtlb_load_misses);
+      m["dtlb_loads"] = static_cast<double>(t.dtlb_loads);
+      m["instructions"] = static_cast<double>(t.instructions);
+      m["cycles"] = static_cast<double>(t.cycles);
+
+      // Rates
+      m["llc_miss_rate"] =
+          t.llc_loads > 0
+              ? 100.0 * t.llc_load_misses / t.llc_loads
+              : 0.0;
+      m["l1d_miss_rate"] =
+          t.l1d_loads > 0
+              ? 100.0 * t.l1d_load_misses / t.l1d_loads
+              : 0.0;
+      m["dtlb_miss_rate"] =
+          t.dtlb_loads > 0
+              ? 100.0 * t.dtlb_load_misses / t.dtlb_loads
+              : 0.0;
+      m["ipc"] =
+          t.cycles > 0
+              ? 1.0 * t.instructions / t.cycles
+              : 0.0;
+
+      // Per-call averages
+      if (stats.call_count > 0) {
+        double n = static_cast<double>(stats.call_count);
+        m["llc_misses_per_call"] = t.llc_load_misses / n;
+        m["l1d_misses_per_call"] = t.l1d_load_misses / n;
+        m["dtlb_misses_per_call"] = t.dtlb_load_misses / n;
+        m["cycles_per_call"] = t.cycles / n;
+        m["instructions_per_call"] = t.instructions / n;
+      }
+
+      result[name] = std::move(m);
+    }
+
+    return result;
+  }
+
+  /**
    * @brief Reset all statistics.
    */
   void reset() {

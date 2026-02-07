@@ -318,11 +318,17 @@ class Index {
       if (num_initializations <= 0) {
           throw std::invalid_argument("num_initializations must be greater than 0.");
       }
+#ifdef FLATNAV_PERF_COUNTERS
+      perf::globalStats().reset();
+#endif
       uint32_t total_num_nodes = labels.size();
       uint32_t data_dimension = _distance->dimension();
 
       // Don't spawn any threads if we are only using one.
       if (_num_threads == 1) {
+#ifdef FLATNAV_PERF_COUNTERS
+          perf::initThreadCounters();
+#endif
           for (uint32_t row_index = 0; row_index < total_num_nodes; row_index++) {
               uint64_t offset = static_cast<uint64_t>(row_index) * static_cast<uint64_t>(data_dimension);
               void* vector = (data_type*)data + offset;
@@ -332,15 +338,25 @@ class Index {
           return;
       }
 
+      auto insertPointLambda = [&](uint32_t row_index) {
+#ifdef FLATNAV_PERF_COUNTERS
+        // Initialize perf counters for this thread on first call 
+        thread_local bool initialized = false;
+        if (!initialized) {
+          perf::initThreadCounters();
+          initialized = true;
+        }
+#endif
+        uint64_t offset = static_cast<uint64_t>(row_index) * static_cast<uint64_t>(data_dimension);
+        void* vector = (data_type*)data + offset;
+        label_t label = labels[row_index];
+        this->add(vector, label, ef_construction, num_initializations);
+      };
+
       flatnav::executeInParallel(
           /* start_index = */ 0, /* end_index = */ total_num_nodes,
           /* num_threads = */ _num_threads, /* function = */
-          [&](uint32_t row_index) {
-              uint64_t offset = static_cast<uint64_t>(row_index) * static_cast<uint64_t>(data_dimension);
-              void* vector = (data_type*)data + offset;
-              label_t label = labels[row_index];
-              this->add(vector, label, ef_construction, num_initializations);
-          });
+          insertPointLambda);
   }
 
   /**
@@ -946,24 +962,3 @@ class Index {
 };
 
 }  // namespace flatnav
-
-/**
-  # Create a local install directory                                                                                                                                                                                                                                                                                                      
-  mkdir -p ~/local/bin                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                                          
-  # Clone just the perf tool (shallow clone to save space/time)                                                                                                                                                                                                                                                                           
-  cd ~                                                                                                                                                                                                                                                                                                                                    
-  git clone --depth 1 --branch v5.4 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git linux-perf                                                                                                                                                                                                                           
-  cd linux-perf/tools/perf                                                                                                                                                                                                                                                                                                                
-                                                                                                                                                                                                                                                                                                                                          
-  # Build perf (may need some dependencies, will warn if missing)                                                                                                                                                                                                                                                                         
-  make                                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                                          
-  # Copy to your local bin                                                                                                                                                                                                                                                                                                                
-  cp perf ~/local/bin/                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                                          
-  # Add to PATH (add this to your .bashrc for persistence)                                                                                                                                                                                                                                                                                
-  export PATH="$HOME/local/bin:$PATH"                                                                                                                                                                                                                                                                                                     
-                                      
-
-*/

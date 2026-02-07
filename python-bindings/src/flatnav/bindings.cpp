@@ -9,6 +9,7 @@
 #include <flatnav/index/AnchorBuilder.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/Multithreading.h>
+#include <flatnav/util/PerfCounters.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -1056,4 +1057,16 @@ Returns
 Index
     The constructed index
 )doc");
+
+  // Performance counter bindings
+  auto perf_submodule = module.def_submodule("perf",
+      "Hardware performance counter instrumentation");
+
+  perf_submodule.def("reset_perf_counters", []() {
+    flatnav::perf::globalStats().reset();
+  }, "Reset all accumulated performance counter statistics.");
+
+  perf_submodule.def("get_perf_counters", []() {
+    return flatnav::perf::globalStats().toMap();
+  }, "Get performance counter statistics as a nested dict: {section -> {metric -> value}}.");
 }

@@ -2,13 +2,8 @@
 # The main configurable parameter is the type of index: --index-type (hnsw, flatnav)
 # We use dataset-name for the name of the plots.
 
-delete:
-	echo "Deleting node access distributions..."
-	pwd
-	ls -l /root 
-	ls -l /root/data
-	ls -l /
-	rm -rf /root/node-access-distributions/*
+profile:
+	perf stat -e cache-references,cache-misses,LLC-load-misses,LLC-loads,L1-dcache-load-misses,L1-dcache-loads,dTLB-load-misses,dTLB-loads,instructions,cycles -- sleep 0.1
 
 ################################
 # Begin 100-Million Scale Benchmarks
@@ -757,6 +752,16 @@ perf-anchor-summary:
 	@echo ""
 	@echo "--- Anchor ---"
 	@cat /root/metrics/perf-anchor-anchor.txt 2>/dev/null || cat /root/metrics/perf-bigann100m-anchor.txt 2>/dev/null || echo "No anchor perf data found"
+
+plot-perf-counters:
+	@if [ -z "$(INPUT)" ]; then \
+		echo "Usage: make plot-perf-counters INPUT=results.json [OUTPUT=perf_comparison.png] [PERF_ONLY=1]"; \
+		exit 1; \
+	fi
+	poetry run python plot_perf_counters.py \
+		--input $(INPUT) \
+		$(if $(PERF_ONLY),--perf-only,) \
+		--output $(or $(OUTPUT),perf_comparison.png)
 
 ################################
 # End Anchor Construction Perf Analysis

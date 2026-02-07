@@ -34,6 +34,7 @@ import numpy as np
 import flatnav
 from flatnav import index as flatnav_index
 from flatnav import TwoPassStrategy, Pass2CandidateMethod
+from flatnav import reset_perf_counters, get_perf_counters
 from data_loader import get_data_loader
 
 @dataclass
@@ -50,6 +51,7 @@ class BenchmarkResult:
     ef_construction_total: int
     num_vectors: int
     dimension: int
+    perf_counters: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -301,6 +303,8 @@ def run_benchmark(
 
     print(f"  Building index with strategy: {strategy}...")
 
+    reset_perf_counters()
+
     start_time = time.time()
     if strategy == "baseline":
         index = build_baseline_index(data, config, distance_type)
@@ -315,6 +319,8 @@ def run_benchmark(
         M_total = config.M_pass1 + config.M_pass2
         ef_total = config.ef_construction_pass1 + config.ef_construction_pass2
     construction_time = time.time() - start_time
+
+    perf_data = get_perf_counters()
 
     print(f"    Construction time: {construction_time:.2f}s")
 
@@ -332,7 +338,8 @@ def run_benchmark(
         M_total=M_total,
         ef_construction_total=ef_total,
         num_vectors=num_vectors,
-        dimension=dim
+        dimension=dim,
+        perf_counters=perf_data if perf_data else None,
     )
 
 
@@ -439,6 +446,10 @@ def main():
         "--anchor-seed", type=int, default=42,
         help="Random seed for anchor selection (default: 42)"
     )
+    parser.add_argument(
+        "--perf-output", type=str, default=None,
+        help="Output file for dedicated perf counter results JSON"
+    )
 
     args = parser.parse_args()
 
@@ -523,6 +534,18 @@ def main():
         }, f, indent=2)
 
     print(f"\nResults saved to {output_path}")
+
+    # Save dedicated perf counter output if requested
+    if args.perf_output:
+        perf_output_path = Path(args.perf_output)
+        perf_output_path.parent.mkdir(parents=True, exist_ok=True)
+        perf_results = {
+            r["strategy"]: r.get("perf_counters", {})
+            for r in results
+        }
+        with open(perf_output_path, "w") as f:
+            json.dump(perf_results, f, indent=2)
+        print(f"Perf counter results saved to {perf_output_path}")
 
 
 if __name__ == "__main__":
