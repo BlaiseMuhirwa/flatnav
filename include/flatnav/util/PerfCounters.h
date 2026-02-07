@@ -42,8 +42,7 @@
 #include <unistd.h>
 #endif
 
-namespace flatnav {
-namespace perf {
+namespace flatnav::perf {
 
 /**
  * @brief Snapshot of counter values at a point in time.
@@ -135,15 +134,19 @@ public:
         (PERF_COUNT_HW_CACHE_OP_READ << 8) |
         (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16);
 
+    // Cycles and instructions MUST be first — they are universally supported
+    // and index 0 becomes the group leader. If the leader fails to open,
+    // the entire group is dead. HW_CACHE events (especially LLC) may be
+    // unsupported on some CPUs (e.g. Oracle Cloud AMD, certain VMs).
     std::vector<EventConfig> events = {
-        {PERF_TYPE_HW_CACHE, LLC_READ_MISS},   // 0: LLC load misses
-        {PERF_TYPE_HW_CACHE, LLC_READ},        // 1: LLC loads
-        {PERF_TYPE_HW_CACHE, L1D_READ_MISS},   // 2: L1D load misses
-        {PERF_TYPE_HW_CACHE, L1D_READ},        // 3: L1D loads
-        {PERF_TYPE_HW_CACHE, DTLB_READ_MISS},  // 4: DTLB load misses
-        {PERF_TYPE_HW_CACHE, DTLB_READ},       // 5: DTLB loads
-        {PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS},  // 6: instructions
-        {PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES},    // 7: cycles
+        {PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES},    // 0: cycles (leader)
+        {PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS},  // 1: instructions
+        {PERF_TYPE_HW_CACHE, LLC_READ_MISS},   // 2: LLC load misses
+        {PERF_TYPE_HW_CACHE, LLC_READ},        // 3: LLC loads
+        {PERF_TYPE_HW_CACHE, L1D_READ_MISS},   // 4: L1D load misses
+        {PERF_TYPE_HW_CACHE, L1D_READ},        // 5: L1D loads
+        {PERF_TYPE_HW_CACHE, DTLB_READ_MISS},  // 6: DTLB load misses
+        {PERF_TYPE_HW_CACHE, DTLB_READ},       // 7: DTLB loads
     };
 
     _fds.reserve(events.size());
@@ -261,14 +264,14 @@ public:
     for (size_t i = 0; i < nr && i < _num_events; i++) {
       uint64_t value = buf[1 + i];
       switch (_event_map[i]) {
-        case 0: snap.llc_load_misses = value; break;
-        case 1: snap.llc_loads = value; break;
-        case 2: snap.l1d_load_misses = value; break;
-        case 3: snap.l1d_loads = value; break;
-        case 4: snap.dtlb_load_misses = value; break;
-        case 5: snap.dtlb_loads = value; break;
-        case 6: snap.instructions = value; break;
-        case 7: snap.cycles = value; break;
+        case 0: snap.cycles = value; break;
+        case 1: snap.instructions = value; break;
+        case 2: snap.llc_load_misses = value; break;
+        case 3: snap.llc_loads = value; break;
+        case 4: snap.l1d_load_misses = value; break;
+        case 5: snap.l1d_loads = value; break;
+        case 6: snap.dtlb_load_misses = value; break;
+        case 7: snap.dtlb_loads = value; break;
       }
     }
 
@@ -475,5 +478,4 @@ private:
   CounterSnapshot _start;
 };
 
-} // namespace perf
-} // namespace flatnav
+} // namespace flatnav::perf
