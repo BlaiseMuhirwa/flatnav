@@ -51,7 +51,8 @@ bigann-100m-anchor-bench:
 		--anchor-ef-construction 500 \
 		--bulk-ef-construction 80 \
 		--num-anchor-probes 10 \
-		--output /root/data/anchor-construction/bigann-100m-anchor-bench.json
+		--output /root/data/anchor-construction/bigann-100m-anchor-bench.json \
+		--perf-output /root/data/anchor-construction/bigann-100m-anchor-perf.json
 
 bigann-100m-ensemble-bench:
 	poetry run python evaluate_ensemble.py \
@@ -113,7 +114,8 @@ yandex-deep-100m-anchor-bench:
 		--anchor-ef-construction 500 \
 		--bulk-ef-construction 80 \
 		--num-anchor-probes 10 \
-		--output /root/data/anchor-construction/yandex-deep-100m-anchor-bench.json
+		--output /root/data/anchor-construction/yandex-deep-100m-anchor-bench.json \
+		--perf-output /root/data/anchor-construction/yandex-deep-100m-anchor-perf.json
 
 
 yandex-deep-100m-bench-hnsw:
@@ -161,7 +163,8 @@ spacev-100m-anchor-bench:
 		--anchor-ef-construction 500 \
 		--bulk-ef-construction 80 \
 		--num-anchor-probes 10 \
-		--output /root/data/anchor-construction/spacev-100m-anchor-bench.json
+		--output /root/data/anchor-construction/spacev-100m-anchor-bench.json \
+		--perf-output /root/data/anchor-construction/spacev-100m-anchor-perf.json
 
 spacev-100m-anchor-bench-with-data-loader:
 	poetry run python evaluate_two_pass.py \
@@ -177,7 +180,8 @@ spacev-100m-anchor-bench-with-data-loader:
 		--anchor-ef-construction 500 \
 		--bulk-ef-construction 80 \
 		--num-anchor-probes 10 \
-		--output /root/data/anchor-construction/spacev-100m-anchor-bench.json
+		--output /root/data/anchor-construction/spacev-100m-anchor-bench.json \
+		--perf-output /root/data/anchor-construction/spacev-100m-anchor-dataloader-perf.json
 
 
 spacev-100m-bench-hnsw:
@@ -239,7 +243,8 @@ tti-100m-anchor-bench:
 		--anchor-ef-construction 500 \
 		--bulk-ef-construction 80 \
 		--num-anchor-probes 10 \
-		--output /root/data/anchor-construction/spacev-100m-anchor-bench.json
+		--output /root/data/anchor-construction/spacev-100m-anchor-bench.json \
+		--perf-output /root/data/anchor-construction/tti-100m-anchor-perf.json
 
 ################################
 # End 100-Million Scale Benchmarks
@@ -529,7 +534,8 @@ sift-anchor-bench:
 		--anchor-ef-construction 500 \
 		--bulk-ef-construction 80 \
 		--num-anchor-probes 10 \
-		--output /root/data/anchor-construction/sift-anchor-bench.json
+		--output /root/data/anchor-construction/sift-anchor-bench.json \
+		--perf-output /root/data/anchor-construction/sift-anchor-perf.json
 
 sift-bench-two-pass-bench-flatnav-cachegrind:
 	valgrind --tool=cachegrind --cachegrind-out-file=cachegrind.two_pass.out \
