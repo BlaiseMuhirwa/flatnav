@@ -55,6 +55,9 @@ struct AnchorConfig {
 
   /// Random seed for anchor selection
   int64_t seed = 42;
+
+  /// Whether to collect distance computation statistics
+  bool collect_stats = false;
 };
 
 /**
@@ -125,7 +128,8 @@ public:
     _num_anchors = std::min(_num_anchors, dataset_size);
 
     _index = std::make_unique<IndexType>(
-        std::move(dist), static_cast<int>(dataset_size), config.M);
+        std::move(dist), static_cast<int>(dataset_size), config.M,
+        /* collect_stats = */ config.collect_stats);
 
     _index->setNumThreads(config.num_threads);
 
@@ -344,6 +348,11 @@ private:
         min_dist = dist;
         best_anchor = node;
       }
+    }
+
+    if (_index->_collect_stats) {
+      _index->_distance_computations.fetch_add(
+          static_cast<uint64_t>((_num_anchors + step_size - 1) / step_size));
     }
 
     return best_anchor;

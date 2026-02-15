@@ -31,4 +31,8 @@ external/openmp
 # Python wheels 
 wheelhouse
 
-experiments/anchor_construction_report.md
+experiments/*.md
+experiments/*.png
+experiments/*.json
+experiments/*.tex
+CACHE_BENCHMARKING.md

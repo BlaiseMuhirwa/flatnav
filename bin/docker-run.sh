@@ -121,13 +121,11 @@ fi
 # NOTE: Mounting the ~/.aws directory so that the container can access the aws credentials
 # to upload the indexes to s3. This is not the most secure thing to do, but it's the easiest.
 # NOTE: Use --privileged flag for perf stat access to hardware counters
-NODE_ACCESS_DISTRIBUTIONS_DIR=${NODE_ACCESS_DISTRIBUTIONS_DIR:-$(pwd)/node-access-distributions}
 docker run \
         --name $CONTAINER_NAME \
         -it \
         $PRIVILEGED_FLAG \
         --volume ${DATA_DIR}:/root/data \
         --volume ${METRICS_DIR}:/root/metrics \
-        --volume ${NODE_ACCESS_DISTRIBUTIONS_DIR}:/root/node-access-distributions \
         --rm flatnav:$TAG_NAME \
         make $MAKE_TARGET

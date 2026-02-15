@@ -51,7 +51,10 @@ class BenchmarkResult:
     ef_construction_total: int
     num_vectors: int
     dimension: int
+    distance_computations: Optional[int] = None
     perf_counters: Optional[Dict[str, Any]] = None
+    # Sweep parameters (filled in when --sweep is active)
+    sweep_params: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -173,7 +176,8 @@ def build_baseline_index(
         distance_type=distance_type,
         dim=dim,
         dataset_size=num_vectors,
-        max_edges_per_node=config.M_baseline
+        max_edges_per_node=config.M_baseline,
+        collect_stats=False,
     )
     index.set_num_threads(config.num_threads)
     index.add(data, config.ef_construction_baseline, config.num_initializations)
@@ -257,6 +261,7 @@ def build_anchor_index(
         num_initializations=config.num_initializations,
         num_threads=config.num_threads,
         seed=config.anchor_seed,
+        collect_stats=False,
     )
 
     return index
@@ -320,9 +325,13 @@ def run_benchmark(
         ef_total = config.ef_construction_pass1 + config.ef_construction_pass2
     construction_time = time.time() - start_time
 
+    # Read distance computations accumulated during construction
+    distance_comps = index.get_distance_computations()
+
     perf_data = get_perf_counters()
 
     print(f"    Construction time: {construction_time:.2f}s")
+    print(f"    Distance computations: {distance_comps:,}")
 
     print(f"  Evaluating index...")
     eval_results = evaluate_index(index, queries, ground_truth, config)
@@ -339,8 +348,74 @@ def run_benchmark(
         ef_construction_total=ef_total,
         num_vectors=num_vectors,
         dimension=dim,
+        distance_computations=distance_comps,
         perf_counters=perf_data if perf_data else None,
     )
+
+
+def run_sweep(
+    data: np.ndarray,
+    queries: np.ndarray,
+    ground_truth: np.ndarray,
+    strategies: List[str],
+    config: ExperimentConfig,
+    distance_type: str,
+    sweep_anchor_probes: List[int],
+    sweep_bulk_ef: List[int],
+    sweep_baseline_ef: List[int],
+    sweep_baseline_init: List[int],
+) -> List[BenchmarkResult]:
+    """Run parameter sweep across strategies, returning all results."""
+    from itertools import product
+
+    results = []
+
+    for strategy in strategies:
+        if strategy == "baseline":
+            combos = list(product(sweep_baseline_ef, sweep_baseline_init))
+            for ef_val, init_val in combos:
+                sweep_config = ExperimentConfig(
+                    M_baseline=config.M_baseline,
+                    ef_construction_baseline=ef_val,
+                    num_initializations=init_val,
+                    num_threads=config.num_threads,
+                    ef_search_values=config.ef_search_values,
+                    K=config.K,
+                )
+                params = {"ef_construction": ef_val, "num_initializations": init_val}
+                print(f"\n[sweep] baseline: ef={ef_val}, init={init_val}")
+                result = run_benchmark(data, queries, ground_truth, strategy, sweep_config, distance_type)
+                result.sweep_params = params
+                results.append(result)
+
+        elif strategy == "anchor":
+            combos = list(product(sweep_anchor_probes, sweep_bulk_ef))
+            for probes, bulk_ef in combos:
+                sweep_config = ExperimentConfig(
+                    anchor_fraction=config.anchor_fraction,
+                    anchor_M=config.anchor_M,
+                    anchor_ef_construction=config.anchor_ef_construction,
+                    bulk_ef_construction=bulk_ef,
+                    num_anchor_probes=probes,
+                    num_initializations=config.num_initializations,
+                    num_threads=config.num_threads,
+                    anchor_seed=config.anchor_seed,
+                    ef_search_values=config.ef_search_values,
+                    K=config.K,
+                )
+                params = {"num_anchor_probes": probes, "bulk_ef_construction": bulk_ef}
+                print(f"\n[sweep] anchor: probes={probes}, bulk_ef={bulk_ef}")
+                result = run_benchmark(data, queries, ground_truth, strategy, sweep_config, distance_type)
+                result.sweep_params = params
+                results.append(result)
+
+        else:
+            # For two-pass strategies, just run with the default config
+            print(f"\n[sweep] {strategy}: default config")
+            result = run_benchmark(data, queries, ground_truth, strategy, config, distance_type)
+            results.append(result)
+
+    return results
 
 
 def main():
@@ -451,6 +526,28 @@ def main():
         help="Output file for dedicated perf counter results JSON"
     )
 
+    # Sweep mode arguments
+    parser.add_argument(
+        "--sweep", action="store_true",
+        help="Run parameter sweep mode: iterate over multiple parameter configurations per strategy"
+    )
+    parser.add_argument(
+        "--sweep-anchor-probes", type=int, nargs="+", default=[5, 10, 20, 50],
+        help="Anchor probe counts to sweep (default: 5 10 20 50)"
+    )
+    parser.add_argument(
+        "--sweep-bulk-ef", type=int, nargs="+", default=[50, 80, 100],
+        help="Bulk ef_construction values to sweep for anchor strategy (default: 50 80 100)"
+    )
+    parser.add_argument(
+        "--sweep-baseline-ef", type=int, nargs="+", default=[50, 80, 100],
+        help="ef_construction values to sweep for baseline strategy (default: 50 80 100)"
+    )
+    parser.add_argument(
+        "--sweep-baseline-init", type=int, nargs="+", default=[50, 100],
+        help="num_initializations values to sweep for baseline strategy (default: 50 100)"
+    )
+
     args = parser.parse_args()
 
     if args.range is not None:
@@ -492,24 +589,37 @@ def main():
     )
 
     # Run benchmarks
-    results = []
-    for strategy in args.strategies:
-        print(f"\nRunning benchmark for strategy: {strategy}")
-
-        result = run_benchmark(
-            data, queries, ground_truth, strategy, config, args.distance_type
+    if args.sweep:
+        # Sweep mode: iterate over parameter combinations
+        sweep_results = run_sweep(
+            data, queries, ground_truth, args.strategies, config, args.distance_type,
+            sweep_anchor_probes=args.sweep_anchor_probes,
+            sweep_bulk_ef=args.sweep_bulk_ef,
+            sweep_baseline_ef=args.sweep_baseline_ef,
+            sweep_baseline_init=args.sweep_baseline_init,
         )
+        results = [asdict(r) for r in sweep_results]
+    else:
+        results = []
+        for strategy in args.strategies:
+            print(f"\nRunning benchmark for strategy: {strategy}")
 
-        results.append(asdict(result))
-        print(f"  Recall@10: {result.recall_at_10:.4f}")
-        print(f"  Construction time: {result.construction_time_seconds:.2f}s")
+            result = run_benchmark(
+                data, queries, ground_truth, strategy, config, args.distance_type
+            )
+
+            results.append(asdict(result))
+            print(f"  Recall@10: {result.recall_at_10:.4f}")
+            print(f"  Construction time: {result.construction_time_seconds:.2f}s")
 
     # Print summary
     print("\n" + "=" * 100)
     print("SUMMARY")
     print("=" * 100)
-    print(f"{'Strategy':<20} {'Time (s)':<12} {'Recall@1':<12} {'Recall@10':<12} {'Recall@100':<12} {'Speedup':<12}")
-    print("-" * 100)
+    header = (f"{'Strategy':<20} {'Time (s)':<12} {'Recall@1':<12} {'Recall@10':<12} "
+              f"{'Recall@100':<12} {'Dist Comps':<15} {'Params':<30}")
+    print(header)
+    print("-" * 113)
 
     baseline_time = None
     for r in results:
@@ -519,9 +629,12 @@ def main():
 
     for r in results:
         speedup = baseline_time / r["construction_time_seconds"] if baseline_time else 1.0
+        dist_comps = r.get("distance_computations")
+        dist_str = f"{dist_comps:,}" if dist_comps is not None else "N/A"
+        params_str = str(r.get("sweep_params", "")) if r.get("sweep_params") else ""
         print(f"{r['strategy']:<20} {r['construction_time_seconds']:<12.2f} "
               f"{r['recall_at_1']:<12.4f} {r['recall_at_10']:<12.4f} "
-              f"{r['recall_at_100']:<12.4f} {speedup:<12.2f}x")
+              f"{r['recall_at_100']:<12.4f} {dist_str:<15} {params_str:<30}")
 
     # Save results
     output_path = Path(args.output)

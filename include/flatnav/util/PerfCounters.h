@@ -8,6 +8,10 @@
  * hardware events for specific code sections. Used to validate cache locality
  * hypotheses in entry point selection (anchor vs random initialization).
  *
+ * Hardware detection: Uses CPUID at runtime to select the right PMU events
+ * for AMD (raw events for L2/L3) vs Intel (generic HW_CACHE interface).
+ * See CACHE_BENCHMARKING.md for details on per-vendor event availability.
+ *
  * Usage:
  *   // At program start (once per thread that will use counters)
  *   flatnav::perf::CounterGroup counters;
@@ -40,70 +44,119 @@
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#if defined(__x86_64__) || defined(__i386__)
+#include <cpuid.h>
+#endif
 #endif
 
 namespace flatnav::perf {
 
+// ──────────────────────────────────────────────────────────────────────
+// CPU vendor detection (runtime CPUID)
+// ──────────────────────────────────────────────────────────────────────
+enum class CpuVendor { AMD, INTEL, OTHER };
+
+inline CpuVendor detectCpuVendor() {
+#if defined(FLATNAV_PERF_COUNTERS) && (defined(__x86_64__) || defined(__i386__))
+  uint32_t eax, ebx, ecx, edx;
+  if (__get_cpuid(0, &eax, &ebx, &ecx, &edx)) {
+    // "AuthenticAMD"
+    if (ebx == 0x68747541 && edx == 0x69746e65 && ecx == 0x444d4163)
+      return CpuVendor::AMD;
+    // "GenuineIntel"
+    if (ebx == 0x756e6547 && edx == 0x49656e69 && ecx == 0x6c65746e)
+      return CpuVendor::INTEL;
+  }
+#endif
+  return CpuVendor::OTHER;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Counter snapshot — vendor-neutral field names
+// ──────────────────────────────────────────────────────────────────────
+
 /**
  * @brief Snapshot of counter values at a point in time.
+ *
+ * Field semantics by vendor:
+ *   l2_misses   — AMD: l2_cache_misses_from_dc_misses (raw 0x0864)
+ *                 Intel: may be 0 (no generic L2 miss counter)
+ *   dram_fills  — AMD: l1_data_cache_fills_from_memory (raw 0x4844), L3 miss
+ *                 Intel: LLC load misses (= fills from DRAM)
+ *   dtlb_*      — Intel only (not enough AMD PMU slots); 0 on AMD.
  */
 struct CounterSnapshot {
-  uint64_t llc_load_misses = 0;   // Last Level Cache load misses (-> DRAM)
-  uint64_t llc_loads = 0;         // Total LLC loads
+  uint64_t cycles = 0;            // CPU cycles
+  uint64_t instructions = 0;      // Instructions retired
   uint64_t l1d_load_misses = 0;   // L1 data cache load misses
   uint64_t l1d_loads = 0;         // Total L1 data cache loads
-  uint64_t dtlb_load_misses = 0;  // Data TLB load misses
-  uint64_t dtlb_loads = 0;        // Total data TLB loads
-  uint64_t instructions = 0;      // Instructions retired
-  uint64_t cycles = 0;            // CPU cycles
+  uint64_t l2_misses = 0;         // L2 cache misses (requests that go to L3)
+  uint64_t dram_fills = 0;        // Loads filled from DRAM (L3 miss proxy)
+  uint64_t dtlb_load_misses = 0;  // Data TLB load misses (Intel only)
+  uint64_t dtlb_loads = 0;        // Total data TLB loads (Intel only)
 
   CounterSnapshot operator-(const CounterSnapshot &other) const {
     CounterSnapshot delta;
-    delta.llc_load_misses = llc_load_misses - other.llc_load_misses;
-    delta.llc_loads = llc_loads - other.llc_loads;
+    delta.cycles = cycles - other.cycles;
+    delta.instructions = instructions - other.instructions;
     delta.l1d_load_misses = l1d_load_misses - other.l1d_load_misses;
     delta.l1d_loads = l1d_loads - other.l1d_loads;
+    delta.l2_misses = l2_misses - other.l2_misses;
+    delta.dram_fills = dram_fills - other.dram_fills;
     delta.dtlb_load_misses = dtlb_load_misses - other.dtlb_load_misses;
     delta.dtlb_loads = dtlb_loads - other.dtlb_loads;
-    delta.instructions = instructions - other.instructions;
-    delta.cycles = cycles - other.cycles;
     return delta;
   }
 
   CounterSnapshot &operator+=(const CounterSnapshot &other) {
-    llc_load_misses += other.llc_load_misses;
-    llc_loads += other.llc_loads;
+    cycles += other.cycles;
+    instructions += other.instructions;
     l1d_load_misses += other.l1d_load_misses;
     l1d_loads += other.l1d_loads;
+    l2_misses += other.l2_misses;
+    dram_fills += other.dram_fills;
     dtlb_load_misses += other.dtlb_load_misses;
     dtlb_loads += other.dtlb_loads;
-    instructions += other.instructions;
-    cycles += other.cycles;
     return *this;
   }
 };
 
 #ifdef FLATNAV_PERF_COUNTERS
 
+// ──────────────────────────────────────────────────────────────────────
+// Event field index — maps array position to CounterSnapshot field
+// ──────────────────────────────────────────────────────────────────────
+enum EventField : int {
+  EF_CYCLES = 0,
+  EF_INSTRUCTIONS = 1,
+  EF_L1D_LOAD_MISSES = 2,
+  EF_L1D_LOADS = 3,
+  EF_L2_MISSES = 4,
+  EF_DRAM_FILLS = 5,
+  EF_DTLB_LOAD_MISSES = 6,
+  EF_DTLB_LOADS = 7,
+};
+
 /**
  * @brief Group of hardware performance counters for a single thread.
  *
  * Uses Linux perf_event_open to access hardware PMU counters.
  * Each thread needs its own CounterGroup instance.
+ *
+ * Event selection adapts at runtime based on CPU vendor:
+ *   AMD  — 6 events using PERF_TYPE_RAW for L2/L3 (see CACHE_BENCHMARKING.md)
+ *   Intel— 8 events using generic PERF_TYPE_HW_CACHE for LLC + dTLB
  */
 class CounterGroup {
 public:
   CounterGroup() : _leader_fd(-1), _num_events(0), _started(false) {
-    // Event configurations: {type, config}
-    // Using PERF_TYPE_HARDWARE and PERF_TYPE_HW_CACHE
     struct EventConfig {
       uint32_t type;
       uint64_t config;
+      EventField field;
     };
 
-    // Define events we want to measure
-    // LLC (Last Level Cache) events use HW_CACHE encoding
-    // Format: (cache_id) | (cache_op << 8) | (cache_result << 16)
+    // ── Generic HW_CACHE encodings (Intel / fallback) ─────────────
     constexpr uint64_t LLC_READ_MISS =
         (PERF_COUNT_HW_CACHE_LL) |
         (PERF_COUNT_HW_CACHE_OP_READ << 8) |
@@ -134,20 +187,49 @@ public:
         (PERF_COUNT_HW_CACHE_OP_READ << 8) |
         (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16);
 
+    // ── AMD raw event encodings ───────────────────────────────────
+    // config = (umask << 8) | event_select
+    // See CACHE_BENCHMARKING.md §2 for derivation.
+    constexpr uint64_t AMD_L2_DC_MISSES = 0x0864;  // l2_cache_misses_from_dc_misses
+    constexpr uint64_t AMD_DC_FILLS_DRAM = 0x4844;  // l1_data_cache_fills_from_memory
+
+    // ── Build event list based on detected vendor ─────────────────
     // Cycles and instructions MUST be first — they are universally supported
     // and index 0 becomes the group leader. If the leader fails to open,
-    // the entire group is dead. HW_CACHE events (especially LLC) may be
-    // unsupported on some CPUs (e.g. Oracle Cloud AMD, certain VMs).
-    std::vector<EventConfig> events = {
-        {PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES},    // 0: cycles (leader)
-        {PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS},  // 1: instructions
-        {PERF_TYPE_HW_CACHE, LLC_READ_MISS},   // 2: LLC load misses
-        {PERF_TYPE_HW_CACHE, LLC_READ},        // 3: LLC loads
-        {PERF_TYPE_HW_CACHE, L1D_READ_MISS},   // 4: L1D load misses
-        {PERF_TYPE_HW_CACHE, L1D_READ},        // 5: L1D loads
-        {PERF_TYPE_HW_CACHE, DTLB_READ_MISS},  // 6: DTLB load misses
-        {PERF_TYPE_HW_CACHE, DTLB_READ},       // 7: DTLB loads
-    };
+    // the entire group is dead.
+    _vendor = detectCpuVendor();
+
+    std::vector<EventConfig> events;
+
+    if (_vendor == CpuVendor::AMD) {
+      // AMD Zen: 6 GP PMU counters per core.
+      // Generic PERF_COUNT_HW_CACHE_LL is unsupported; use raw events.
+      events = {
+          {PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES,   EF_CYCLES},
+          {PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS, EF_INSTRUCTIONS},
+          {PERF_TYPE_HW_CACHE, L1D_READ_MISS,              EF_L1D_LOAD_MISSES},
+          {PERF_TYPE_HW_CACHE, L1D_READ,                   EF_L1D_LOADS},
+          {PERF_TYPE_RAW,      AMD_L2_DC_MISSES,           EF_L2_MISSES},
+          {PERF_TYPE_RAW,      AMD_DC_FILLS_DRAM,          EF_DRAM_FILLS},
+      };
+    } else {
+      // Intel / other: 8+ GP PMU counters typically available.
+      // Use generic HW_CACHE interface; LLC = L3 on Intel.
+      // LLC misses map to dram_fills (= loads that went to DRAM).
+      // LLC loads are not directly exposed as a snapshot field but are
+      // used to detect whether the counter is active (non-zero → derive
+      // miss rate in print/toMap via l2_misses if available).
+      events = {
+          {PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES,   EF_CYCLES},
+          {PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS, EF_INSTRUCTIONS},
+          {PERF_TYPE_HW_CACHE, LLC_READ_MISS,              EF_DRAM_FILLS},
+          {PERF_TYPE_HW_CACHE, LLC_READ,                   EF_L2_MISSES},
+          {PERF_TYPE_HW_CACHE, L1D_READ_MISS,              EF_L1D_LOAD_MISSES},
+          {PERF_TYPE_HW_CACHE, L1D_READ,                   EF_L1D_LOADS},
+          {PERF_TYPE_HW_CACHE, DTLB_READ_MISS,             EF_DTLB_LOAD_MISSES},
+          {PERF_TYPE_HW_CACHE, DTLB_READ,                  EF_DTLB_LOADS},
+      };
+    }
 
     _fds.reserve(events.size());
 
@@ -169,18 +251,19 @@ public:
       // First event is the group leader
       int group_fd = (i == 0) ? -1 : _leader_fd;
 
-      int fd = static_cast<int>(syscall(__NR_perf_event_open, &pe, 0, -1, group_fd, 0));
+      int fd = static_cast<int>(
+          syscall(__NR_perf_event_open, &pe, 0, -1, group_fd, 0));
       if (fd == -1) {
-        // Event not available - store -1 and continue
+        // Event not available — store -1 and continue
         _fds.push_back(-1);
         if (i == 0) {
           // If leader fails, we can't do anything
-          // Only print warning once across all threads
           static std::atomic<bool> warned{false};
           bool expected = false;
           if (warned.compare_exchange_strong(expected, true)) {
             std::cerr << "Warning: perf_event_open failed for leader event.\n"
-                      << "To enable hardware counters, run on the HOST (not in container):\n"
+                      << "To enable hardware counters, run on the HOST "
+                         "(not in container):\n"
                       << "  sudo sysctl -w kernel.perf_event_paranoid=-1\n"
                       << "Then re-run the container with --privileged.\n";
           }
@@ -188,12 +271,24 @@ public:
         }
       } else {
         _fds.push_back(fd);
-        _event_map.push_back(static_cast<int>(i));
+        _event_map.push_back(events[i].field);
         _num_events++;
         if (i == 0) {
           _leader_fd = fd;
         }
       }
+    }
+
+    // Log which events opened successfully (once per vendor)
+    static std::atomic<bool> logged{false};
+    bool expected = false;
+    if (logged.compare_exchange_strong(expected, true)) {
+      const char *vendor_str = (_vendor == CpuVendor::AMD)    ? "AMD"
+                               : (_vendor == CpuVendor::INTEL) ? "Intel"
+                                                               : "Other";
+      std::cerr << "[PerfCounters] CPU vendor: " << vendor_str
+                << ", opened " << _num_events << "/" << events.size()
+                << " events\n";
     }
   }
 
@@ -215,7 +310,8 @@ public:
         _event_map(std::move(other._event_map)),
         _leader_fd(other._leader_fd),
         _num_events(other._num_events),
-        _started(other._started) {
+        _started(other._started),
+        _vendor(other._vendor) {
     other._leader_fd = -1;
     other._num_events = 0;
     other._started = false;
@@ -264,14 +360,14 @@ public:
     for (size_t i = 0; i < nr && i < _num_events; i++) {
       uint64_t value = buf[1 + i];
       switch (_event_map[i]) {
-        case 0: snap.cycles = value; break;
-        case 1: snap.instructions = value; break;
-        case 2: snap.llc_load_misses = value; break;
-        case 3: snap.llc_loads = value; break;
-        case 4: snap.l1d_load_misses = value; break;
-        case 5: snap.l1d_loads = value; break;
-        case 6: snap.dtlb_load_misses = value; break;
-        case 7: snap.dtlb_loads = value; break;
+        case EF_CYCLES:           snap.cycles = value; break;
+        case EF_INSTRUCTIONS:     snap.instructions = value; break;
+        case EF_L1D_LOAD_MISSES:  snap.l1d_load_misses = value; break;
+        case EF_L1D_LOADS:        snap.l1d_loads = value; break;
+        case EF_L2_MISSES:        snap.l2_misses = value; break;
+        case EF_DRAM_FILLS:       snap.dram_fills = value; break;
+        case EF_DTLB_LOAD_MISSES: snap.dtlb_load_misses = value; break;
+        case EF_DTLB_LOADS:       snap.dtlb_loads = value; break;
       }
     }
 
@@ -290,12 +386,18 @@ public:
    */
   bool available() const { return _leader_fd >= 0; }
 
+  /**
+   * @brief Get the detected CPU vendor.
+   */
+  CpuVendor vendor() const { return _vendor; }
+
 private:
   std::vector<int> _fds;
-  std::vector<int> _event_map; // maps group index -> event field index
+  std::vector<EventField> _event_map; // maps group index -> snapshot field
   int _leader_fd;
   size_t _num_events;
   bool _started;
+  CpuVendor _vendor;
 };
 
 #else // !FLATNAV_PERF_COUNTERS
@@ -310,6 +412,7 @@ public:
   CounterSnapshot read() const { return {}; }
   CounterSnapshot readDelta(const CounterSnapshot &) const { return {}; }
   bool available() const { return false; }
+  CpuVendor vendor() const { return CpuVendor::OTHER; }
 };
 
 #endif // FLATNAV_PERF_COUNTERS
@@ -362,36 +465,48 @@ public:
         continue;
 
       auto &t = stats.total;
-      std::cout << "  LLC load misses:  " << t.llc_load_misses;
-      if (t.llc_loads > 0) {
-        std::cout << " (" << (100.0 * t.llc_load_misses / t.llc_loads) << "% miss rate)";
+      std::cout << "  L1D load misses:  " << t.l1d_load_misses;
+      if (t.l1d_loads > 0) {
+        std::cout << " (" << (100.0 * t.l1d_load_misses / t.l1d_loads)
+                  << "% miss rate)";
       }
       std::cout << "\n";
 
-      std::cout << "  L1D load misses:  " << t.l1d_load_misses;
-      if (t.l1d_loads > 0) {
-        std::cout << " (" << (100.0 * t.l1d_load_misses / t.l1d_loads) << "% miss rate)";
+      std::cout << "  L2 misses:        " << t.l2_misses << "\n";
+
+      std::cout << "  DRAM fills:       " << t.dram_fills;
+      if (t.l2_misses > 0) {
+        std::cout << " (" << (100.0 * t.dram_fills / t.l2_misses)
+                  << "% of L2 misses went to DRAM)";
       }
       std::cout << "\n";
 
       std::cout << "  dTLB load misses: " << t.dtlb_load_misses;
       if (t.dtlb_loads > 0) {
-        std::cout << " (" << (100.0 * t.dtlb_load_misses / t.dtlb_loads) << "% miss rate)";
+        std::cout << " (" << (100.0 * t.dtlb_load_misses / t.dtlb_loads)
+                  << "% miss rate)";
       }
       std::cout << "\n";
 
       std::cout << "  Instructions:     " << t.instructions << "\n";
       std::cout << "  Cycles:           " << t.cycles << "\n";
       if (t.cycles > 0) {
-        std::cout << "  IPC:              " << (1.0 * t.instructions / t.cycles) << "\n";
+        std::cout << "  IPC:              "
+                  << (1.0 * t.instructions / t.cycles) << "\n";
       }
 
       // Per-call averages
       std::cout << "  --- Per-call averages ---\n";
-      std::cout << "    LLC misses/call:  " << (1.0 * t.llc_load_misses / stats.call_count) << "\n";
-      std::cout << "    L1D misses/call:  " << (1.0 * t.l1d_load_misses / stats.call_count) << "\n";
-      std::cout << "    dTLB misses/call: " << (1.0 * t.dtlb_load_misses / stats.call_count) << "\n";
-      std::cout << "    Cycles/call:      " << (1.0 * t.cycles / stats.call_count) << "\n";
+      std::cout << "    L1D misses/call:  "
+                << (1.0 * t.l1d_load_misses / stats.call_count) << "\n";
+      std::cout << "    L2 misses/call:   "
+                << (1.0 * t.l2_misses / stats.call_count) << "\n";
+      std::cout << "    DRAM fills/call:  "
+                << (1.0 * t.dram_fills / stats.call_count) << "\n";
+      std::cout << "    dTLB misses/call: "
+                << (1.0 * t.dtlb_load_misses / stats.call_count) << "\n";
+      std::cout << "    Cycles/call:      "
+                << (1.0 * t.cycles / stats.call_count) << "\n";
     }
     std::cout << "\n====================================================\n";
   }
@@ -415,23 +530,23 @@ public:
       m["call_count"] = static_cast<double>(stats.call_count);
 
       // Totals
-      m["llc_load_misses"] = static_cast<double>(t.llc_load_misses);
-      m["llc_loads"] = static_cast<double>(t.llc_loads);
       m["l1d_load_misses"] = static_cast<double>(t.l1d_load_misses);
       m["l1d_loads"] = static_cast<double>(t.l1d_loads);
+      m["l2_misses"] = static_cast<double>(t.l2_misses);
+      m["dram_fills"] = static_cast<double>(t.dram_fills);
       m["dtlb_load_misses"] = static_cast<double>(t.dtlb_load_misses);
       m["dtlb_loads"] = static_cast<double>(t.dtlb_loads);
       m["instructions"] = static_cast<double>(t.instructions);
       m["cycles"] = static_cast<double>(t.cycles);
 
       // Rates
-      m["llc_miss_rate"] =
-          t.llc_loads > 0
-              ? 100.0 * t.llc_load_misses / t.llc_loads
-              : 0.0;
       m["l1d_miss_rate"] =
           t.l1d_loads > 0
               ? 100.0 * t.l1d_load_misses / t.l1d_loads
+              : 0.0;
+      m["dram_fill_rate"] =
+          t.l2_misses > 0
+              ? 100.0 * t.dram_fills / t.l2_misses
               : 0.0;
       m["dtlb_miss_rate"] =
           t.dtlb_loads > 0
@@ -445,8 +560,10 @@ public:
       // Per-call averages
       if (stats.call_count > 0) {
         double n = static_cast<double>(stats.call_count);
-        m["llc_misses_per_call"] = t.llc_load_misses / n;
+        m["l1d_loads_per_call"] = t.l1d_loads / n;
         m["l1d_misses_per_call"] = t.l1d_load_misses / n;
+        m["l2_misses_per_call"] = t.l2_misses / n;
+        m["dram_fills_per_call"] = t.dram_fills / n;
         m["dtlb_misses_per_call"] = t.dtlb_load_misses / n;
         m["cycles_per_call"] = t.cycles / n;
         m["instructions_per_call"] = t.instructions / n;
