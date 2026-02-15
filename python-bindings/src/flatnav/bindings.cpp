@@ -287,6 +287,14 @@ class PyIndex : public std::enable_shared_from_this<PyIndex<dist_t, label_t>> {
     return distance_computations;
   }
 
+  uint64_t getDistanceComputations() const {
+    return _index->distanceComputations();
+  }
+
+  void resetStats() {
+    _index->resetStats();
+  }
+
   void buildGraphLinks(const std::string& mtx_filename) {
     _index->buildGraphLinks(/* mtx_filename = */ mtx_filename);
   }
@@ -475,6 +483,10 @@ void bindSpecialization(py::module_& index_submodule) {
           SEARCH_DOCSTRING)
       .def("get_query_distance_computations", &IndexType::getQueryDistanceComputations,
            GET_QUERY_DISTANCE_COMPUTATIONS_DOCSTRING)
+      .def("get_distance_computations", &IndexType::getDistanceComputations,
+           "Get the total number of distance computations without resetting the counter.")
+      .def("reset_stats", &IndexType::resetStats,
+           "Reset distance computation and hop counters.")
       .def("save", &IndexType::save, py::arg("filename"), SAVE_DOCSTRING)
       .def("build_graph_links", &IndexType::buildGraphLinks, py::arg("mtx_filename"),
            BUILD_GRAPH_LINKS_DOCSTRING)
@@ -725,6 +737,7 @@ py::object createAnchorIndex(const std::string& distance_type, int dim, int data
                               int bulk_ef_construction,
                               int num_anchor_probes, int num_initializations,
                               uint32_t num_threads, int64_t seed,
+                              bool collect_stats,
                               const py::array& data, py::object labels) {
   validateDistanceType(distance_type);
 
@@ -738,6 +751,7 @@ py::object createAnchorIndex(const std::string& distance_type, int dim, int data
   config.num_initializations = num_initializations;
   config.num_threads = num_threads;
   config.seed = seed;
+  config.collect_stats = collect_stats;
 
   // Get data info
   auto casted_data = data.cast<py::array_t<float, py::array::c_style | py::array::forcecast>>();
@@ -990,13 +1004,13 @@ Index
          int anchor_ef_construction, int bulk_ef_construction,
          int num_anchor_probes,
          int num_initializations, uint32_t num_threads,
-         int64_t seed,
+         int64_t seed, bool collect_stats,
          py::object labels) {
         return createAnchorIndex<DataType::float32>(
             distance_type, dim, dataset_size, anchor_fraction, M,
             anchor_ef_construction, bulk_ef_construction,
             num_anchor_probes, num_initializations, num_threads, seed,
-            data, labels);
+            collect_stats, data, labels);
       },
       py::arg("distance_type"),
       py::arg("dim"),
@@ -1010,6 +1024,7 @@ Index
       py::arg("num_initializations") = 100,
       py::arg("num_threads") = 1,
       py::arg("seed") = 42,
+      py::arg("collect_stats") = false,
       py::arg("labels") = py::none(),
       R"doc(
 Create an index using anchor-based two-pass construction.

@@ -117,6 +117,29 @@ yandex-deep-100m-anchor-bench:
 		--output /root/data/anchor-construction/yandex-deep-100m-anchor-bench.json \
 		--perf-output /root/data/anchor-construction/yandex-deep-100m-anchor-perf.json
 
+# Controlled experiment: isolate cache locality on YANDEX DEEP-100M.
+# Both methods use IDENTICAL probe count (100) and ef_construction (100).
+# The ONLY difference is WHERE the 100 probes land:
+#   baseline: uniformly across all 100M nodes (~55 GB span, far exceeds L3)
+#   anchor:   uniformly across first 1M nodes (~550 MB span, fits in L3)
+# At this scale, DRAM fills should diverge — baseline probes go to DRAM,
+# anchor probes stay in L3.
+yandex-deep-100m-anchor-controlled:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/yandex-deep-100m/yandex_100m.train.npy \
+		--queries /root/data/yandex-deep-100m/yandex_100m.test.npy \
+		--gtruth /root/data/yandex-deep-100m/yandex_100m.gtruth.npy \
+		--strategies baseline anchor \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--ef-construction-baseline 100 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 100 \
+		--num-anchor-probes 100 \
+		--output /root/data/anchor-construction/yandex-deep-100m-anchor-controlled.json \
+		--perf-output /root/data/anchor-construction/yandex-deep-100m-anchor-controlled-perf.json
 
 yandex-deep-100m-bench-hnsw:
 	poetry run python run-benchmark.py \
@@ -521,7 +544,13 @@ sift-bench-two-pass-bench-flatnav:
 		--ef-construction-pass2 50 \
 		--output /root/data/two-pass-construction/sift-bench-two-pass-bench-flatnav.json
 
-sift-anchor-bench:
+# Controlled experiment: isolate cache locality effect.
+# Both methods use IDENTICAL probe count (100) and ef_construction (100).
+# The ONLY difference is WHERE the 100 probes land:
+#   baseline: uniformly across all N nodes (scattered memory accesses)
+#   anchor:   uniformly across first 1% of nodes (compact, contiguous)
+# Any difference in perf counters is purely due to cache locality.
+sift-anchor-controlled:
 	poetry run python evaluate_two_pass.py \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
@@ -529,13 +558,14 @@ sift-anchor-bench:
 		--strategies baseline anchor \
 		--num-threads 8 \
 		--M-baseline 16 \
+		--ef-construction-baseline 100 \
 		--anchor-fraction 0.01 \
 		--anchor-M 16 \
 		--anchor-ef-construction 500 \
-		--bulk-ef-construction 80 \
-		--num-anchor-probes 10 \
-		--output /root/data/anchor-construction/sift-anchor-bench.json \
-		--perf-output /root/data/anchor-construction/sift-anchor-perf.json
+		--bulk-ef-construction 100 \
+		--num-anchor-probes 100 \
+		--output /root/data/anchor-construction/sift-anchor-controlled.json \
+		--perf-output /root/data/anchor-construction/sift-anchor-controlled-perf.json
 
 sift-bench-two-pass-bench-flatnav-cachegrind:
 	valgrind --tool=cachegrind --cachegrind-out-file=cachegrind.two_pass.out \
@@ -771,6 +801,86 @@ plot-perf-counters:
 
 ################################
 # End Anchor Construction Perf Analysis
+################################
+
+
+################################
+# Pareto Frontier Parameter Sweeps
+# Sweep baseline and anchor parameters to build a Pareto frontier
+# of construction time / distance computations vs recall.
+# Run with: make pareto-sweep-sift / make pareto-sweep-yandex-deep
+#           make pareto-sweep-all  (both datasets)
+#           make pareto-plot INPUT=<json> OUTPUT=<png>
+################################
+
+pareto-sweep-sift:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--strategies baseline anchor \
+		--num-threads 8 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--sweep \
+		--sweep-anchor-probes 5 10 20 50 \
+		--sweep-bulk-ef 50 80 100 \
+		--sweep-baseline-ef 50 80 100 \
+		--sweep-baseline-init 50 100 \
+		--output /root/data/anchor-construction/sift-pareto-sweep.json
+
+pareto-sweep-yandex-deep:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/yandex-deep-100m/yandex_100m.train.npy \
+		--queries /root/data/yandex-deep-100m/yandex_100m.test.npy \
+		--gtruth /root/data/yandex-deep-100m/yandex_100m.gtruth.npy \
+		--strategies baseline anchor \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--sweep \
+		--sweep-anchor-probes 10 \
+		--sweep-bulk-ef 80 \
+		--sweep-baseline-ef 100 \
+		--sweep-baseline-init 100 \
+		--output /root/data/anchor-construction/yandex-deep-pareto-sweep.json
+
+
+pareto-sweep-bigann-100m:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/bigann-100m-euclidean/bigann_100m.train.npy \
+		--queries /root/data/bigann-100m-euclidean/bigann_100m.test.npy \
+		--gtruth /root/data/bigann-100m-euclidean/bigann_100m.gtruth.npy \
+		--strategies baseline anchor \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--sweep \
+		--sweep-anchor-probes 10 \
+		--sweep-bulk-ef 80 \
+		--sweep-baseline-ef 100 \
+		--sweep-baseline-init 100 \
+		--output /root/data/anchor-construction/bigann-100m-pareto-sweep.json
+
+pareto-sweep-all: pareto-sweep-sift pareto-sweep-yandex-deep
+
+pareto-plot:
+	@if [ -z "$(INPUT)" ]; then \
+		echo "Usage: make pareto-plot INPUT=sweep_results.json [OUTPUT=pareto.png]"; \
+		exit 1; \
+	fi
+	poetry run python plot_pareto.py \
+		--input $(INPUT) \
+		--output $(or $(OUTPUT),pareto.png)
+
+################################
+# End Pareto Frontier Parameter Sweeps
 ################################
 
 # Cachegrind analysis helpers
