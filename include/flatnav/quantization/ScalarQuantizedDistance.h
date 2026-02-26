@@ -182,12 +182,21 @@ class ScalarQuantizedDistance
   float distanceImpl(const void* x, const void* y,
                      bool asymmetric = false) const {
     if (asymmetric) {
-      // x is float query, y is stored int8
+      // x is float query, y is stored int8.
+      // Cache the quantized query by pointer: during beam search the same
+      // float query is compared against thousands of stored int8 vectors,
+      // so we only need to quantize once per unique query pointer.
       thread_local std::vector<int8_t> query_buf;
-      if (query_buf.size() != _dimension) {
-        query_buf.resize(_dimension);
+      thread_local const float* cached_ptr = nullptr;
+
+      const float* query_ptr = static_cast<const float*>(x);
+      if (query_ptr != cached_ptr) {
+        if (query_buf.size() != _dimension) {
+          query_buf.resize(_dimension);
+        }
+        quantize(query_ptr, query_buf.data());
+        cached_ptr = query_ptr;
       }
-      quantize(static_cast<const float*>(x), query_buf.data());
       return computeInt8Distance(query_buf.data(),
                                  static_cast<const int8_t*>(y));
     }
