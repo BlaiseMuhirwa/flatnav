@@ -32,9 +32,12 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 
 import flatnav
-from flatnav import index as flatnav_index
-from flatnav import TwoPassStrategy, Pass2CandidateMethod
-from flatnav import reset_perf_counters, get_perf_counters
+from flatnav import (
+    TwoPassStrategy, Pass2CandidateMethod,
+    TwoPassConfig, AnchorConfig, SQConfig, DataType,
+    build,
+    reset_perf_counters, get_perf_counters,
+)
 from data_loader import get_data_loader
 
 @dataclass
@@ -89,6 +92,14 @@ class ExperimentConfig:
     bulk_ef_construction: int = 80      # ef for bulk insertion
     num_anchor_probes: int = 10         # Number of anchor probes for entry point finding
     anchor_seed: int = 42               # Random seed for anchor selection
+
+    # Scalar quantization parameters
+    sq_max_edges_per_node: int = 32
+    sq_ef_construction: int = 100
+    sq_max_train_samples: int = 0
+
+    # Index data type
+    index_data_type: DataType = DataType.float32
 
     # Search parameters
     ef_search_values: List[int] = None
@@ -172,17 +183,17 @@ def build_baseline_index(
     """Build a baseline single-pass index."""
     num_vectors, dim = data.shape
 
-    index = flatnav_index.create(
+    return build(
         distance_type=distance_type,
         dim=dim,
         dataset_size=num_vectors,
+        data=data,
         max_edges_per_node=config.M_baseline,
-        collect_stats=False,
+        ef_construction=config.ef_construction_baseline,
+        num_initializations=config.num_initializations,
+        num_threads=config.num_threads,
+        index_data_type=config.index_data_type,
     )
-    index.set_num_threads(config.num_threads)
-    index.add(data, config.ef_construction_baseline, config.num_initializations)
-
-    return index
 
 
 def build_two_pass_index(
@@ -215,25 +226,26 @@ def build_two_pass_index(
         Pass2CandidateMethod.BEAM_SEARCH
     )
 
-    index = flatnav_index.create_two_pass(
+    return build(
         distance_type=distance_type,
         dim=dim,
         dataset_size=num_vectors,
         data=data,
-        strategy=strategy_enum,
-        M_pass1=config.M_pass1,
-        M_pass2=config.M_pass2,
-        ef_construction_pass1=config.ef_construction_pass1,
-        ef_construction_pass2=config.ef_construction_pass2,
+        config=TwoPassConfig(
+            strategy=strategy_enum,
+            M_pass1=config.M_pass1,
+            M_pass2=config.M_pass2,
+            ef_construction_pass1=config.ef_construction_pass1,
+            ef_construction_pass2=config.ef_construction_pass2,
+            hubness_penalty_weight=config.hubness_penalty_weight,
+            edge_quality_threshold=config.edge_quality_threshold,
+            pass2_candidate_method=candidate_method,
+            neighbor_expansion_hops=config.neighbor_expansion_hops,
+        ),
         num_initializations=config.num_initializations,
-        hubness_penalty_weight=config.hubness_penalty_weight,
-        edge_quality_threshold=config.edge_quality_threshold,
         num_threads=config.num_threads,
-        pass2_candidate_method=candidate_method,
-        neighbor_expansion_hops=config.neighbor_expansion_hops,
+        index_data_type=config.index_data_type,
     )
-
-    return index
 
 
 def build_anchor_index(
@@ -248,23 +260,53 @@ def build_anchor_index(
     """
     num_vectors, dim = data.shape
 
-    index = flatnav_index.create_anchor(
+    return build(
         distance_type=distance_type,
         dim=dim,
         dataset_size=num_vectors,
         data=data,
-        anchor_fraction=config.anchor_fraction,
-        M=config.anchor_M,
-        anchor_ef_construction=config.anchor_ef_construction,
-        bulk_ef_construction=config.bulk_ef_construction,
-        num_anchor_probes=config.num_anchor_probes,
+        config=AnchorConfig(
+            anchor_fraction=config.anchor_fraction,
+            M=config.anchor_M,
+            anchor_ef_construction=config.anchor_ef_construction,
+            bulk_ef_construction=config.bulk_ef_construction,
+            num_anchor_probes=config.num_anchor_probes,
+            seed=config.anchor_seed,
+        ),
         num_initializations=config.num_initializations,
         num_threads=config.num_threads,
-        seed=config.anchor_seed,
-        collect_stats=False,
+        index_data_type=config.index_data_type,
     )
 
-    return index
+
+def build_sq_index(
+    data: np.ndarray,
+    config: ExperimentConfig,
+    distance_type: str = "l2"
+) -> Any:
+    """Build an index using anchor construction with scalar quantization (int8)."""
+    num_vectors, dim = data.shape
+
+    return build(
+        distance_type=distance_type,
+        dim=dim,
+        dataset_size=num_vectors,
+        data=data,
+        config=AnchorConfig(
+            anchor_fraction=config.anchor_fraction,
+            M=config.sq_max_edges_per_node,
+            anchor_ef_construction=config.anchor_ef_construction,
+            bulk_ef_construction=config.sq_ef_construction,
+            num_anchor_probes=config.num_anchor_probes,
+            seed=config.anchor_seed,
+            quantization=SQConfig(
+                training_data=data,
+                max_train_samples=config.sq_max_train_samples,
+            ),
+        ),
+        num_initializations=config.num_initializations,
+        num_threads=config.num_threads,
+    )
 
 
 def evaluate_index(
@@ -319,6 +361,10 @@ def run_benchmark(
         index = build_anchor_index(data, config, distance_type)
         M_total = config.anchor_M
         ef_total = config.anchor_ef_construction
+    elif strategy == "sq":
+        index = build_sq_index(data, config, distance_type)
+        M_total = config.sq_max_edges_per_node
+        ef_total = config.sq_ef_construction
     else:
         index = build_two_pass_index(data, config, strategy, distance_type)
         M_total = config.M_pass1 + config.M_pass2
@@ -443,7 +489,7 @@ def main():
     parser.add_argument(
         "--strategies", type=str, nargs="+",
         default=["baseline", "hubness", "edge_quality", "insertion_order", "re_prune", "anchor"],
-        help="Strategies to evaluate (baseline, hubness, edge_quality, insertion_order, re_prune, anchor)"
+        help="Strategies to evaluate (baseline, hubness, edge_quality, insertion_order, re_prune, anchor, sq)"
     )
     parser.add_argument(
         "--distance-type", type=str, default="l2",
@@ -522,6 +568,25 @@ def main():
         help="Random seed for anchor selection (default: 42)"
     )
     parser.add_argument(
+        "--index-data-type", type=str, default="float32",
+        choices=["float32", "int8", "uint8"],
+        help="Data type for index storage (default: float32)"
+    )
+
+    # Scalar quantization arguments
+    parser.add_argument(
+        "--sq-max-edges-per-node", type=int, default=32,
+        help="Max edges per node for SQ index (default: 32)"
+    )
+    parser.add_argument(
+        "--sq-ef-construction", type=int, default=100,
+        help="ef_construction for SQ index (default: 100)"
+    )
+    parser.add_argument(
+        "--sq-max-train-samples", type=int, default=0,
+        help="Max training samples for SQ (0 = use all, default: 0)"
+    )
+    parser.add_argument(
         "--perf-output", type=str, default=None,
         help="Output file for dedicated perf counter results JSON"
     )
@@ -586,6 +651,10 @@ def main():
         bulk_ef_construction=args.bulk_ef_construction,
         num_anchor_probes=args.num_anchor_probes,
         anchor_seed=args.anchor_seed,
+        sq_max_edges_per_node=args.sq_max_edges_per_node,
+        sq_ef_construction=args.sq_ef_construction,
+        sq_max_train_samples=args.sq_max_train_samples,
+        index_data_type=getattr(DataType, args.index_data_type),
     )
 
     # Run benchmarks

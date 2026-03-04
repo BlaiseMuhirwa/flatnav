@@ -31,7 +31,6 @@ external/openmp
 # Python wheels 
 wheelhouse
 
-experiments/*.md
 experiments/*.png
 experiments/*.json
 experiments/*.tex

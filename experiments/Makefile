@@ -54,21 +54,23 @@ bigann-100m-anchor-bench:
 		--output /root/data/anchor-construction/bigann-100m-anchor-bench.json \
 		--perf-output /root/data/anchor-construction/bigann-100m-anchor-perf.json
 
-bigann-100m-ensemble-bench:
-	poetry run python evaluate_ensemble.py \
-		--dataset /root/data/bigann-100m-euclidean/bigann_100m.train.npy \
-		--queries /root/data/bigann-100m-euclidean/bigann_100m.test.npy \
-		--gtruth /root/data/bigann-100m-euclidean/bigann_100m.gtruth.npy \
-		--variants baseline two_pass incremental reset \
+bigann-1b-anchor-uint8-bench:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/bigann-1b-euclidean/bigann_1b.train.npy \
+		--queries /root/data/bigann-1b-euclidean/bigann_1b.test.npy \
+		--gtruth /root/data/bigann-1b-euclidean/bigann_1b.gtruth.npy \
+		--strategies baseline anchor \
+		--distance-type l2 \
+		--index-data-type uint8 \
 		--num-threads 32 \
 		--M-baseline 16 \
-		--M-final 16 \
-		--M-per-graph 8 \
-		--num-graphs 2 \
-		--ef-construction-baseline 100 \
-		--ef-construction-per-graph 25 \
-		--ef-construction-final 100 \
-		--output /root/data/ensemble-construction/bigann-100m-ensemble-bench.json
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--output /root/data/anchor-construction/bigann-1b-anchor-uint8-bench.json \
+		--perf-output /root/data/anchor-construction/bigann-1b-anchor-uint8-perf.json
 
 bigann-100m-bench-hnsw: 
 	poetry run python run-benchmark.py \
@@ -124,6 +126,23 @@ yandex-deep-100m-anchor-bench:
 #   anchor:   uniformly across first 1M nodes (~550 MB span, fits in L3)
 # At this scale, DRAM fills should diverge — baseline probes go to DRAM,
 # anchor probes stay in L3.
+yandex-deep-100m-sq-bench:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/yandex-deep-100m/yandex_100m.train.npy \
+		--queries /root/data/yandex-deep-100m/yandex_100m.test.npy \
+		--gtruth /root/data/yandex-deep-100m/yandex_100m.gtruth.npy \
+		--strategies baseline sq \
+		--distance-type l2 \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--sq-max-edges-per-node 16 \
+		--sq-ef-construction 100 \
+		--output /root/data/sq-construction/yandex-deep-100m-sq-bench.json \
+		--perf-output /root/data/sq-construction/yandex-deep-100m-sq-perf.json
+
 yandex-deep-100m-anchor-controlled:
 	poetry run python evaluate_two_pass.py \
 		--dataset /root/data/yandex-deep-100m/yandex_100m.train.npy \
@@ -582,39 +601,6 @@ sift-bench-two-pass-bench-flatnav-cachegrind:
 		--ef-construction-pass2 50 \
 		--output /root/data/two-pass-construction/sift-bench-two-pass-bench-flatnav.json
 
-sift-ensemble-bench:
-	poetry run python evaluate_ensemble.py \
-		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
-		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
-		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
-		--variants baseline two_pass incremental reset \
-		--num-threads 8 \
-		--M-baseline 16 \
-		--M-final 16 \
-		--M-per-graph 8 \
-		--num-graphs 2 \
-		--ef-construction-baseline 100 \
-		--ef-construction-per-graph 25 \
-		--ef-construction-final 100 \
-		--output /root/data/ensemble-construction/sift-ensemble-bench.json
-
-sift-ensemble-bench-cachegrind:
-	valgrind --tool=cachegrind --cachegrind-out-file=cachegrind.ensemble.out \
-		poetry run python evaluate_ensemble.py \
-		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
-		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
-		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
-		--variants baseline two_pass incremental reset \
-		--num-threads 1 \
-		--M-baseline 16 \
-		--M-final 16 \
-		--M-per-graph 8 \
-		--num-graphs 2 \
-		--ef-construction-baseline 100 \
-		--ef-construction-per-graph 25 \
-		--ef-construction-final 100 \
-		--output /root/data/ensemble-construction/sift-ensemble-bench.json
-
 # Perf-based cache analysis (requires --privileged container)
 # Output saved to /root/metrics/ (mount a volume there)
 # To see available events on your CPU, run: perf list cache
@@ -652,24 +638,6 @@ sift-bench-two-pass-bench-flatnav-perf:
 		--ef-construction-pass1 50 \
 		--ef-construction-pass2 50 \
 		--output /root/data/two-pass-construction/sift-bench-two-pass-bench-flatnav.json
-
-sift-ensemble-bench-perf:
-	perf stat -o /root/metrics/perf-ensemble.txt \
-		-e cache-misses,cache-references,L1-dcache-load-misses,L1-dcache-loads,L1-dcache-prefetches,dTLB-load-misses,dTLB-loads,instructions,cycles \
-		poetry run python evaluate_ensemble.py \
-		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
-		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
-		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
-		--variants baseline two_pass incremental reset \
-		--num-threads 8 \
-		--M-baseline 16 \
-		--M-final 16 \
-		--M-per-graph 8 \
-		--num-graphs 2 \
-		--ef-construction-baseline 100 \
-		--ef-construction-per-graph 25 \
-		--ef-construction-final 100 \
-		--output /root/data/ensemble-construction/sift-ensemble-bench.json
 
 ################################
 # Anchor Construction Perf Analysis
@@ -890,14 +858,8 @@ cachegrind-annotate-baseline:
 cachegrind-annotate-two-pass:
 	cg_annotate cachegrind.two_pass.out
 
-cachegrind-annotate-ensemble:
-	cg_annotate cachegrind.ensemble.out
-
 cachegrind-diff-two-pass:
 	cg_diff cachegrind.baseline.out cachegrind.two_pass.out
-
-cachegrind-diff-ensemble:
-	cg_diff cachegrind.baseline.out cachegrind.ensemble.out
 
 sift-bench-hnsw: 
 	poetry run python run-benchmark.py \

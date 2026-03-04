@@ -8,15 +8,10 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <fstream>
 #include <iostream>
 #include <memory>
 #include <numeric>
-#include <optional>
-#include <random>
-#include <stdexcept>
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 #include "cnpy.h"

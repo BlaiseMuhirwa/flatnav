@@ -36,9 +36,6 @@ namespace flatnav {
 template <typename dist_t, typename label_t>
 class TwoPassBuilder;
 
-template <typename dist_t, typename label_t>
-class EnsembleBuilder;
-
 template<typename dist_t, typename label_t>
 class AnchorBuilder;
 
@@ -48,8 +45,6 @@ template <typename dist_t, typename label_t>
 class Index {
   // Allow TwoPassBuilder to access private members for two-pass construction
   friend class TwoPassBuilder<dist_t, label_t>;
-  // Allow EnsembleBuilder to access private members for ensemble construction
-  friend class EnsembleBuilder<dist_t, label_t>;
   // Allow AnchorBuilder to access private members for anchor construction
   friend class AnchorBuilder<dist_t, label_t>;
   typedef std::pair<float, label_t> dist_label_t;
