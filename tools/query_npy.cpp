@@ -2,6 +2,7 @@
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/index/Index.h>
+#include <flatnav/quantization/ScalarQuantizedDistance.h>
 #include <flatnav/util/Datatype.h>
 #include <chrono>
 #include <cmath>
@@ -20,6 +21,7 @@ using flatnav::Index;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
 using flatnav::quantization::ProductQuantizer;
+using flatnav::quantization::ScalarQuantizedDistance;
 using flatnav::util::DataType;
 
 template <typename dist_t>
@@ -83,7 +85,9 @@ int main(int argc, char** argv) {
     std::clog << "\t <ef_search>: int,int,int,int...,int " << std::endl;
     std::clog << "\t <k>: number of neighbors " << std::endl;
     std::clog << "\t <Reorder ID>: 0 for no reordering, 1 for reordering" << std::endl;
-    std::clog << "\t <Quantized>: 0 for no quantization, 1 for quantization" << std::endl;
+    std::clog
+        << "\t <Quantized>: 0 for no quantization, 1 for product quantization, 2 for scalar quantization"
+        << std::endl;
     return -1;
   }
 
@@ -100,7 +104,7 @@ int main(int argc, char** argv) {
   }
   int k = std::stoi(argv[6]);
   int reorder_ID = std::stoi(argv[7]);
-  bool quantized = std::stoi(argv[8]) ? true : false;
+  int quantized = std::stoi(argv[8]);
 
   bool reorder = reorder_ID ? true : false;
 
@@ -123,7 +127,7 @@ int main(int argc, char** argv) {
   std::clog << "Loading " << num_queries << " ground truth results with k = " << k << std::endl;
   int* gtruth = truthfile.data<int>();
 
-  if (quantized) {
+  if (quantized == 1) {
     run<ProductQuantizer>(/* queries = */ queries, /* gtruth = */
                           gtruth,
                           /* index_filename = */ indexfilename,
@@ -131,6 +135,26 @@ int main(int argc, char** argv) {
                           /* num_queries = */ num_queries,
                           /* num_gtruth = */ n_gt, /* dim = */ dim,
                           /* reorder = */ reorder);
+  } else if (quantized == 2) {
+    if (space_ID == 0) {
+      run<ScalarQuantizedDistance<flatnav::distances::MetricType::L2>>(
+          /* queries = */ queries, /* gtruth = */ gtruth,
+          /* index_filename = */ indexfilename,
+          /* ef_searches = */ ef_searches, /* K = */ k,
+          /* num_queries = */ num_queries,
+          /* num_gtruth = */ n_gt, /* dim = */ dim,
+          /* reorder = */ reorder);
+    } else if (space_ID == 1) {
+      run<ScalarQuantizedDistance<flatnav::distances::MetricType::IP>>(
+          /* queries = */ queries, /* gtruth = */ gtruth,
+          /* index_filename = */ indexfilename,
+          /* ef_searches = */ ef_searches, /* K = */ k,
+          /* num_queries = */ num_queries,
+          /* num_gtruth = */ n_gt, /* dim = */ dim,
+          /* reorder = */ reorder);
+    } else {
+      throw std::invalid_argument("Invalid space ID. Valid IDs are 0 and 1.");
+    }
   } else if (space_ID == 0) {
     run<SquaredL2Distance<DataType::float32>>(
         /* queries = */ queries,

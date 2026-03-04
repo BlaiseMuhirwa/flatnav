@@ -3,6 +3,7 @@
 #include <flatnav/distances/InnerProductDistance.h>
 #include <flatnav/distances/SquaredL2Distance.h>
 #include <flatnav/index/Index.h>
+#include <flatnav/quantization/ScalarQuantizedDistance.h>
 #include <flatnav/util/Datatype.h>
 #include <algorithm>
 #include <chrono>
@@ -25,6 +26,7 @@ using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
 using flatnav::distances::SquaredL2Distance;
 using flatnav::quantization::ProductQuantizer;
+using flatnav::quantization::ScalarQuantizedDistance;
 using flatnav::util::DataType;
 
 template <typename dist_t>
@@ -56,10 +58,11 @@ void buildIndex(float* data, std::unique_ptr<DistanceInterface<dist_t>> distance
 }
 
 void run(float* data, flatnav::distances::MetricType metric_type, int N, int M, int dim, int ef_construction,
-         int build_num_threads, const std::string& save_file, bool quantize = false) {
+         int build_num_threads, const std::string& save_file, int quantize = 0,
+         size_t max_train_samples = 0) {
 
-  if (quantize) {
-    // Parameters M and nbits should be adjusted accordingly.
+  if (quantize == 1) {
+    // Product quantization. Parameters M and nbits should be adjusted accordingly.
     auto quantizer = std::make_unique<ProductQuantizer>(
         /* dim = */ dim, /* M = */ 8, /* nbits = */ 8,
         /* metric_type = */ metric_type);
@@ -68,12 +71,40 @@ void run(float* data, flatnav::distances::MetricType metric_type, int N, int M, 
     quantizer->train(/* vectors = */ data, /* num_vectors = */ N);
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    std::clog << "Quantization time: " << (float)duration.count() << " milliseconds" << std::endl;
+    std::clog << "PQ training time: " << (float)duration.count() << " milliseconds" << std::endl;
 
     buildIndex<ProductQuantizer>(data, std::move(quantizer), N, M, dim, ef_construction, build_num_threads,
                                  save_file);
 
+  } else if (quantize == 2) {
+    // Scalar quantization (8-bit per dimension).
+    if (metric_type == flatnav::distances::MetricType::L2) {
+      auto sq = ScalarQuantizedDistance<flatnav::distances::MetricType::L2>::create(dim);
+
+      auto start = std::chrono::high_resolution_clock::now();
+      sq->train(data, static_cast<size_t>(N), max_train_samples);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+      std::clog << "SQ training time: " << (float)duration.count() << " milliseconds" << std::endl;
+
+      buildIndex<ScalarQuantizedDistance<flatnav::distances::MetricType::L2>>(
+          data, std::move(sq), N, M, dim, ef_construction, build_num_threads, save_file);
+
+    } else if (metric_type == flatnav::distances::MetricType::IP) {
+      auto sq = ScalarQuantizedDistance<flatnav::distances::MetricType::IP>::create(dim);
+
+      auto start = std::chrono::high_resolution_clock::now();
+      sq->train(data, static_cast<size_t>(N), max_train_samples);
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+      std::clog << "SQ training time: " << (float)duration.count() << " milliseconds" << std::endl;
+
+      buildIndex<ScalarQuantizedDistance<flatnav::distances::MetricType::IP>>(
+          data, std::move(sq), N, M, dim, ef_construction, build_num_threads, save_file);
+    }
+
   } else {
+    // No quantization (quantize == 0).
     if (metric_type == flatnav::distances::MetricType::L2) {
       auto distance = SquaredL2Distance<>::create(dim);
       buildIndex<SquaredL2Distance<DataType::float32>>(data, std::move(distance), N, M, dim, ef_construction,
@@ -92,20 +123,25 @@ int main(int argc, char** argv) {
   if (argc < 8) {
     std::clog << "Usage: " << std::endl;
     std::clog << "construct <quantize> <metric> <data> <M> <ef_construction> "
-                 "<build_num_threads> <outfile>"
+                 "<build_num_threads> <outfile> [max_train_samples]"
               << std::endl;
-    std::clog << "\t <quantize> int, 0 for no quantization, 1 for quantization" << std::endl;
+    std::clog
+        << "\t <quantize> int, 0 for no quantization, 1 for product quantization, 2 for scalar quantization"
+        << std::endl;
     std::clog << "\t <metric> int, 0 for L2, 1 for inner product (angular)" << std::endl;
     std::clog << "\t <data> npy file from ann-benchmarks" << std::endl;
     std::clog << "\t <M>: int " << std::endl;
     std::clog << "\t <ef_construction>: int " << std::endl;
     std::clog << "\t <build_num_threads>: int " << std::endl;
     std::clog << "\t <outfile>: where to stash the index" << std::endl;
+    std::clog << "\t [max_train_samples]: int, optional, max vectors to sample for SQ training (0 = use all, "
+                 "default 0)"
+              << std::endl;
 
     return -1;
   }
 
-  bool quantize = std::stoi(argv[1]) ? true : false;
+  int quantize = std::stoi(argv[1]);
   int metric_id = std::stoi(argv[2]);
   cnpy::NpyArray datafile = cnpy::npy_load(argv[3]);
   int M = std::stoi(argv[4]);
@@ -123,13 +159,16 @@ int main(int argc, char** argv) {
   flatnav::distances::MetricType metric_type =
       metric_id == 0 ? flatnav::distances::MetricType::L2 : flatnav::distances::MetricType::IP;
 
+  size_t max_train_samples = (argc >= 9) ? std::stoull(argv[8]) : 0;
+
   run(/* data = */ data,
       /* metric_type = */ metric_type,
       /* N = */ N, /* M = */ M, /* dim = */ dim,
       /* ef_construction = */ ef_construction,
       /* build_num_threads = */ std::stoi(argv[6]),
       /* save_file = */ argv[7],
-      /* quantize = */ quantize);
+      /* quantize = */ quantize,
+      /* max_train_samples = */ max_train_samples);
 
   return 0;
 }

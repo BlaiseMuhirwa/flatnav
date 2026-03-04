@@ -142,6 +142,44 @@ Returns:
 )pbdoc";
 
 
+static const char *CREATE_SQ_DOCSTRING = R"pbdoc(
+Create a scalar-quantized index. Input data is fp32, stored internally as int8 for ~4x memory reduction.
+Quantization parameters (per-dimension min/max) are learned from the provided training data.
+
+Args:
+    distance_type (str): The type of distance metric to use ('l2' for Euclidean, 'angular' for inner product).
+    dim (int): The number of dimensions in the dataset.
+    dataset_size (int): The number of vectors in the dataset.
+    max_edges_per_node (int): The maximum number of edges per node in the graph.
+    training_data (np.ndarray): A 2D fp32 numpy array of shape (n, dim) used to learn quantization parameters.
+    max_train_samples (int, optional): Maximum number of vectors to sample for learning
+        quantization parameters. 0 means use all rows. Defaults to 0.
+    verbose (bool, optional): Enables verbose output. Defaults to False.
+    collect_stats (bool, optional): Collects performance statistics. Defaults to False.
+
+Returns:
+    Union[IndexSQL2, IndexSQIP]: The constructed scalar-quantized index.
+
+Example:
+    ```python
+    import numpy as np
+    import flatnav
+
+    data = np.random.randn(1_000_000, 128).astype(np.float32)
+    index = flatnav.index.create_sq(
+        distance_type="l2",
+        dim=128,
+        dataset_size=1_000_000,
+        max_edges_per_node=32,
+        training_data=data,
+        max_train_samples=10000,  # train on 10k random samples
+    )
+    index.add(data, ef_construction=100)
+    distances, labels = index.search(data[:5], K=10, ef_search=100)
+    ```
+)pbdoc";
+
+
 static const char* CXX_EXTENSION_MODULE_DOCSTRING = R"pbdoc(
 Flatnav: A performant graph-based kNN search library with re-ordering
 ======================================================================

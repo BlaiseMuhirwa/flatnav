@@ -7,6 +7,7 @@
 #include <flatnav/index/TwoPassStrategy.h>
 #include <flatnav/index/EnsembleBuilder.h>
 #include <flatnav/index/AnchorBuilder.h>
+#include <flatnav/quantization/ScalarQuantizedDistance.h>
 #include <flatnav/util/Datatype.h>
 #include <flatnav/util/Multithreading.h>
 #include <flatnav/util/PerfCounters.h>
@@ -41,7 +42,9 @@ using flatnav::AnchorBuilder;
 using flatnav::AnchorConfig;
 using flatnav::distances::DistanceInterface;
 using flatnav::distances::InnerProductDistance;
+using flatnav::distances::MetricType;
 using flatnav::distances::SquaredL2Distance;
+using flatnav::quantization::ScalarQuantizedDistance;
 using flatnav::util::DataType;
 using flatnav::util::for_each_data_type;
 
@@ -416,6 +419,18 @@ struct IndexSpecialization<InnerProductDistance<DataType::int8>> {
   static constexpr char* name = "IndexIPInt8";
 };
 
+template <>
+struct IndexSpecialization<ScalarQuantizedDistance<MetricType::L2>> {
+  using type = PyIndex<ScalarQuantizedDistance<MetricType::L2>, int>;
+  static constexpr char* name = "IndexSQL2";
+};
+
+template <>
+struct IndexSpecialization<ScalarQuantizedDistance<MetricType::IP>> {
+  using type = PyIndex<ScalarQuantizedDistance<MetricType::IP>, int>;
+  static constexpr char* name = "IndexSQIP";
+};
+
 void validateDistanceType(const std::string& distance_type) {
   auto dist_type = distance_type;
   std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
@@ -506,6 +521,8 @@ void defineIndexSubmodule(py::module_& index_submodule) {
   bindSpecialization<InnerProductDistance<DataType::float32>, int>(index_submodule);
   bindSpecialization<InnerProductDistance<DataType::int8>, int>(index_submodule);
   bindSpecialization<InnerProductDistance<DataType::uint8>, int>(index_submodule);
+  bindSpecialization<ScalarQuantizedDistance<MetricType::L2>, int>(index_submodule);
+  bindSpecialization<ScalarQuantizedDistance<MetricType::IP>, int>(index_submodule);
 
   index_submodule.def(
       "create",
@@ -528,6 +545,54 @@ void defineIndexSubmodule(py::module_& index_submodule) {
       py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"), py::arg("max_edges_per_node"),
       py::arg("index_data_type") = DataType::float32, py::arg("verbose") = false,
       py::arg("collect_stats") = false, CONSTRUCTOR_DOCSTRING);
+
+  index_submodule.def(
+      "create_sq",
+      [](const std::string& distance_type, int dim, int dataset_size,
+         int max_edges_per_node,
+         const py::array_t<float, py::array::c_style | py::array::forcecast>&
+             training_data,
+         size_t max_train_samples,
+         bool verbose, bool collect_stats) -> py::object {
+        auto dist_type = distance_type;
+        std::transform(dist_type.begin(), dist_type.end(), dist_type.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+
+        if (dist_type != "l2" && dist_type != "angular") {
+          throw std::invalid_argument(
+              "Invalid distance type: `" + dist_type +
+              "`. Valid options are `l2` and `angular`.");
+        }
+
+        if (training_data.ndim() != 2 || training_data.shape(1) != dim) {
+          throw std::invalid_argument(
+              "training_data must be a 2D array with shape (n, dim).");
+        }
+        size_t n_train = training_data.shape(0);
+
+        if (dist_type == "l2") {
+          auto sq = ScalarQuantizedDistance<MetricType::L2>::create(dim);
+          sq->train(training_data.data(0), n_train, max_train_samples);
+          auto index = std::make_shared<
+              PyIndex<ScalarQuantizedDistance<MetricType::L2>, int>>(
+              std::move(sq), DataType::float32, dataset_size,
+              max_edges_per_node, verbose, collect_stats);
+          return py::cast(index);
+        }
+
+        auto sq = ScalarQuantizedDistance<MetricType::IP>::create(dim);
+        sq->train(training_data.data(0), n_train, max_train_samples);
+        auto index = std::make_shared<
+            PyIndex<ScalarQuantizedDistance<MetricType::IP>, int>>(
+            std::move(sq), DataType::float32, dataset_size,
+            max_edges_per_node, verbose, collect_stats);
+        return py::cast(index);
+      },
+      py::arg("distance_type"), py::arg("dim"), py::arg("dataset_size"),
+      py::arg("max_edges_per_node"), py::arg("training_data"),
+      py::arg("max_train_samples") = 0,
+      py::arg("verbose") = false, py::arg("collect_stats") = false,
+      CREATE_SQ_DOCSTRING);
 }
 
 void defineDatatypeEnums(py::module_& module) {
