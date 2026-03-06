@@ -65,8 +65,10 @@ class ScalarQuantizedDistance
     std::fill(_max_vals.begin(), _max_vals.end(),
               std::numeric_limits<float>::lowest());
 
+    // Build the list of row indices to scan.
+    std::vector<size_t> indices;
     if (max_train_samples > 0 && max_train_samples < n) {
-      // Generate max_train_samples unique random indices (O(max_train_samples) memory)
+      // Sample max_train_samples unique random indices
       std::unordered_set<size_t> idx_set;
       idx_set.reserve(max_train_samples);
       std::mt19937 rng(42);
@@ -74,18 +76,43 @@ class ScalarQuantizedDistance
       while (idx_set.size() < max_train_samples) {
         idx_set.insert(dist(rng));
       }
-      // Compute per-dimension min and max over sampled rows
-      for (size_t idx : idx_set) {
-        const float* vec = data + idx * _dimension;
-        for (size_t d = 0; d < _dimension; d++) {
-          if (vec[d] < _min_vals[d]) _min_vals[d] = vec[d];
-          if (vec[d] > _max_vals[d]) _max_vals[d] = vec[d];
+      indices.assign(idx_set.begin(), idx_set.end());
+    }
+
+    const size_t num_rows = indices.empty() ? n : indices.size();
+
+    if (num_rows > 10'000'000) {
+      // Parallel min/max for large scans
+      #pragma omp parallel
+      {
+        std::vector<float> local_min(_dimension,
+                                     std::numeric_limits<float>::max());
+        std::vector<float> local_max(_dimension,
+                                     std::numeric_limits<float>::lowest());
+
+        #pragma omp for nowait
+        for (size_t i = 0; i < num_rows; i++) {
+          const size_t row = indices.empty() ? i : indices[i];
+          const float* vec = data + row * _dimension;
+          for (size_t d = 0; d < _dimension; d++) {
+            if (vec[d] < local_min[d]) local_min[d] = vec[d];
+            if (vec[d] > local_max[d]) local_max[d] = vec[d];
+          }
+        }
+
+        #pragma omp critical
+        {
+          for (size_t d = 0; d < _dimension; d++) {
+            if (local_min[d] < _min_vals[d]) _min_vals[d] = local_min[d];
+            if (local_max[d] > _max_vals[d]) _max_vals[d] = local_max[d];
+          }
         }
       }
     } else {
-      // Compute per-dimension min and max over all rows
-      for (size_t i = 0; i < n; i++) {
-        const float* vec = data + i * _dimension;
+      // Sequential min/max for smaller scans
+      for (size_t i = 0; i < num_rows; i++) {
+        const size_t row = indices.empty() ? i : indices[i];
+        const float* vec = data + row * _dimension;
         for (size_t d = 0; d < _dimension; d++) {
           if (vec[d] < _min_vals[d]) _min_vals[d] = vec[d];
           if (vec[d] > _max_vals[d]) _max_vals[d] = vec[d];

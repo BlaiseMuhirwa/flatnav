@@ -119,27 +119,22 @@ yandex-deep-100m-anchor-bench:
 		--output /root/data/anchor-construction/yandex-deep-100m-anchor-bench.json \
 		--perf-output /root/data/anchor-construction/yandex-deep-100m-anchor-perf.json
 
-# Controlled experiment: isolate cache locality on YANDEX DEEP-100M.
-# Both methods use IDENTICAL probe count (100) and ef_construction (100).
-# The ONLY difference is WHERE the 100 probes land:
-#   baseline: uniformly across all 100M nodes (~55 GB span, far exceeds L3)
-#   anchor:   uniformly across first 1M nodes (~550 MB span, fits in L3)
-# At this scale, DRAM fills should diverge — baseline probes go to DRAM,
-# anchor probes stay in L3.
+
 yandex-deep-100m-sq-bench:
 	poetry run python evaluate_two_pass.py \
 		--dataset /root/data/yandex-deep-100m/yandex_100m.train.npy \
 		--queries /root/data/yandex-deep-100m/yandex_100m.test.npy \
 		--gtruth /root/data/yandex-deep-100m/yandex_100m.gtruth.npy \
-		--strategies baseline sq \
+		--strategies baseline anchor \
 		--distance-type l2 \
 		--num-threads 32 \
 		--M-baseline 16 \
 		--anchor-fraction 0.01 \
 		--anchor-M 16 \
 		--anchor-ef-construction 500 \
-		--sq-max-edges-per-node 16 \
-		--sq-ef-construction 100 \
+		--bulk-ef-construction 100 \
+		--use-sq-quantization \
+		--sq-quant-max-train-samples 100000000 \
 		--output /root/data/sq-construction/yandex-deep-100m-sq-bench.json \
 		--perf-output /root/data/sq-construction/yandex-deep-100m-sq-perf.json
 
@@ -549,18 +544,19 @@ sift-bench-flatnav-cachegrind:
 		--num-build-threads 1 \
 		--num-search-threads 1
 
-sift-bench-two-pass-bench-flatnav:
+sift-anchor-bench:
 	poetry run python evaluate_two_pass.py \
 		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
 		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
 		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
-		--strategies re_prune \
+		--strategies baseline anchor \
 		--num-threads 8 \
 		--M-baseline 16 \
-		--M-pass1 8 \
-		--M-pass2 8 \
-		--ef-construction-pass1 50 \
-		--ef-construction-pass2 50 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
 		--output /root/data/two-pass-construction/sift-bench-two-pass-bench-flatnav.json
 
 # Controlled experiment: isolate cache locality effect.
@@ -585,6 +581,23 @@ sift-anchor-controlled:
 		--num-anchor-probes 100 \
 		--output /root/data/anchor-construction/sift-anchor-controlled.json \
 		--perf-output /root/data/anchor-construction/sift-anchor-controlled-perf.json
+
+sift-anchor-sq-bench:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/sift-128-euclidean/sift-128-euclidean.train.npy \
+		--queries /root/data/sift-128-euclidean/sift-128-euclidean.test.npy \
+		--gtruth /root/data/sift-128-euclidean/sift-128-euclidean.gtruth.npy \
+		--strategies baseline anchor \
+		--num-threads 8 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 80 \
+		--num-anchor-probes 10 \
+		--use-sq-quantization \
+		--save-index /root/data/sq-construction/sift-anchor-sq \
+		--output /root/data/sq-construction/sift-anchor-sq-bench.json
 
 sift-bench-two-pass-bench-flatnav-cachegrind:
 	valgrind --tool=cachegrind --cachegrind-out-file=cachegrind.two_pass.out \

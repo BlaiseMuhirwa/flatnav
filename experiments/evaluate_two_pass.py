@@ -94,9 +94,8 @@ class ExperimentConfig:
     anchor_seed: int = 42               # Random seed for anchor selection
 
     # Scalar quantization parameters
-    sq_max_edges_per_node: int = 32
-    sq_ef_construction: int = 100
-    sq_max_train_samples: int = 0
+    use_sq_quantization: bool = False
+    sq_quant_max_train_samples: int = 0
 
     # Index data type
     index_data_type: DataType = DataType.float32
@@ -260,6 +259,13 @@ def build_anchor_index(
     """
     num_vectors, dim = data.shape
 
+    quantization = None
+    if config.use_sq_quantization:
+        quantization = SQConfig(
+            training_data=data,
+            max_train_samples=config.sq_quant_max_train_samples,
+        )
+
     return build(
         distance_type=distance_type,
         dim=dim,
@@ -272,41 +278,13 @@ def build_anchor_index(
             bulk_ef_construction=config.bulk_ef_construction,
             num_anchor_probes=config.num_anchor_probes,
             seed=config.anchor_seed,
+            quantization=quantization,
         ),
         num_initializations=config.num_initializations,
         num_threads=config.num_threads,
         index_data_type=config.index_data_type,
     )
 
-
-def build_sq_index(
-    data: np.ndarray,
-    config: ExperimentConfig,
-    distance_type: str = "l2"
-) -> Any:
-    """Build an index using anchor construction with scalar quantization (int8)."""
-    num_vectors, dim = data.shape
-
-    return build(
-        distance_type=distance_type,
-        dim=dim,
-        dataset_size=num_vectors,
-        data=data,
-        config=AnchorConfig(
-            anchor_fraction=config.anchor_fraction,
-            M=config.sq_max_edges_per_node,
-            anchor_ef_construction=config.anchor_ef_construction,
-            bulk_ef_construction=config.sq_ef_construction,
-            num_anchor_probes=config.num_anchor_probes,
-            seed=config.anchor_seed,
-            quantization=SQConfig(
-                training_data=data,
-                max_train_samples=config.sq_max_train_samples,
-            ),
-        ),
-        num_initializations=config.num_initializations,
-        num_threads=config.num_threads,
-    )
 
 
 def evaluate_index(
@@ -343,7 +321,8 @@ def run_benchmark(
     ground_truth: np.ndarray,
     strategy: str,
     config: ExperimentConfig,
-    distance_type: str = "l2"
+    distance_type: str = "l2",
+    save_index_prefix: str = None,
 ) -> BenchmarkResult:
     """Run a single benchmark for a given strategy."""
     num_vectors, dim = data.shape
@@ -361,10 +340,6 @@ def run_benchmark(
         index = build_anchor_index(data, config, distance_type)
         M_total = config.anchor_M
         ef_total = config.anchor_ef_construction
-    elif strategy == "sq":
-        index = build_sq_index(data, config, distance_type)
-        M_total = config.sq_max_edges_per_node
-        ef_total = config.sq_ef_construction
     else:
         index = build_two_pass_index(data, config, strategy, distance_type)
         M_total = config.M_pass1 + config.M_pass2
@@ -378,6 +353,13 @@ def run_benchmark(
 
     print(f"    Construction time: {construction_time:.2f}s")
     print(f"    Distance computations: {distance_comps:,}")
+
+    if save_index_prefix is not None:
+        save_path = f"{save_index_prefix}-{strategy}.bin"
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        print(f"    Saving index to {save_path}...")
+        index.save(save_path)
+        print(f"    Index saved. Check size with: du -h {save_path}")
 
     print(f"  Evaluating index...")
     eval_results = evaluate_index(index, queries, ground_truth, config)
@@ -489,7 +471,7 @@ def main():
     parser.add_argument(
         "--strategies", type=str, nargs="+",
         default=["baseline", "hubness", "edge_quality", "insertion_order", "re_prune", "anchor"],
-        help="Strategies to evaluate (baseline, hubness, edge_quality, insertion_order, re_prune, anchor, sq)"
+        help="Strategies to evaluate (baseline, hubness, edge_quality, insertion_order, re_prune, anchor)"
     )
     parser.add_argument(
         "--distance-type", type=str, default="l2",
@@ -575,20 +557,23 @@ def main():
 
     # Scalar quantization arguments
     parser.add_argument(
-        "--sq-max-edges-per-node", type=int, default=32,
-        help="Max edges per node for SQ index (default: 32)"
+        "--use-sq-quantization", action="store_true",
+        help="Apply scalar quantization on top of anchor construction"
     )
     parser.add_argument(
-        "--sq-ef-construction", type=int, default=100,
-        help="ef_construction for SQ index (default: 100)"
-    )
-    parser.add_argument(
-        "--sq-max-train-samples", type=int, default=0,
+        "--sq-quant-max-train-samples", type=int, default=0,
         help="Max training samples for SQ (0 = use all, default: 0)"
     )
     parser.add_argument(
         "--perf-output", type=str, default=None,
         help="Output file for dedicated perf counter results JSON"
+    )
+
+    # Index saving
+    parser.add_argument(
+        "--save-index", type=str, default=None,
+        help="Path prefix to save constructed indices (e.g. /tmp/sift). "
+             "Each strategy saves as <prefix>-<strategy>.bin"
     )
 
     # Sweep mode arguments
@@ -651,9 +636,8 @@ def main():
         bulk_ef_construction=args.bulk_ef_construction,
         num_anchor_probes=args.num_anchor_probes,
         anchor_seed=args.anchor_seed,
-        sq_max_edges_per_node=args.sq_max_edges_per_node,
-        sq_ef_construction=args.sq_ef_construction,
-        sq_max_train_samples=args.sq_max_train_samples,
+        use_sq_quantization=args.use_sq_quantization,
+        sq_quant_max_train_samples=args.sq_quant_max_train_samples,
         index_data_type=getattr(DataType, args.index_data_type),
     )
 
@@ -671,10 +655,11 @@ def main():
     else:
         results = []
         for strategy in args.strategies:
-            print(f"\nRunning benchmark for strategy: {strategy}")
+            print(f"\nRunning benchmark with strategy: {strategy}")
 
             result = run_benchmark(
-                data, queries, ground_truth, strategy, config, args.distance_type
+                data, queries, ground_truth, strategy, config, args.distance_type,
+                save_index_prefix=args.save_index,
             )
 
             results.append(asdict(result))
@@ -685,10 +670,10 @@ def main():
     print("\n" + "=" * 100)
     print("SUMMARY")
     print("=" * 100)
-    header = (f"{'Strategy':<20} {'Time (s)':<12} {'Recall@1':<12} {'Recall@10':<12} "
-              f"{'Recall@100':<12} {'Dist Comps':<15} {'Params':<30}")
+    header = (f"{'Strategy':<20} {'Time (s)':<12} {'Speedup':<10} {'Recall@1':<12} {'Recall@10':<12} "
+              f"{'Recall@100':<12} {'Dist Comps':<15}")
     print(header)
-    print("-" * 113)
+    print("-" * 123)
 
     baseline_time = None
     for r in results:
@@ -700,10 +685,10 @@ def main():
         speedup = baseline_time / r["construction_time_seconds"] if baseline_time else 1.0
         dist_comps = r.get("distance_computations")
         dist_str = f"{dist_comps:,}" if dist_comps is not None else "N/A"
-        params_str = str(r.get("sweep_params", "")) if r.get("sweep_params") else ""
-        print(f"{r['strategy']:<20} {r['construction_time_seconds']:<12.2f} "
+        speedup_str = f"{speedup:.2f}x" if baseline_time and r["strategy"] != "baseline" else "-"
+        print(f"{r['strategy']:<20} {r['construction_time_seconds']:<12.2f} {speedup_str:<10} "
               f"{r['recall_at_1']:<12.4f} {r['recall_at_10']:<12.4f} "
-              f"{r['recall_at_100']:<12.4f} {dist_str:<15} {params_str:<30}")
+              f"{r['recall_at_100']:<12.4f} {dist_str:<15}")
 
     # Save results
     output_path = Path(args.output)
@@ -713,7 +698,7 @@ def main():
         json.dump({
             "config": asdict(config),
             "results": results
-        }, f, indent=2)
+        }, f, indent=2, default=str)
 
     print(f"\nResults saved to {output_path}")
 
