@@ -182,11 +182,21 @@ def build_baseline_index(
     """Build a baseline single-pass index."""
     num_vectors, dim = data.shape
 
+    quantization = None
+    if config.use_sq_quantization:
+        quantization = SQConfig(
+            training_data=data,
+            max_edges_per_node=config.M_baseline,
+            max_train_samples=config.sq_quant_max_train_samples,
+            ef_construction=config.ef_construction_baseline,
+        )
+
     return build(
         distance_type=distance_type,
         dim=dim,
         dataset_size=num_vectors,
         data=data,
+        config=quantization,
         max_edges_per_node=config.M_baseline,
         ef_construction=config.ef_construction_baseline,
         num_initializations=config.num_initializations,

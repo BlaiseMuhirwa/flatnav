@@ -68,9 +68,8 @@ bigann-1b-anchor-uint8-bench:
 		--anchor-M 16 \
 		--anchor-ef-construction 500 \
 		--bulk-ef-construction 80 \
-		--num-anchor-probes 10 \
-		--output /root/data/anchor-construction/bigann-1b-anchor-uint8-bench.json \
-		--perf-output /root/data/anchor-construction/bigann-1b-anchor-uint8-perf.json
+		--num-anchor-probes 50 \
+		--output /root/data/anchor-construction/bigann-1b-anchor-uint8-bench.json
 
 bigann-100m-bench-hnsw: 
 	poetry run python run-benchmark.py \
@@ -137,6 +136,24 @@ yandex-deep-100m-sq-bench:
 		--sq-quant-max-train-samples 100000000 \
 		--output /root/data/sq-construction/yandex-deep-100m-sq-bench.json \
 		--perf-output /root/data/sq-construction/yandex-deep-100m-sq-perf.json
+
+yandex-deep-1b-sq-bench:
+	poetry run python evaluate_two_pass.py \
+		--dataset /root/data/yandex-deep-1b/yandex_1b.train.npy \
+		--queries /root/data/yandex-deep-1b/yandex_1b.test.npy \
+		--gtruth /root/data/yandex-deep-1b/yandex_1b.gtruth.npy \
+		--strategies baseline anchor \
+		--distance-type l2 \
+		--num-threads 32 \
+		--M-baseline 16 \
+		--anchor-fraction 0.01 \
+		--anchor-M 16 \
+		--anchor-ef-construction 500 \
+		--bulk-ef-construction 100 \
+		--num-anchor-probes 50 \
+		--use-sq-quantization \
+		--sq-quant-max-train-samples 100000000 \
+		--output /root/data/sq-construction/yandex-deep-1b-sq-bench.json
 
 yandex-deep-100m-anchor-controlled:
 	poetry run python evaluate_two_pass.py \

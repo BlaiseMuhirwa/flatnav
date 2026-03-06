@@ -1,67 +1,105 @@
 # Two-Pass Construction Benchmarks
 
-## BIGANN 100M (uint8, unquantized)
+## Running with Docker
+
+All make targets run inside Docker via `./bin/docker-run.sh <target>`. Set `DATA_DIR` to the host directory containing your datasets -- it gets mounted to `/root/data` inside the container.
+
+```bash
+export DATA_DIR=/path/to/your/data
+./bin/docker-run.sh sift-anchor-sq-bench
+```
+
+Any output saved to `/root/data/...` inside the container will appear under `$DATA_DIR/...` on the host. 
+
+## Scalar Quantization (SQ)
+
+SQ maps each float32 dimension to int8 using per-dimension min/max uniform quantization. A training pass computes per-dimension min/max values, then each float is transformed as:
+
+$$
+q_d = \text{round}\!\left(\frac{x_d - \min_d}{\max_d - \min_d} \times 255\right) - 128
+$$
+
+where $q_d \in [-128, 127]$ is the stored int8 value. This reduces storage from 4 bytes to 1 byte per dimension (4x), and all distance computations use int8 SIMD kernels.
+
+Use `--use-sq-quantization` to enable SQ for both baseline and anchor strategies. Use `--sq-quant-max-train-samples N` to subsample the set of vectors to use for computing the per-dimension min and max. 
+
+## Data Prep
+
+Each benchmark expects three `.npy` files: train vectors, query vectors, and ground truth indices. Place them under a directory structure matching the paths in the Makefile. For example, for BIGANN 1B:
+
+```
+$DATA_DIR/bigann-1b-euclidean/bigann_1b.train.npy
+$DATA_DIR/bigann-1b-euclidean/bigann_1b.test.npy
+$DATA_DIR/bigann-1b-euclidean/bigann_1b.gtruth.npy
+```
+
+Then set `DATA_DIR` to the parent directory. For instance, if the files are at `/home/user/data/bigann-1b-euclidean/`, then:
+
+```bash
+export DATA_DIR=/home/user/data
+```
+
+The container mounts `$DATA_DIR` to `/root/data`, so `/root/data/bigann-1b-euclidean/bigann_1b.train.npy` inside the container maps to `$DATA_DIR/bigann-1b-euclidean/bigann_1b.train.npy` on the host.
+
+## Validation with SIFT 1M
+
+To check that quantizing with int8 is doing the right thing, you can run simple validation via 
+
+```bash 
+# If you don't do "export DATA_DIR=/some/path/to/dataset", this will be stored under ./data
+./bin/download_ann_benchmarks_datasets.sh sift-128-euclidean
+./bin/docker-run.sh sift-anchor-sq-bench
+```
+
+NOTE: You typically shouldn't need to int8-quantize SIFT since the dataset is in uint8 format, but this should serve as a pretty simple check to make sure the setup with docker works. 
+
+## BIGANN 1B (uint8, unquantized)
 
 Native uint8 distance computation on the BIGANN dataset (vectors are already uint8).
 
 ```bash
-make bigann-1b-anchor-uint8-bench
-```
-
-With docker, execute 
-```bash 
 ./bin/docker-run.sh bigann-1b-anchor-uint8-bench
 ```
 
-Or directly:
+Parameters:
+
+* `--strategies baseline anchor` -- runs both single-pass baseline and anchor construction
+* `--index-data-type uint8` -- stores vectors as native uint8 (no quantization needed, BIGANN is already uint8)
+* `--num-threads 32` -- parallel construction with 32 threads. If you want to use more or less threads, you can modify this from the `experiments/Makefile`. 
+* `--M-baseline 16` -- 16 edges per node for baseline
+* `--anchor-fraction 0.01` -- 1% of vectors used as anchors
+* `--anchor-M 16` -- 16 edges per node in the graph constructed with the anchor method
+* `--anchor-ef-construction 500` -- high ef for building the anchor subgraph
+* `--bulk-ef-construction 80` -- ef for inserting non-anchor vectors
+* `--num-anchor-probes 50` -- number of anchor nodes probed to find entry points during bulk insertion (the second pass). We usually refer to this as `num_initialization` is the standard flatnav API. 
+
+
+## Yandex DEEP 1B (float32, scalar quantization)
+
+Anchor construction with scalar quantization: float32 vectors are quantized to int8 on insertion. 
 
 ```bash
-poetry run python evaluate_two_pass.py \
-    --dataset /root/data/bigann-1b-euclidean/bigann_1b.train.npy \
-    --queries /root/data/bigann-1b-euclidean/bigann_1b.test.npy \
-    --gtruth /root/data/bigann-1b-euclidean/bigann_1b.gtruth.npy \
-    --strategies baseline anchor \
-    --distance-type l2 \
-    --index-data-type uint8 \
-    --num-threads 32 \
-    --M-baseline 16 \
-    --anchor-fraction 0.01 \
-    --anchor-M 16 \
-    --anchor-ef-construction 500 \
-    --bulk-ef-construction 80 \
-    --num-anchor-probes 10 \
-    --output results/bigann-1b-anchor-uint8.json
+./bin/docker-run.sh yandex-deep-1b-sq-bench
 ```
 
-## Yandex DEEP 100M (int8, scalar quantization)
+Parameters:
 
-Anchor construction with scalar quantization: float32 vectors are quantized to int8 on insertion. All distance computations use int8 SIMD kernels.
+* `--strategies baseline anchor` -- runs both single-pass baseline and anchor construction (both with SQ)
+* `--num-threads 32` -- parallel construction with 32 threads
+* `--M-baseline 16` -- 16 edges per node for baseline
+* `--anchor-fraction 0.01` -- 1% of vectors used as anchors
+* `--anchor-M 16` -- 16 edges per node in the anchor/bulk graph
+* `--anchor-ef-construction 500` -- high ef for building the anchor subgraph
+* `--bulk-ef-construction 100` -- ef for inserting non-anchor vectors
+* `--num-anchor-probes 50` -- number of anchor nodes probed to find entry points during bulk insertion
+* `--use-sq-quantization` -- enable int8 scalar quantization for both strategies
+* `--sq-quant-max-train-samples 100000000` -- subsample 100M vectors for min/max derivation
+
+## Other available benchmarks
+
+BIGANN 100M and Yandex DEEP 100M anchor benchmarks (without scalar quantization):
 
 ```bash
-make yandex-deep-100m-sq-bench
-```
-
-With docker, execute 
-
-```bash 
-./bin/docker-run.sh yandex-deep-100m-sq-bench
-```
-
-Or directly:
-
-```bash
-poetry run python evaluate_two_pass.py \
-    --dataset /root/data/yandex-deep-100m/yandex_100m.train.npy \
-    --queries /root/data/yandex-deep-100m/yandex_100m.test.npy \
-    --gtruth /root/data/yandex-deep-100m/yandex_100m.gtruth.npy \
-    --strategies baseline sq \
-    --distance-type l2 \
-    --num-threads 32 \
-    --M-baseline 16 \
-    --anchor-fraction 0.01 \
-    --anchor-M 16 \
-    --anchor-ef-construction 500 \
-    --sq-max-edges-per-node 16 \
-    --sq-ef-construction 100 \
-    --output results/yandex-deep-100m-sq.json
+./bin/docker-run.sh bigann-100m-anchor-bench
+./bin/docker-run.sh yandex-deep-100m-anchor-bench
 ```
