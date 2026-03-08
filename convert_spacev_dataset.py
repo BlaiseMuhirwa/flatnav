@@ -4,9 +4,22 @@ https://github.com/microsoft/SPTAG/blob/main/datasets/SPACEV1B/README.md
 import struct
 import numpy as np
 import os
-import sys
+import argparse
 
-def load_spacev_vectors(path):
+
+def _size_label(n):
+    """Convert a number to a human-readable label (e.g., 10000000 -> '10m', 1000000000 -> '1b')."""
+    if n >= 1_000_000_000 and n % 1_000_000_000 == 0:
+        return f'{n // 1_000_000_000}b'
+    elif n >= 1_000_000 and n % 1_000_000 == 0:
+        return f'{n // 1_000_000}m'
+    elif n >= 1_000 and n % 1_000 == 0:
+        return f'{n // 1_000}k'
+    else:
+        return str(n)
+
+
+def load_spacev_vectors(path, chunk_size=None):
     part_count = len(os.listdir(path))
 
     for i in range(1, part_count + 1):
@@ -22,15 +35,19 @@ def load_spacev_vectors(path):
             vecbuf[vecbuf_offset: vecbuf_offset + len(part)] = part
             vecbuf_offset += len(part)
         fvec.close()
-    
+
     base_path, _ = os.path.split(path)
     collection = np.frombuffer(vecbuf, dtype=np.int8).reshape((vec_count, vec_dimension))
-    
-    collection = collection[:100000000]
-    np.save(os.path.join(base_path, 'train_100m'), collection)
 
-    collection = collection[:10000000]
-    np.save(os.path.join(base_path, 'train_10m'), collection)
+    if chunk_size is not None:
+        if chunk_size > vec_count:
+            print(f"Warning: chunk_size {chunk_size} > dataset size {vec_count}. Saving full dataset.")
+            np.save(os.path.join(base_path, 'train'), collection)
+        else:
+            label = _size_label(chunk_size)
+            np.save(os.path.join(base_path, f'train_{label}'), collection[:chunk_size])
+    else:
+        np.save(os.path.join(base_path, 'train'), collection)
 
 
 def load_spacev_queries(path):
@@ -42,16 +59,20 @@ def load_spacev_queries(path):
     base_path, _ = os.path.split(path)
     np.save(os.path.join(base_path, "queries"), queries)
 
-path = sys.argv[1]
 
-if not os.path.exists(path):
-    raise ValueError(f"The provided path {path} does not exist")
+parser = argparse.ArgumentParser(description="Convert SPACEV binary datasets to .npy format")
+parser.add_argument("path", help="Path to the input binary file")
+parser.add_argument("mode", choices=["train", "queries"], help="Conversion mode")
+parser.add_argument("--chunk-size", type=int, default=None,
+                    help="Number of train vectors to keep (default: save all)")
+args = parser.parse_args()
 
-mode = sys.argv[2]
+if not os.path.exists(args.path):
+    raise ValueError(f"The provided path {args.path} does not exist")
 
-if mode == "train":
-    load_spacev_vectors(path)
-elif mode == "queries":
-    load_spacev_queries(path)
+if args.mode == "train":
+    load_spacev_vectors(args.path, chunk_size=args.chunk_size)
+elif args.mode == "queries":
+    load_spacev_queries(args.path)
 else:
-    raise ValueError(f"Input mode: {mode} not recognized")
+    raise ValueError(f"Input mode: {args.mode} not recognized")

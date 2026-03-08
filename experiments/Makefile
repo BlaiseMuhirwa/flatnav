@@ -56,9 +56,9 @@ bigann-100m-anchor-bench:
 
 bigann-1b-anchor-uint8-bench:
 	poetry run python evaluate_two_pass.py \
-		--dataset /root/data/bigann-1b-euclidean/bigann_1b.train.npy \
-		--queries /root/data/bigann-1b-euclidean/bigann_1b.test.npy \
-		--gtruth /root/data/bigann-1b-euclidean/bigann_1b.gtruth.npy \
+		--dataset /root/data/bigann/train.npy \
+		--queries /root/data/bigann/queries.npy \
+		--gtruth /root/data/bigann/ground_truth_1b.npy \
 		--strategies baseline anchor \
 		--distance-type l2 \
 		--index-data-type uint8 \
@@ -139,9 +139,9 @@ yandex-deep-100m-sq-bench:
 
 yandex-deep-1b-sq-bench:
 	poetry run python evaluate_two_pass.py \
-		--dataset /root/data/yandex-deep-1b/yandex_1b.train.npy \
-		--queries /root/data/yandex-deep-1b/yandex_1b.test.npy \
-		--gtruth /root/data/yandex-deep-1b/yandex_1b.gtruth.npy \
+		--dataset /root/data/deep/train.npy \
+		--queries /root/data/deep/queries.npy \
+		--gtruth /root/data/deep/ground_truth_1b.npy \
 		--strategies baseline anchor \
 		--distance-type l2 \
 		--num-threads 32 \

@@ -25,21 +25,59 @@ Use `--use-sq-quantization` to enable SQ for both baseline and anchor strategies
 
 ## Data Prep
 
-Each benchmark expects three `.npy` files: train vectors, query vectors, and ground truth indices. Place them under a directory structure matching the paths in the Makefile. For example, for BIGANN 1B:
+Each benchmark expects three `.npy` files: train vectors, query vectors, and ground truth indices. Use `bin/download_bigann_datasets.sh` to download and convert datasets automatically.
 
-```
-$DATA_DIR/bigann-1b-euclidean/bigann_1b.train.npy
-$DATA_DIR/bigann-1b-euclidean/bigann_1b.test.npy
-$DATA_DIR/bigann-1b-euclidean/bigann_1b.gtruth.npy
-```
-
-Then set `DATA_DIR` to the parent directory. For instance, if the files are at `/home/user/data/bigann-1b-euclidean/`, then:
+### Downloading BIGANN 1B
 
 ```bash
-export DATA_DIR=/home/user/data
+./bin/download_bigann_datasets.sh -d /path/to/your/data --dataset bigann
 ```
 
-The container mounts `$DATA_DIR` to `/root/data`, so `/root/data/bigann-1b-euclidean/bigann_1b.train.npy` inside the container maps to `$DATA_DIR/bigann-1b-euclidean/bigann_1b.train.npy` on the host.
+This downloads the full 1B dataset and produces:
+
+```
+/path/to/your/data/bigann/train.npy          # 1B train vectors (uint8)
+/path/to/your/data/bigann/queries.npy         # 10K query vectors
+/path/to/your/data/bigann/ground_truth_1b.npy # 1B ground truth
+/path/to/your/data/bigann/ground_truth_100m.npy
+/path/to/your/data/bigann/ground_truth_10m.npy
+```
+
+### Downloading Yandex DEEP 1B
+
+```bash
+./bin/download_bigann_datasets.sh -d /path/to/your/data --dataset deep
+```
+
+This produces:
+
+```
+/path/to/your/data/deep/train.npy          # 1B train vectors (float32)
+/path/to/your/data/deep/queries.npy         # 10K query vectors
+/path/to/your/data/deep/ground_truth_1b.npy # 1B ground truth
+/path/to/your/data/deep/ground_truth_100m.npy
+/path/to/your/data/deep/ground_truth_10m.npy
+```
+
+### Downloading a smaller subset
+
+Use `--chunk-size` to download the full binary but only convert a subset of train vectors:
+
+```bash
+./bin/download_bigann_datasets.sh -d /path/to/your/data --dataset bigann --chunk-size 100000000
+```
+
+This saves `train_100m.npy` instead of the full `train.npy`.
+
+### Running benchmarks
+
+Set `DATA_DIR` to the download directory so Docker mounts it to `/root/data`:
+
+```bash
+export DATA_DIR=/path/to/your/data
+```
+
+The container mounts `$DATA_DIR` to `/root/data`, so `/root/data/bigann/train.npy` inside the container maps to `$DATA_DIR/bigann/train.npy` on the host.
 
 ## Validation with SIFT 1M
 
