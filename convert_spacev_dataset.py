@@ -6,31 +6,46 @@ import numpy as np
 import os
 import sys
 
+
 def load_spacev_vectors(path):
     part_count = len(os.listdir(path))
 
-    for i in range(1, part_count + 1):
-        fvec = open(os.path.join(path, 'vectors_%d.bin' % i), 'rb')
-        if i == 1:
-            vec_count = struct.unpack('i', fvec.read(4))[0]
-            vec_dimension = struct.unpack('i', fvec.read(4))[0]
-            vecbuf = bytearray(vec_count * vec_dimension)
-            vecbuf_offset = 0
-        while True:
-            part = fvec.read(1048576)
-            if len(part) == 0: break
-            vecbuf[vecbuf_offset: vecbuf_offset + len(part)] = part
-            vecbuf_offset += len(part)
-        fvec.close()
-    
-    base_path, _ = os.path.split(path)
-    collection = np.frombuffer(vecbuf, dtype=np.int8).reshape((vec_count, vec_dimension))
-    
-    collection = collection[:100000000]
-    np.save(os.path.join(base_path, 'train_100m'), collection)
+    # The 8-byte header (vec_count, vec_dimension) lives only in part 1; the
+    # remaining bytes of part 1 and all of parts 2..N are raw vector data
+    # concatenated in order.
+    with open(os.path.join(path, 'vectors_1.bin'), 'rb') as fvec:
+        vec_count = struct.unpack('i', fvec.read(4))[0]
+        vec_dimension = struct.unpack('i', fvec.read(4))[0]
 
-    collection = collection[:10000000]
-    np.save(os.path.join(base_path, 'train_10m'), collection)
+    collection = np.empty((vec_count, vec_dimension), dtype=np.int8)
+    flat = collection.reshape(-1)
+    needed = flat.shape[0]
+    filled = 0
+
+    for i in range(1, part_count + 1):
+        if filled >= needed:
+            break
+        with open(os.path.join(path, 'vectors_%d.bin' % i), 'rb') as fvec:
+            if i == 1:
+                # skip the header on the first part only
+                fvec.seek(8)               
+            while filled < needed:
+                chunk = fvec.read(min(1048576, needed - filled))
+                if len(chunk) == 0:
+                    break
+                buf = np.frombuffer(chunk, dtype=np.int8)
+                flat[filled: filled + buf.shape[0]] = buf
+                filled += buf.shape[0]
+
+    if filled != needed:
+        raise ValueError(
+            f"Expected {needed} bytes for {vec_count} vectors but only read {filled}"
+        )
+
+    # Slicing clamps automatically if the file holds fewer rows than the cutoff.
+    base_path, _ = os.path.split(path)
+    np.save(os.path.join(base_path, 'train_100m'), collection[:100000000])
+    np.save(os.path.join(base_path, 'train_10m'), collection[:10000000])
 
 
 def load_spacev_queries(path):

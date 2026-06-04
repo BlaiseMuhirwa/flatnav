@@ -22,14 +22,18 @@ ANN_BENCHMARK_DATASETS=("mnist-784-euclidean"
                         "nytimes-256-angular")
 
 function print_help() {
-    echo "Usage: ./download_anns_datasets.sh <dataset> [--normalize]"
+    echo "Usage: ./download_ann_benchmarks_datasets.sh --dataset-name <name> [--normalize]"
     echo ""
     echo "Available datasets:"
     echo "${ANN_BENCHMARK_DATASETS[@]}"
     echo ""
+    echo "Arguments:"
+    echo "  --dataset-name <name>   One of the datasets listed above (required)."
+    echo "  --normalize             Normalize the dataset vectors."
+    echo ""
     echo "Example Usage:"
-    echo "  ./download_ann_benchmark_datasets.sh mnist-784-euclidean"
-    echo "  ./download_ann_benchmark_datasets.sh glove-25-angular --normalize"
+    echo "  ./download_ann_benchmarks_datasets.sh --dataset-name mnist-784-euclidean"
+    echo "  ./download_ann_benchmarks_datasets.sh --dataset-name glove-25-angular --normalize"
     exit 1
 }
 
@@ -70,23 +74,34 @@ function download_dataset() {
 }
 
 
-# If the first argument is -h or --help, then print help and exit.
-if [[ $1 == "-h" || $1 == "--help" ]]; then
+# Parse named arguments.
+DATASET_NAME=""
+NORMALIZE=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            print_help
+            ;;
+        --dataset-name)
+            DATASET_NAME="$2"
+            shift 2
+            ;;
+        --normalize)
+            NORMALIZE=1
+            shift
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            print_help
+            ;;
+    esac
+done
+
+if [[ -z "${DATASET_NAME}" ]]; then
+    echo "Error: --dataset-name is required."
     print_help
 fi
 
-
-
-# Check if a user ran the script like this: ./download_anns_datasets.sh <dataset> --normalize 
-# If so, then download only the specified dataset and normalize it.
-# If they just ran the script like this: ./download_anns_datasets.sh <dataset>, then 
-# download only the specified dataset and do not normalize it.
-if [[ $# -eq 2 ]]; then
-    if [[ $2 == "--normalize" ]]; then
-        download_dataset $1 1
-        exit 0
-    fi
-elif [[ $# -eq 1 ]]; then 
-    download_dataset $1 0 
-    exit 0 
-fi
+download_dataset "${DATASET_NAME}" "${NORMALIZE}"
+exit 0
